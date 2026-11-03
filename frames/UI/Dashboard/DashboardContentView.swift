@@ -5,6 +5,7 @@ public struct DashboardContentView: View {
     @Bindable var library: LibraryManager
     public var onPlayURL: (URL) -> Void
     @State private var hoveredVideoId: UUID? = nil
+    @FocusState private var isSearchFocused: Bool
 
     private let columns = [
         GridItem(.adaptive(minimum: 220, maximum: 300), spacing: 16)
@@ -47,6 +48,20 @@ public struct DashboardContentView: View {
             }
         }
         .background(ShadcnTheme.background)
+        .onAppear {
+            isSearchFocused = false
+            DispatchQueue.main.async {
+                NSApp.keyWindow?.makeFirstResponder(nil)
+            }
+        }
+        .simultaneousGesture(
+            TapGesture().onEnded {
+                if isSearchFocused {
+                    isSearchFocused = false
+                    NSApp.keyWindow?.makeFirstResponder(nil)
+                }
+            }
+        )
     }
 
     // MARK: - Top Bar
@@ -69,16 +84,22 @@ public struct DashboardContentView: View {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 11))
-                    .foregroundStyle(ShadcnTheme.foregroundMuted)
+                    .foregroundStyle(isSearchFocused ? ShadcnTheme.foreground : ShadcnTheme.foregroundMuted)
 
                 TextField("Search videos...", text: $library.searchQuery)
                     .textFieldStyle(.plain)
                     .font(.system(size: 12))
                     .foregroundStyle(ShadcnTheme.foreground)
+                    .focused($isSearchFocused)
+                    .onSubmit {
+                        isSearchFocused = false
+                    }
 
                 if !library.searchQuery.isEmpty {
                     Button {
                         library.searchQuery = ""
+                        isSearchFocused = false
+                        NSApp.keyWindow?.makeFirstResponder(nil)
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 11))
@@ -95,10 +116,10 @@ public struct DashboardContentView: View {
             .frame(width: 210)
             .background(
                 RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                    .fill(ShadcnTheme.card)
+                    .fill(isSearchFocused ? ShadcnTheme.cardHover : ShadcnTheme.card)
                     .overlay(
                         RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                            .strokeBorder(ShadcnTheme.border, lineWidth: 1)
+                            .strokeBorder(isSearchFocused ? ShadcnTheme.borderActive : ShadcnTheme.border, lineWidth: 1)
                     )
             )
 

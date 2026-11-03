@@ -16,8 +16,15 @@ public final class KeyboardHandler {
 
     private func setupMonitor(engine: VideoPlayerEngine) {
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            // Don't intercept if user is typing into a text field
+            // Don't intercept if user is typing into a text field, EXCEPT for Escape (dismiss focus)
             if let firstResponder = NSApp.keyWindow?.firstResponder, firstResponder is NSTextView || firstResponder is NSTextField {
+                if event.keyCode == 53 {
+                    Task { @MainActor in
+                        NSApp.keyWindow?.makeFirstResponder(nil)
+                        LibraryManager.shared.searchQuery = ""
+                    }
+                    return nil
+                }
                 return event
             }
 
