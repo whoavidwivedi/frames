@@ -80,9 +80,10 @@ public struct ShadcnButton: View {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .strokeBorder(borderColor, lineWidth: 1)
             )
-            .contentShape(Rectangle())
+            .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         }
         .buttonStyle(.plain)
+        .pointingHand()
         .onHover { isHovering = $0 }
         .animation(.easeInOut(duration: 0.12), value: isHovering)
         .animation(.easeInOut(duration: 0.12), value: isSelected)
@@ -94,16 +95,16 @@ public struct ShadcnButton: View {
 
     private var height: CGFloat {
         switch size {
-        case .sm, .iconSm: return 24
-        case .default, .icon: return 28
+        case .sm, .iconSm: return 30
+        case .default, .icon: return 34
         }
     }
 
     private var horizontalPadding: CGFloat {
         if isIconOnly { return 0 }
         switch size {
-        case .sm: return 8
-        case .default: return 10
+        case .sm: return 10
+        case .default: return 14
         case .iconSm, .icon: return 0
         }
     }
@@ -117,8 +118,8 @@ public struct ShadcnButton: View {
 
     private var iconSize: CGFloat {
         switch size {
-        case .sm, .iconSm: return 11
-        case .default, .icon: return 12
+        case .sm, .iconSm: return 12
+        case .default, .icon: return 14
         }
     }
 

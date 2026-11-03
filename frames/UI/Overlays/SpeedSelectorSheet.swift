@@ -37,7 +37,7 @@ public struct SpeedSelectorPanel: View {
                             .font(.system(size: 11, weight: isSelected ? .semibold : .medium, design: .monospaced))
                             .foregroundStyle(isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 6)
+                            .padding(.vertical, 7)
                             .background(
                                 RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                                     .fill(isSelected ? ShadcnTheme.accentActive : ShadcnTheme.card)
@@ -46,8 +46,10 @@ public struct SpeedSelectorPanel: View {
                                             .strokeBorder(isSelected ? ShadcnTheme.borderActive : ShadcnTheme.border, lineWidth: 1)
                                     )
                             )
+                            .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
                     }
                     .buttonStyle(.plain)
+                    .pointingHand()
                 }
             }
 
@@ -65,11 +67,13 @@ public struct SpeedSelectorPanel: View {
                         .font(.system(size: 10))
                         .foregroundStyle(ShadcnTheme.foregroundSecondary)
                         .buttonStyle(.plain)
+                        .pointingHand()
                     }
                 }
 
                 Slider(value: $engine.playbackRate, in: 0.25...3.0, step: 0.05)
                     .tint(ShadcnTheme.foreground)
+                    .pointingHand()
             }
         }
         .frame(width: 220)

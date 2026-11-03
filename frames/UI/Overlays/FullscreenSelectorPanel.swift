@@ -50,13 +50,15 @@ public struct FullscreenSelectorPanel: View {
                     }
                 }
                 .padding(.horizontal, 8)
-                .padding(.vertical, 6)
+                .padding(.vertical, 7)
                 .background(
                     RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                         .fill(windowManager.isWindowedFullscreen ? ShadcnTheme.accentActive : Color.clear)
                 )
+                .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
             }
             .buttonStyle(.plain)
+            .pointingHand()
 
             // Option 2: Native Full Screen
             Button {
@@ -90,13 +92,15 @@ public struct FullscreenSelectorPanel: View {
                     }
                 }
                 .padding(.horizontal, 8)
-                .padding(.vertical, 6)
+                .padding(.vertical, 7)
                 .background(
                     RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                         .fill(windowManager.isNativeFullscreen ? ShadcnTheme.accentActive : Color.clear)
                 )
+                .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
             }
             .buttonStyle(.plain)
+            .pointingHand()
 
             if windowManager.isAnyFullscreen {
                 Rectangle()
@@ -119,13 +123,15 @@ public struct FullscreenSelectorPanel: View {
                     }
                     .foregroundStyle(ShadcnTheme.foregroundSecondary)
                     .padding(.horizontal, 8)
-                    .padding(.vertical, 5)
+                    .padding(.vertical, 6)
                     .background(
                         RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                             .fill(Color.white.opacity(0.04))
                     )
+                    .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
                 }
                 .buttonStyle(.plain)
+                .pointingHand()
             }
         }
         .frame(width: 250)

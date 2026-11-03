@@ -40,9 +40,9 @@ public struct DashboardSidebarView: View {
                     }
                 } label: {
                     Image(systemName: "plus")
-                        .font(.system(size: 12, weight: .bold))
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(ShadcnTheme.foreground)
-                        .frame(width: 24, height: 24)
+                        .frame(width: 30, height: 30)
                         .background(
                             RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                                 .fill(ShadcnTheme.secondary.opacity(0.8))
@@ -51,9 +51,11 @@ public struct DashboardSidebarView: View {
                                         .strokeBorder(ShadcnTheme.border, lineWidth: 1)
                                 )
                         )
+                        .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
                 }
                 .menuStyle(.borderlessButton)
                 .fixedSize()
+                .pointingHand()
                 .help("Add folders or select files to play")
             }
             .padding(.horizontal, 16)
@@ -110,13 +112,16 @@ public struct DashboardSidebarView: View {
                                 library.selectAndAddFolder()
                             } label: {
                                 Image(systemName: "plus")
-                                    .font(.system(size: 10, weight: .semibold))
+                                    .font(.system(size: 11, weight: .semibold))
                                     .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                                    .frame(width: 24, height: 24)
+                                    .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
+                            .pointingHand()
                             .help("Add folder")
                         }
-                        .padding(.trailing, 12)
+                        .padding(.trailing, 8)
 
                         if library.folders.isEmpty {
                             Button {
@@ -132,13 +137,15 @@ public struct DashboardSidebarView: View {
                                     Spacer()
                                 }
                                 .padding(.horizontal, 10)
-                                .padding(.vertical, 7)
+                                .padding(.vertical, 8)
                                 .background(
                                     RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                                         .strokeBorder(ShadcnTheme.border.opacity(0.6), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
                                 )
+                                .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
+                            .pointingHand()
                             .padding(.top, 4)
                         } else {
                             ForEach(library.folders) { folder in
@@ -226,7 +233,7 @@ public struct DashboardSidebarView: View {
                 }
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 6)
+            .padding(.vertical, 7)
             .background(
                 RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                     .fill(isSelected ? ShadcnTheme.cardHover : Color.clear)
@@ -235,8 +242,10 @@ public struct DashboardSidebarView: View {
                 RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                     .strokeBorder(isSelected ? ShadcnTheme.border : Color.clear, lineWidth: 1)
             )
+            .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
         }
         .buttonStyle(.plain)
+        .pointingHand()
     }
 
     private func folderRow(folder: FolderItem) -> some View {
@@ -264,11 +273,13 @@ public struct DashboardSidebarView: View {
                         library.removeFolder(id: folder.id)
                     } label: {
                         Image(systemName: "xmark")
-                            .font(.system(size: 9, weight: .bold))
+                            .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(ShadcnTheme.foregroundMuted)
-                            .padding(3)
+                            .frame(width: 22, height: 22)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .pointingHand()
                     .help("Remove folder from library")
                 } else if folder.videoCount > 0 {
                     Text("\(folder.videoCount)")
@@ -277,7 +288,7 @@ public struct DashboardSidebarView: View {
                 }
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 6)
+            .padding(.vertical, 7)
             .background(
                 RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                     .fill(isSelected ? ShadcnTheme.cardHover : (isHovered ? Color.white.opacity(0.04) : Color.clear))
@@ -286,8 +297,10 @@ public struct DashboardSidebarView: View {
                 RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                     .strokeBorder(isSelected ? ShadcnTheme.border : Color.clear, lineWidth: 1)
             )
+            .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
         }
         .buttonStyle(.plain)
+        .pointingHand()
         .onHover { h in
             hoveredFolderId = h ? folder.id : nil
         }

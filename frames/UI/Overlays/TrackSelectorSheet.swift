@@ -46,13 +46,15 @@ public struct SubtitleSelectorPanel: View {
                                 }
                             }
                             .padding(.horizontal, 8)
-                            .padding(.vertical, 6)
+                            .padding(.vertical, 7)
                             .background(
                                 RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                                     .fill(isSelected ? ShadcnTheme.accentActive : Color.clear)
                             )
+                            .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
                         }
                         .buttonStyle(.plain)
+                        .pointingHand()
                     }
                 }
             }
@@ -79,11 +81,13 @@ public struct SubtitleSelectorPanel: View {
                         .font(.system(size: 10))
                         .foregroundStyle(ShadcnTheme.foregroundSecondary)
                         .buttonStyle(.plain)
+                        .pointingHand()
                     }
                 }
 
                 Slider(value: $engine.subtitleDelay, in: -5.0...5.0, step: 0.1)
                     .tint(ShadcnTheme.foreground)
+                    .pointingHand()
             }
 
             // Subtitle Font Size
@@ -100,6 +104,7 @@ public struct SubtitleSelectorPanel: View {
 
                 Slider(value: $engine.subtitleFontSize, in: 16...36, step: 2)
                     .tint(ShadcnTheme.foreground)
+                    .pointingHand()
             }
         }
         .frame(width: 250)
@@ -169,13 +174,15 @@ public struct AudioSelectorPanel: View {
                                 }
                             }
                             .padding(.horizontal, 8)
-                            .padding(.vertical, 6)
+                            .padding(.vertical, 7)
                             .background(
                                 RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                                     .fill(isSelected ? ShadcnTheme.accentActive : Color.clear)
                             )
+                            .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
                         }
                         .buttonStyle(.plain)
+                        .pointingHand()
                     }
                 }
             }
@@ -198,6 +205,7 @@ public struct AudioSelectorPanel: View {
 
                 Slider(value: $engine.audioGainBoost, in: 1.0...2.0, step: 0.1)
                     .tint(ShadcnTheme.foreground)
+                    .pointingHand()
             }
         }
         .frame(width: 230)

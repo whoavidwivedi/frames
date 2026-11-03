@@ -38,6 +38,7 @@ public struct LiquidGlassHUD: View {
                 // Hairline Scrubber (Fixed 24pt height to prevent any vertical jump on click)
                 CustomScrubber(engine: engine)
                     .frame(height: 24)
+                    .pointingHand()
 
                 // Controls Row
                 HStack(spacing: 8) {
@@ -87,6 +88,7 @@ public struct LiquidGlassHUD: View {
                         )
                         .frame(width: 56)
                         .tint(Color.white)
+                        .pointingHand()
                     }
 
                     // Timestamps (Tabular Numbers)

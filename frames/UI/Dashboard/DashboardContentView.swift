@@ -81,15 +81,18 @@ public struct DashboardContentView: View {
                         library.searchQuery = ""
                     } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 10))
+                            .font(.system(size: 11))
                             .foregroundStyle(ShadcnTheme.foregroundMuted)
+                            .frame(width: 22, height: 22)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .pointingHand()
                 }
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .frame(width: 200)
+            .frame(width: 210)
             .background(
                 RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                     .fill(ShadcnTheme.card)
@@ -114,14 +117,14 @@ public struct DashboardContentView: View {
                     }
                 }
             } label: {
-                HStack(spacing: 4) {
+                HStack(spacing: 5) {
                     Image(systemName: "arrow.up.arrow.down")
                         .font(.system(size: 11))
                     Text(library.sortOption.rawValue)
                         .font(.system(size: 11, weight: .medium))
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
                 .background(
                     RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                         .fill(ShadcnTheme.card)
@@ -130,9 +133,11 @@ public struct DashboardContentView: View {
                                 .strokeBorder(ShadcnTheme.border, lineWidth: 1)
                         )
                 )
+                .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
             }
             .menuStyle(.borderlessButton)
             .fixedSize()
+            .pointingHand()
 
             // View Mode Toggle (Grid vs List)
             HStack(spacing: 2) {
@@ -140,25 +145,29 @@ public struct DashboardContentView: View {
                     library.viewMode = .grid
                 } label: {
                     Image(systemName: "square.grid.2x2")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(library.viewMode == .grid ? ShadcnTheme.foreground : ShadcnTheme.foregroundMuted)
-                        .frame(width: 26, height: 26)
+                        .frame(width: 32, height: 28)
                         .background(library.viewMode == .grid ? ShadcnTheme.cardHover : Color.clear)
                         .clipShape(RoundedRectangle(cornerRadius: 4))
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .pointingHand()
 
                 Button {
                     library.viewMode = .list
                 } label: {
                     Image(systemName: "list.bullet")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(library.viewMode == .list ? ShadcnTheme.foreground : ShadcnTheme.foregroundMuted)
-                        .frame(width: 26, height: 26)
+                        .frame(width: 32, height: 28)
                         .background(library.viewMode == .list ? ShadcnTheme.cardHover : Color.clear)
                         .clipShape(RoundedRectangle(cornerRadius: 4))
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .pointingHand()
             }
             .padding(2)
             .background(
@@ -176,21 +185,23 @@ public struct DashboardContentView: View {
                     onPlayURL(url)
                 }
             } label: {
-                HStack(spacing: 5) {
+                HStack(spacing: 6) {
                     Image(systemName: "play.fill")
-                        .font(.system(size: 9))
+                        .font(.system(size: 10))
                     Text("Open File")
                         .font(.system(size: 11, weight: .medium))
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
                 .foregroundStyle(ShadcnTheme.primaryForeground)
                 .background(
                     RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                         .fill(ShadcnTheme.primary)
                 )
+                .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
             }
             .buttonStyle(.plain)
+            .pointingHand()
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 14)
@@ -267,11 +278,13 @@ public struct DashboardContentView: View {
                             Image(systemName: video.isFavorite ? "star.fill" : "star")
                                 .font(.system(size: 11))
                                 .foregroundStyle(video.isFavorite ? Color.yellow : Color.white.opacity(0.8))
-                                .padding(5)
+                                .frame(width: 28, height: 28)
                                 .background(Color.black.opacity(0.6))
                                 .clipShape(Circle())
+                                .contentShape(Circle())
                         }
                         .buttonStyle(.plain)
+                        .pointingHand()
                         .opacity(isHovered || video.isFavorite ? 1.0 : 0.0)
                     }
                     .padding(8)
@@ -335,8 +348,10 @@ public struct DashboardContentView: View {
                 }
                 .padding(.horizontal, 2)
             }
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .pointingHand()
         .onHover { h in
             hoveredVideoId = h ? video.id : nil
         }
@@ -435,9 +450,11 @@ public struct DashboardContentView: View {
                     Image(systemName: video.isFavorite ? "star.fill" : "star")
                         .font(.system(size: 12))
                         .foregroundStyle(video.isFavorite ? Color.yellow : ShadcnTheme.foregroundMuted)
-                        .frame(width: 24, height: 24)
+                        .frame(width: 28, height: 28)
+                        .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
+                .pointingHand()
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
@@ -449,8 +466,10 @@ public struct DashboardContentView: View {
                 RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                     .strokeBorder(isHovered ? ShadcnTheme.borderActive : ShadcnTheme.border, lineWidth: 1)
             )
+            .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
         }
         .buttonStyle(.plain)
+        .pointingHand()
         .onHover { h in
             hoveredVideoId = h ? video.id : nil
         }
@@ -500,7 +519,7 @@ public struct DashboardContentView: View {
             }
 
             if library.searchQuery.isEmpty {
-                HStack(spacing: 10) {
+                HStack(spacing: 12) {
                     Button {
                         library.selectFilesToPlay { url in
                             onPlayURL(url)
@@ -512,15 +531,17 @@ public struct DashboardContentView: View {
                             Text("Select Files")
                                 .font(.system(size: 12, weight: .medium))
                         }
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 9)
                         .foregroundStyle(ShadcnTheme.primaryForeground)
                         .background(
                             RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                                 .fill(ShadcnTheme.primary)
                         )
+                        .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
                     }
                     .buttonStyle(.plain)
+                    .pointingHand()
 
                     Button {
                         library.selectAndAddFolder()
@@ -531,8 +552,8 @@ public struct DashboardContentView: View {
                             Text("Add Folder")
                                 .font(.system(size: 12, weight: .medium))
                         }
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 9)
                         .foregroundStyle(ShadcnTheme.foreground)
                         .background(
                             RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
@@ -542,8 +563,10 @@ public struct DashboardContentView: View {
                                         .strokeBorder(ShadcnTheme.border, lineWidth: 1)
                                 )
                         )
+                        .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
                     }
                     .buttonStyle(.plain)
+                    .pointingHand()
                 }
                 .padding(.top, 4)
             }

@@ -46,6 +46,7 @@ public struct CustomScrubber: View {
                 .tint(Color.white)
                 .frame(width: totalWidth, height: 24)
                 .contentShape(Rectangle())
+                .pointingHand()
                 .onContinuousHover { phase in
                     switch phase {
                     case .active(let location):

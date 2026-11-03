@@ -20,15 +20,15 @@ public struct TopBarOverlay: View {
             // Return to Dashboard button
             if let onReturn = onReturnToDashboard {
                 Button(action: onReturn) {
-                    HStack(spacing: 5) {
+                    HStack(spacing: 6) {
                         Image(systemName: "square.grid.2x2")
                             .font(.system(size: 11, weight: .medium))
                         Text("Dashboard")
                             .font(.system(size: 11, weight: .medium))
                     }
                     .foregroundStyle(ShadcnTheme.foreground)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 5)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
                     .background(
                         RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
                             .fill(ShadcnTheme.card.opacity(0.85))
@@ -37,8 +37,10 @@ public struct TopBarOverlay: View {
                                     .strokeBorder(ShadcnTheme.border, lineWidth: 1)
                             )
                     )
+                    .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous))
                 }
                 .buttonStyle(.plain)
+                .pointingHand()
                 .help("Return to Dashboard (Esc)")
             }
 
