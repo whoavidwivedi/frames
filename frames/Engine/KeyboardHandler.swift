@@ -30,9 +30,54 @@ public final class KeyboardHandler {
 
             let keyCode = event.keyCode
             let isShift = event.modifierFlags.contains(.shift)
-
             let isOption = event.modifierFlags.contains(.option)
+            let isCommand = event.modifierFlags.contains(.command)
+            let isControl = event.modifierFlags.contains(.control)
 
+            // MARK: - 1. Standard macOS Window Management & System Shortcuts
+            // macOS Default Full Screen: Control + Command + F (⌃⌘F)
+            if isControl && isCommand && !isOption && keyCode == 3 {
+                Task { @MainActor in
+                    WindowManager.shared.toggleNativeFullscreen()
+                }
+                return nil
+            }
+
+            // macOS Windowed Full Screen / Zoom: Control + Option + Command + F (⌃⌥⌘F)
+            if isControl && isOption && isCommand && keyCode == 3 {
+                Task { @MainActor in
+                    WindowManager.shared.toggleWindowedFullscreen()
+                }
+                return nil
+            }
+
+            // macOS Default Minimize: Command + M (⌘M)
+            if isCommand && !isControl && !isOption && keyCode == 46 {
+                Task { @MainActor in
+                    NSApp.keyWindow?.miniaturize(nil)
+                }
+                return nil
+            }
+
+            // macOS Default Close Window: Command + W (⌘W)
+            if isCommand && !isControl && !isOption && keyCode == 13 {
+                Task { @MainActor in
+                    NSApp.keyWindow?.performClose(nil)
+                }
+                return nil
+            }
+
+            // If any other Command or Control combination is pressed, let macOS handle it natively (e.g. ⌘Q, ⌘H, ⌥⌘H, ⌘O, ⌘`)
+            if isCommand || isControl {
+                return event
+            }
+
+            // NOTE: Option+F was intentionally removed per macOS defaults. Windowed fullscreen is accessed via macOS Zoom / ⌃⌥⌘F.
+            if isOption {
+                return event
+            }
+
+            // MARK: - 2. Media Player & App Shortcuts (Unmodified Keys)
             switch keyCode {
             case 49: // Space
                 Task { @MainActor in engine.togglePlayPause() }
@@ -56,23 +101,13 @@ public final class KeyboardHandler {
                 Task { @MainActor in engine.setVolumeDelta(-0.05) }
                 return nil
 
-            case 46: // M key
+            case 46: // M key (Mute)
                 Task { @MainActor in engine.toggleMute() }
                 return nil
 
-            case 3: // F key (F for Native Fullscreen, Option+F for Windowed Fullscreen)
+            case 3: // F key (Standard video player toggle for Native Fullscreen)
                 Task { @MainActor in
-                    if isOption {
-                        WindowManager.shared.toggleWindowedFullscreen()
-                    } else {
-                        WindowManager.shared.toggleNativeFullscreen()
-                    }
-                }
-                return nil
-
-            case 13: // W key (Windowed Fullscreen shortcut)
-                Task { @MainActor in
-                    WindowManager.shared.toggleWindowedFullscreen()
+                    WindowManager.shared.toggleNativeFullscreen()
                 }
                 return nil
 

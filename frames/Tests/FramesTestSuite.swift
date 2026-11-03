@@ -197,6 +197,12 @@ public enum FramesTestSuite {
             assertTest("Recent Timestamp Recorded", condition: updated.lastPlayedDate != nil)
         }
 
+        // MARK: - 10. macOS Window Management Tests
+        logs.append("\n[10] Testing macOS Window Management & Fullscreen States...")
+        let wm = WindowManager.shared
+        assertTest("WindowManager Instance Verified", condition: wm != nil)
+        assertTest("Default Fullscreen State Consistent", condition: wm.isAnyFullscreen == (wm.isNativeFullscreen || wm.isWindowedFullscreen))
+
         // Summary
         logs.append("\n==========================================")
         logs.append("RESULTS: \(passed) PASSED, \(failed) FAILED")

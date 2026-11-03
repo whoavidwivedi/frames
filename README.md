@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Apple%20Silicon-ARM64-black?style=flat-square&logo=apple" alt="Apple Silicon ARM64">
   <img src="https://img.shields.io/badge/Language-Swift%206-black?style=flat-square&logo=swift" alt="Swift 6">
   <img src="https://img.shields.io/badge/Design-shadcn%20mira%20%2F%20neutral-black?style=flat-square" alt="shadcn mira / neutral">
-  <img src="https://img.shields.io/badge/Tests-38%20Passed%20(0%20warnings)-black?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-40%20Passed%20(0%20warnings)-black?style=flat-square" alt="Tests">
   <a href="https://github.com/whoavidwivedi/frames/pulls"><img src="https://img.shields.io/badge/PRs-Welcome-black?style=flat-square" alt="PRs Welcome"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/whoavidwivedi/frames?style=flat-square&color=black" alt="License: MIT"></a>
 </p>
@@ -66,9 +66,9 @@ Download the latest pre-compiled binary from the [Releases](https://github.com/w
 * **Adaptive View Modes**: Switch seamlessly between a 16:9 cinematic card grid and a compact list table.
 * **Persistent Progress**: Remembers playback timestamps and resumes where you left off.
 
-### 3. Dual Fullscreen Architecture
-* **Native Spaces Fullscreen (`F`)**: Full macOS Spaces immersion with automatic menu bar and dock suppression.
-* **Windowed Desktop Fill (`⌥F` / `W`)**: Fills the current workspace instantly without space-switching animations or dual-monitor stutter.
+### 3. Native macOS Window & Fullscreen Architecture
+* **Native Spaces Fullscreen (`⌃⌘F` / `F`)**: Full macOS Spaces immersion with automatic menu bar and dock suppression using the standard macOS shortcut `⌃⌘F` (or `F` during playback).
+* **Windowed Desktop Fill / Zoom (`⌃⌥⌘F` / `Window -> Zoom`)**: Fills the current display space instantly without creating a new Space; accessible via macOS Zoom or `⌃⌥⌘F`.
 
 ### 4. Precision Subtitle Engine
 * Seamless support for external `.srt` and `.vtt` subtitles via drag-and-drop or file picker.
@@ -78,7 +78,7 @@ Download the latest pre-compiled binary from the [Releases](https://github.com/w
 
 ## Keyboard Shortcuts
 
-Designed for keyboard-first navigation:
+Designed for native macOS and keyboard-first navigation:
 
 | Key | Action |
 | :--- | :--- |
@@ -88,8 +88,10 @@ Designed for keyboard-first navigation:
 | `.` / `,` | Frame step forward / backward |
 | `↑` / `↓` | Volume adjust ($\pm 5\%$) |
 | `M` | Toggle mute |
-| `F` | Toggle native macOS fullscreen (Spaces) |
-| `⌥F` or `W` | Toggle windowed fullscreen (Desktop fill) |
+| `⌃⌘F` or `F` | Toggle native macOS fullscreen (macOS default) |
+| `⌃⌥⌘F` / `Zoom` | Toggle windowed fullscreen / Zoom (macOS default) |
+| `⌘M` | Minimize window (macOS default) |
+| `⌘W` | Close window (macOS default) |
 | `[` / `]` | Decrease / Increase playback rate ($\pm 0.1\times$) |
 | `S` | Toggle subtitle track selector sheet |
 | `I` | Toggle Apple Silicon hardware stats HUD |

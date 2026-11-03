@@ -24,6 +24,29 @@ struct framesApp: App {
                     openFileDialog()
                 }
                 .keyboardShortcut("o", modifiers: .command)
+
+                Button("Close Window") {
+                    NSApp.keyWindow?.performClose(nil)
+                }
+                .keyboardShortcut("w", modifiers: .command)
+            }
+
+            CommandGroup(replacing: .windowArrangement) {
+                Button("Minimize") {
+                    NSApp.keyWindow?.miniaturize(nil)
+                }
+                .keyboardShortcut("m", modifiers: .command)
+
+                Button("Zoom") {
+                    WindowManager.shared.toggleWindowedFullscreen()
+                }
+
+                Divider()
+
+                Button(WindowManager.shared.isNativeFullscreen ? "Exit Full Screen" : "Enter Full Screen") {
+                    WindowManager.shared.toggleNativeFullscreen()
+                }
+                .keyboardShortcut("f", modifiers: [.control, .command])
             }
         }
     }

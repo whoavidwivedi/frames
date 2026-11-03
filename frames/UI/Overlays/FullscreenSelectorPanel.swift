@@ -39,7 +39,7 @@ public struct FullscreenSelectorPanel: View {
 
                     Spacer()
 
-                    Text("⌥F")
+                    Text("Zoom")
                         .font(.system(size: 10, weight: .medium, design: .monospaced))
                         .foregroundStyle(ShadcnTheme.foregroundMuted)
 
@@ -81,7 +81,7 @@ public struct FullscreenSelectorPanel: View {
 
                     Spacer()
 
-                    Text("F")
+                    Text("⌃⌘F")
                         .font(.system(size: 10, weight: .medium, design: .monospaced))
                         .foregroundStyle(ShadcnTheme.foregroundMuted)
 
@@ -117,7 +117,7 @@ public struct FullscreenSelectorPanel: View {
                         Text("Exit Full Screen")
                             .font(.system(size: 11, weight: .medium))
                         Spacer()
-                        Text("Esc")
+                        Text("Esc / ⌃⌘F")
                             .font(.system(size: 10, design: .monospaced))
                             .foregroundStyle(ShadcnTheme.foregroundMuted)
                     }
