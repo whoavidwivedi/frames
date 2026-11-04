@@ -1,9 +1,13 @@
+import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
 @main
 struct framesApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+
     init() {
+        NSWindow.allowsAutomaticWindowTabbing = false
         ThemeManager.shared.applyAppearance()
         if CommandLine.arguments.contains("--run-tests") {
             let result = FramesTestSuite.runAllTests()
@@ -108,6 +112,126 @@ struct framesApp: App {
 
         if panel.runModal() == .OK, let url = panel.url {
             NotificationCenter.default.post(name: .openVideoNotification, object: url)
+        }
+    }
+}
+
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NSWindow.allowsAutomaticWindowTabbing = false
+        for window in NSApp.windows {
+            window.tabbingMode = .disallowed
+        }
+
+        if let mainMenu = NSApp.mainMenu {
+            Self.cleanTabBarMenuItems(from: mainMenu)
+        }
+
+        DispatchQueue.main.async {
+            if let mainMenu = NSApp.mainMenu {
+                Self.cleanTabBarMenuItems(from: mainMenu)
+            }
+            for window in NSApp.windows {
+                window.tabbingMode = .disallowed
+            }
+        }
+
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.didBecomeKeyNotification,
+            object: nil,
+            queue: .main
+        ) { notification in
+            if let window = notification.object as? NSWindow {
+                window.tabbingMode = .disallowed
+            }
+        }
+
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.didBecomeMainNotification,
+            object: nil,
+            queue: .main
+        ) { notification in
+            if let window = notification.object as? NSWindow {
+                window.tabbingMode = .disallowed
+            }
+        }
+
+        NotificationCenter.default.addObserver(
+            forName: NSMenu.didBeginTrackingNotification,
+            object: nil,
+            queue: .main
+        ) { notification in
+            if let menu = notification.object as? NSMenu {
+                AppDelegate.cleanTabBarMenuItems(from: menu)
+            }
+            if let mainMenu = NSApp.mainMenu {
+                AppDelegate.cleanTabBarMenuItems(from: mainMenu)
+            }
+        }
+    }
+
+    private static let tabActionSelectors: Set<String> = [
+        "toggleTabBar:",
+        "_toggleTabBar:",
+        "toggleTabOverview:",
+        "_toggleTabOverview:",
+        "toggleShowAllViews:",
+        "_toggleShowAllViews:",
+        "toggleShowAllTabs:",
+        "_toggleShowAllTabs:"
+    ]
+
+    @discardableResult
+    public static func cleanTabBarMenuItems(from menu: NSMenu) -> Int {
+        var removedCount = 0
+        var index = menu.items.count - 1
+        while index >= 0 {
+            let item = menu.items[index]
+            let actionString = item.action.map { NSStringFromSelector($0) } ?? ""
+            let title = item.title
+
+            let lowerAction = actionString.lowercased()
+            let matchesAction = tabActionSelectors.contains(actionString) ||
+                                lowerAction.contains("toggletabbar") ||
+                                lowerAction.contains("toggletaboverview") ||
+                                lowerAction.contains("toggleshowallviews") ||
+                                lowerAction.contains("toggleshowalltabs")
+
+            let matchesTitle = title.localizedCaseInsensitiveContains("Tab Bar") ||
+                               title.localizedCaseInsensitiveContains("All Tabs") ||
+                               title.localizedCaseInsensitiveContains("Tab Overview")
+
+            if matchesAction || matchesTitle {
+                menu.removeItem(at: index)
+                removedCount += 1
+            } else if let submenu = item.submenu {
+                removedCount += cleanTabBarMenuItems(from: submenu)
+            }
+            index -= 1
+        }
+
+        pruneDividers(in: menu)
+        return removedCount
+    }
+
+    public static func pruneDividers(in menu: NSMenu) {
+        var i = 0
+        while i < menu.items.count {
+            if menu.items[i].isSeparatorItem {
+                while i + 1 < menu.items.count && menu.items[i + 1].isSeparatorItem {
+                    menu.removeItem(at: i + 1)
+                }
+            }
+            i += 1
+        }
+
+        while let first = menu.items.first, first.isSeparatorItem {
+            menu.removeItem(at: 0)
+        }
+
+        while let last = menu.items.last, last.isSeparatorItem {
+            menu.removeItem(at: menu.items.count - 1)
         }
     }
 }

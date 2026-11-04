@@ -480,6 +480,127 @@ public enum FramesTestSuite {
         let fsState = wm.computeLayoutState(window: fsWin)
         assertTest("Native Full Screen State Detected", condition: fsState == .fullScreen)
 
+        // Window Tabbing Mode & Tab Bar Menu Suppression Tests
+        assertTest("Automatic Window Tabbing Globally Disabled", condition: NSWindow.allowsAutomaticWindowTabbing == false)
+
+        let testTabbingWin = NSWindow(
+            contentRect: NSRect(x: 100, y: 100, width: 640, height: 480),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        wm.configureWindow(testTabbingWin)
+        assertTest("Managed Window Tabbing Mode Disallowed", condition: testTabbingWin.tabbingMode == .disallowed)
+
+        let managedLayoutWin = NSWindow(
+            contentRect: NSRect(x: 100, y: 100, width: 640, height: 480),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        _ = wm.computeLayoutState(window: managedLayoutWin)
+        assertTest("Compute Layout Enforces Disallowed Tabbing Mode", condition: managedLayoutWin.tabbingMode == .disallowed)
+
+        let doubleClickWin = NSWindow(
+            contentRect: NSRect(x: 100, y: 100, width: 640, height: 480),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        wm.performTitleBarDoubleClickAction(window: doubleClickWin, bypassDebounce: true)
+        assertTest("Double Click Window Enforces Disallowed Tabbing Mode", condition: doubleClickWin.tabbingMode == .disallowed)
+
+        // View Menu Tab Item Suppression & Divider Pruning Tests
+        let testMenu = NSMenu(title: "View")
+        testMenu.addItem(NSMenuItem(title: "Toggle Sidebar", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "b"))
+        testMenu.addItem(NSMenuItem.separator())
+        testMenu.addItem(NSMenuItem(title: "Show Tab Bar", action: Selector("toggleTabBar:"), keyEquivalent: ""))
+        testMenu.addItem(NSMenuItem.separator())
+        testMenu.addItem(NSMenuItem(title: "Show All Tabs", action: Selector("toggleShowAllViews:"), keyEquivalent: ""))
+        testMenu.addItem(NSMenuItem.separator())
+        testMenu.addItem(NSMenuItem(title: "Command Palette...", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "k"))
+
+        let removedItemsCount = AppDelegate.cleanTabBarMenuItems(from: testMenu)
+        assertTest("Menu Cleaner Strips Both Tab Bar and All Tabs Items", condition: removedItemsCount == 2)
+        assertTest("Menu Cleaner Preserves Sidebar and Command Palette", condition:
+            testMenu.items.contains { $0.title == "Toggle Sidebar" } &&
+            testMenu.items.contains { $0.title == "Command Palette..." }
+        )
+        assertTest("Menu Cleaner Eliminates All Tab Items", condition:
+            !testMenu.items.contains { $0.title.contains("Tab Bar") } &&
+            !testMenu.items.contains { $0.title.contains("All Tabs") }
+        )
+        assertTest("Menu Cleaner Prunes Redundant Consecutive Dividers", condition:
+            testMenu.items.count == 3 &&
+            testMenu.items[0].title == "Toggle Sidebar" &&
+            testMenu.items[1].isSeparatorItem &&
+            testMenu.items[2].title == "Command Palette..."
+        )
+
+        // Menu Cleaner Leading & Trailing Divider Edge Case Tests
+        let boundaryMenu = NSMenu(title: "Boundary")
+        boundaryMenu.addItem(NSMenuItem.separator())
+        boundaryMenu.addItem(NSMenuItem(title: "Show Tab Bar", action: Selector("toggleTabBar:"), keyEquivalent: ""))
+        boundaryMenu.addItem(NSMenuItem.separator())
+        boundaryMenu.addItem(NSMenuItem.separator())
+        AppDelegate.cleanTabBarMenuItems(from: boundaryMenu)
+        assertTest("Menu Cleaner Prunes Leading and Trailing Dividers", condition: boundaryMenu.items.isEmpty)
+
+        // Menu Cleaner Submenu Deep Traversal Tests
+        let rootMenu = NSMenu(title: "Root")
+        let subMenuItem = NSMenuItem(title: "View", action: nil, keyEquivalent: "")
+        let subMenu = NSMenu(title: "View")
+        subMenu.addItem(NSMenuItem(title: "Toggle Sidebar", action: nil, keyEquivalent: ""))
+        subMenu.addItem(NSMenuItem.separator())
+        subMenu.addItem(NSMenuItem(title: "Custom Tab Bar Item", action: Selector("toggleTabBar:"), keyEquivalent: ""))
+        subMenuItem.submenu = subMenu
+        rootMenu.addItem(subMenuItem)
+
+        let deepRemoved = AppDelegate.cleanTabBarMenuItems(from: rootMenu)
+        assertTest("Menu Cleaner Deep Cleans Submenus by Action Match", condition:
+            deepRemoved == 1 &&
+            subMenu.items.count == 1 &&
+            subMenu.items[0].title == "Toggle Sidebar"
+        )
+
+        // Menu Cleaner toggleTabOverview: Native AppKit Selector Tests
+        let nativeAppKitMenu = NSMenu(title: "View")
+        nativeAppKitMenu.addItem(NSMenuItem(title: "Toggle Sidebar", action: nil, keyEquivalent: "b"))
+        nativeAppKitMenu.addItem(NSMenuItem.separator())
+        nativeAppKitMenu.addItem(NSMenuItem(title: "Show Tab Bar", action: Selector("toggleTabBar:"), keyEquivalent: "t"))
+        nativeAppKitMenu.addItem(NSMenuItem.separator())
+        nativeAppKitMenu.addItem(NSMenuItem(title: "Show All Tabs", action: Selector("toggleTabOverview:"), keyEquivalent: "\\"))
+        nativeAppKitMenu.addItem(NSMenuItem.separator())
+        nativeAppKitMenu.addItem(NSMenuItem(title: "Command Palette...", action: nil, keyEquivalent: "k"))
+
+        let nativeRemovedCount = AppDelegate.cleanTabBarMenuItems(from: nativeAppKitMenu)
+        assertTest("Menu Cleaner Strips Native AppKit toggleTabOverview Item", condition:
+            nativeRemovedCount == 2 &&
+            nativeAppKitMenu.items.count == 3 &&
+            nativeAppKitMenu.items[0].title == "Toggle Sidebar" &&
+            nativeAppKitMenu.items[1].isSeparatorItem &&
+            nativeAppKitMenu.items[2].title == "Command Palette..."
+        )
+
+        // Menu Cleaner Localized (Non-English) Menu Item Suppression Tests
+        let localizedMenu = NSMenu(title: "Présentation")
+        localizedMenu.addItem(NSMenuItem(title: "Barre latérale", action: nil, keyEquivalent: "b"))
+        localizedMenu.addItem(NSMenuItem.separator())
+        localizedMenu.addItem(NSMenuItem(title: "Afficher la barre d'onglets", action: Selector("toggleTabBar:"), keyEquivalent: ""))
+        localizedMenu.addItem(NSMenuItem.separator())
+        localizedMenu.addItem(NSMenuItem(title: "Afficher tous les onglets", action: Selector("toggleTabOverview:"), keyEquivalent: ""))
+        localizedMenu.addItem(NSMenuItem.separator())
+        localizedMenu.addItem(NSMenuItem(title: "Palette de commandes", action: nil, keyEquivalent: "k"))
+
+        let localizedRemovedCount = AppDelegate.cleanTabBarMenuItems(from: localizedMenu)
+        assertTest("Menu Cleaner Strips Localized Tab Items by Selector Match", condition:
+            localizedRemovedCount == 2 &&
+            localizedMenu.items.count == 3 &&
+            localizedMenu.items[0].title == "Barre latérale" &&
+            localizedMenu.items[1].isSeparatorItem &&
+            localizedMenu.items[2].title == "Palette de commandes"
+        )
+
         // ProMotion 120Hz Fluid Physics Animation Curve Tokens
         _ = FramesAnimation.fluidSpring
         _ = FramesAnimation.smooth

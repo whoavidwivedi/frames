@@ -42,16 +42,48 @@ public final class WindowManager {
     private var lastDoubleClickTime: TimeInterval = 0
 
     public init() {
+        NSWindow.allowsAutomaticWindowTabbing = false
         setupNotifications()
+    }
+
+    public func configureWindow(_ window: NSWindow) {
+        window.tabbingMode = .disallowed
     }
 
     private func setupNotifications() {
         NotificationCenter.default.addObserver(
+            forName: NSWindow.didBecomeKeyNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            MainActor.assumeIsolated {
+                if let window = notification.object as? NSWindow {
+                    self?.configureWindow(window)
+                }
+            }
+        }
+
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.didBecomeMainNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            MainActor.assumeIsolated {
+                if let window = notification.object as? NSWindow {
+                    self?.configureWindow(window)
+                }
+            }
+        }
+
+        NotificationCenter.default.addObserver(
             forName: NSWindow.willEnterFullScreenNotification,
             object: nil,
             queue: .main
-        ) { [weak self] _ in
+        ) { [weak self] notification in
             MainActor.assumeIsolated {
+                if let window = notification.object as? NSWindow {
+                    self?.configureWindow(window)
+                }
                 withAnimation(.fluidWindow) {
                     self?.isTransitioning = true
                     self?.isNativeFullscreen = true
@@ -64,8 +96,11 @@ public final class WindowManager {
             forName: NSWindow.didEnterFullScreenNotification,
             object: nil,
             queue: .main
-        ) { [weak self] _ in
+        ) { [weak self] notification in
             MainActor.assumeIsolated {
+                if let window = notification.object as? NSWindow {
+                    self?.configureWindow(window)
+                }
                 withAnimation(.fluidWindow) {
                     self?.isTransitioning = false
                     self?.isNativeFullscreen = true
@@ -78,8 +113,11 @@ public final class WindowManager {
             forName: NSWindow.willExitFullScreenNotification,
             object: nil,
             queue: .main
-        ) { [weak self] _ in
+        ) { [weak self] notification in
             MainActor.assumeIsolated {
+                if let window = notification.object as? NSWindow {
+                    self?.configureWindow(window)
+                }
                 withAnimation(.fluidWindow) {
                     self?.isTransitioning = true
                     self?.isNativeFullscreen = false
@@ -92,8 +130,11 @@ public final class WindowManager {
             forName: NSWindow.didExitFullScreenNotification,
             object: nil,
             queue: .main
-        ) { [weak self] _ in
+        ) { [weak self] notification in
             MainActor.assumeIsolated {
+                if let window = notification.object as? NSWindow {
+                    self?.configureWindow(window)
+                }
                 withAnimation(.fluidWindow) {
                     self?.isTransitioning = false
                     self?.isNativeFullscreen = false
@@ -106,8 +147,11 @@ public final class WindowManager {
             forName: NSWindow.willStartLiveResizeNotification,
             object: nil,
             queue: .main
-        ) { [weak self] _ in
+        ) { [weak self] notification in
             MainActor.assumeIsolated {
+                if let window = notification.object as? NSWindow {
+                    self?.configureWindow(window)
+                }
                 self?.isLiveResizing = true
             }
         }
@@ -116,8 +160,11 @@ public final class WindowManager {
             forName: NSWindow.didEndLiveResizeNotification,
             object: nil,
             queue: .main
-        ) { [weak self] _ in
+        ) { [weak self] notification in
             MainActor.assumeIsolated {
+                if let window = notification.object as? NSWindow {
+                    self?.configureWindow(window)
+                }
                 self?.isLiveResizing = false
                 withAnimation(.fluidWindow) {
                     self?.updateLayoutState()
@@ -129,9 +176,12 @@ public final class WindowManager {
             forName: NSWindow.didResizeNotification,
             object: nil,
             queue: .main
-        ) { [weak self] _ in
+        ) { [weak self] notification in
             MainActor.assumeIsolated {
                 guard let self = self, !self.isLiveResizing else { return }
+                if let window = notification.object as? NSWindow {
+                    self.configureWindow(window)
+                }
                 self.updateLayoutState()
             }
         }
@@ -139,6 +189,7 @@ public final class WindowManager {
 
     public func toggleNativeFullscreen() {
         guard let window = activeWindow else { return }
+        configureWindow(window)
 
         // If currently in windowed fullscreen, revert first
         if isWindowedFullscreen {
@@ -150,6 +201,7 @@ public final class WindowManager {
 
     public func toggleWindowedFullscreen(window: NSWindow? = nil) {
         guard let win = window ?? activeWindow else { return }
+        configureWindow(win)
 
         // If currently in native fullscreen, exit it first
         if isNativeFullscreen {
@@ -166,6 +218,7 @@ public final class WindowManager {
 
     public func exitAnyFullscreen() {
         guard let window = activeWindow else { return }
+        configureWindow(window)
 
         if isWindowedFullscreen {
             exitWindowedFullscreen(window: window, animated: true)
@@ -187,6 +240,7 @@ public final class WindowManager {
         }
 
         guard let targetWindow = window ?? activeWindow else { return }
+        configureWindow(targetWindow)
 
         // If in native full screen Space, toggle back to standard windowed mode
         if isNativeFullscreen {
@@ -217,6 +271,7 @@ public final class WindowManager {
 
     public func computeLayoutState(window: NSWindow? = nil) -> WindowLayoutState {
         guard let win = window ?? activeWindow else { return .standard }
+        configureWindow(win)
 
         if isNativeFullscreen || win.styleMask.contains(.fullScreen) {
             return .fullScreen
@@ -270,6 +325,7 @@ public final class WindowManager {
 
     public func updateLayoutState(window: NSWindow? = nil) {
         guard let win = window ?? activeWindow else { return }
+        configureWindow(win)
         currentWindowSize = win.frame.size
         let newState = computeLayoutState(window: win)
         if newState != currentLayoutState {
@@ -284,6 +340,7 @@ public final class WindowManager {
     }
 
     private func enterWindowedFullscreen(window: NSWindow) {
+        configureWindow(window)
         guard let screen = window.screen ?? NSScreen.main else { return }
         savedWindowFrame = window.frame
         withAnimation(.fluidWindow) {
@@ -296,6 +353,7 @@ public final class WindowManager {
     }
 
     private func exitWindowedFullscreen(window: NSWindow, animated: Bool) {
+        configureWindow(window)
         withAnimation(.fluidWindow) {
             isWindowedFullscreen = false
         }
@@ -312,6 +370,10 @@ public final class WindowManager {
 
     private var activeWindow: NSWindow? {
         let app = NSApplication.shared
-        return app.keyWindow ?? app.mainWindow ?? app.windows.first { $0.canBecomeKey }
+        let win = app.keyWindow ?? app.mainWindow ?? app.windows.first { $0.canBecomeKey }
+        if let win = win {
+            configureWindow(win)
+        }
+        return win
     }
 }
