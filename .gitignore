@@ -36,3 +36,7 @@ fastlane/test_output
 dist/
 *.zip
 *.dmg
+
+# Local Website Analytics Database
+website/data/
+
