@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 public struct DashboardView: View {
     @Bindable var library: LibraryManager
     public var onPlayURL: (URL) -> Void
+    @State private var windowManager = WindowManager.shared
     @State private var isTargetedForDrop: Bool = false
 
     public init(library: LibraryManager, onPlayURL: @escaping (URL) -> Void) {
@@ -13,29 +14,51 @@ public struct DashboardView: View {
     }
 
     public var body: some View {
-        HStack(spacing: 0) {
-            // Sidebar with Plus button and folder navigation
-            DashboardSidebarView(library: library, onPlayURL: onPlayURL)
+        GeometryReader { geo in
+            let isQuarter = windowManager.isQuarterScreen
+            let isCompact = windowManager.isCompact || isQuarter || geo.size.width < 560
+            let sidebarWidth: CGFloat = isCompact ? 160 : (geo.size.width < 720 ? 180 : 210)
+            VStack(spacing: 0) {
+                // Unified Top Navigation Bar (Antigravity Style: Traffic Lights + Sidebar Toggle + Back + Forward + Search + Divider + Title + Actions)
+                DashboardTopBarView(library: library, onPlayURL: onPlayURL)
 
-            // Main Dashboard Canvas
-            DashboardContentView(library: library, onPlayURL: onPlayURL)
+                Divider()
+                    .overlay(ShadcnTheme.border)
+
+                // Content Area: Collapsible Sidebar + Main Content Canvas
+                HStack(spacing: 0) {
+                    if library.isSidebarVisible {
+                        DashboardSidebarView(library: library, width: sidebarWidth, onPlayURL: onPlayURL)
+                            .transition(.move(edge: .leading).combined(with: .opacity))
+
+                        Divider()
+                            .overlay(ShadcnTheme.border)
+                            .transition(.opacity)
+                    }
+
+                    DashboardContentView(library: library, onPlayURL: onPlayURL)
+                }
+            }
+            .animation(.fluidSpring, value: library.isSidebarVisible)
+            .animation(.fluidSpring, value: sidebarWidth)
+            .animation(.fluidWindow, value: windowManager.currentLayoutState)
         }
-        .frame(minWidth: 850, minHeight: 520)
+        .frame(minWidth: 460, minHeight: 320)
         .overlay(
             // Visual feedback when dragging files/folders over dashboard
             Group {
                 if isTargetedForDrop {
-                    RoundedRectangle(cornerRadius: 8)
-                        .strokeBorder(Color.white.opacity(0.4), style: StrokeStyle(lineWidth: 2, dash: [8, 8]))
-                        .background(Color.black.opacity(0.3))
+                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusLg)
+                        .strokeBorder(ShadcnTheme.primary, style: StrokeStyle(lineWidth: 2, dash: [8, 8]))
+                        .background(ShadcnTheme.card.opacity(0.9))
                         .overlay(
                             VStack(spacing: 8) {
                                 Image(systemName: "arrow.down.doc.fill")
                                     .font(.system(size: 32))
-                                    .foregroundStyle(Color.white)
+                                    .foregroundStyle(ShadcnTheme.primary)
                                 Text("Drop video files or folders to add to Frames")
                                     .font(.system(size: 14, weight: .medium))
-                                    .foregroundStyle(Color.white)
+                                    .foregroundStyle(ShadcnTheme.foreground)
                             }
                         )
                 }

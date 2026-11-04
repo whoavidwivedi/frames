@@ -2,12 +2,21 @@ import SwiftUI
 
 public struct LiquidGlassHUD: View {
     @Bindable var engine: VideoPlayerEngine
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var windowManager = WindowManager.shared
 
     public init(engine: VideoPlayerEngine) {
         self.engine = engine
     }
 
     public var body: some View {
+        let winWidth = windowManager.currentWindowSize.width > 0 ? windowManager.currentWindowSize.width : 800
+        let hudWidth = min(max(winWidth - 32, 380), 720)
+        let isQuarter = windowManager.isQuarterScreen
+        let isCompact = windowManager.isCompact || isQuarter || hudWidth < 540
+        let showVolume = !isCompact && hudWidth >= 580
+        let showHW = !isCompact && hudWidth >= 520
+
         VStack(spacing: 8) {
             // Inspector Popovers (Subtitles, Audio, Speed, Hardware Stats)
             if let sheet = engine.activeInspectorSheet {
@@ -23,11 +32,14 @@ public struct LiquidGlassHUD: View {
                             SpeedSelectorPanel(engine: engine)
                         case .stats:
                             HardwareStatsPanel(engine: engine)
-                        case .fullscreen:
-                            FullscreenSelectorPanel(engine: engine)
                         }
                     }
-                    .transition(.opacity.combined(with: .offset(y: 4)))
+                    .transition(
+                        .asymmetric(
+                            insertion: .opacity.combined(with: .scale(scale: 0.94, anchor: .bottomTrailing)).combined(with: .offset(y: 8)),
+                            removal: .opacity.combined(with: .scale(scale: 0.96, anchor: .bottomTrailing)).combined(with: .offset(y: 4))
+                        )
+                    )
                 }
                 .padding(.trailing, 20)
                 .padding(.bottom, 2)
@@ -41,12 +53,13 @@ public struct LiquidGlassHUD: View {
                     .pointingHand()
 
                 // Controls Row
-                HStack(spacing: 8) {
-                    // Play / Pause
+                HStack(spacing: isCompact ? 5 : 8) {
+                    // Play / Pause / Replay
                     ShadcnButton(
-                        icon: engine.isPlaying ? "pause.fill" : "play.fill",
+                        icon: engine.isPlaying ? "pause.fill" : (engine.hasEnded ? "arrow.counterclockwise" : "play.fill"),
                         variant: .ghost,
-                        size: .icon
+                        size: .icon,
+                        accessibilityLabel: engine.isPlaying ? "Pause" : (engine.hasEnded ? "Replay" : "Play")
                     ) {
                         engine.togglePlayPause()
                     }
@@ -55,7 +68,8 @@ public struct LiquidGlassHUD: View {
                     ShadcnButton(
                         icon: "gobackward.10",
                         variant: .ghost,
-                        size: .iconSm
+                        size: .iconSm,
+                        accessibilityLabel: "Skip back 10 seconds"
                     ) {
                         engine.skip(seconds: -10)
                     }
@@ -64,7 +78,8 @@ public struct LiquidGlassHUD: View {
                     ShadcnButton(
                         icon: "goforward.10",
                         variant: .ghost,
-                        size: .iconSm
+                        size: .iconSm,
+                        accessibilityLabel: "Skip forward 10 seconds"
                     ) {
                         engine.skip(seconds: 10)
                     }
@@ -74,21 +89,25 @@ public struct LiquidGlassHUD: View {
                         ShadcnButton(
                             icon: engine.isMuted ? "speaker.slash.fill" : (engine.volume < 0.5 ? "speaker.wave.1.fill" : "speaker.wave.2.fill"),
                             variant: .ghost,
-                            size: .iconSm
+                            size: .iconSm,
+                            accessibilityLabel: engine.isMuted ? "Unmute" : "Mute"
                         ) {
                             engine.toggleMute()
                         }
 
-                        Slider(
-                            value: Binding(
-                                get: { Double(engine.volume) },
-                                set: { engine.volume = Float($0) }
-                            ),
-                            in: 0...1
-                        )
-                        .frame(width: 56)
-                        .tint(Color.white)
-                        .pointingHand()
+                        if showVolume {
+                            Slider(
+                                value: Binding(
+                                    get: { Double(engine.volume) },
+                                    set: { engine.volume = Float($0) }
+                                ),
+                                in: 0...1
+                            )
+                            .frame(width: 56)
+                            .tint(Color.white)
+                            .pointingHand()
+                            .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                        }
                     }
 
                     // Timestamps (Tabular Numbers)
@@ -106,25 +125,25 @@ public struct LiquidGlassHUD: View {
                     Spacer()
 
                     // Right Side: Options & Menus
-                    HStack(spacing: 6) {
+                    HStack(spacing: isCompact ? 4 : 6) {
                         // Subtitles
                         ShadcnButton(
-                            engine.selectedSubtitleTrack.id == "off" ? "Subtitles" : engine.selectedSubtitleTrack.title,
                             icon: "captions.bubble",
                             variant: .outline,
-                            size: .sm,
-                            isSelected: engine.activeInspectorSheet == .subtitles
+                            size: .iconSm,
+                            isSelected: engine.activeInspectorSheet == .subtitles,
+                            accessibilityLabel: engine.selectedSubtitleTrack.id == "off" ? "Subtitle tracks" : "Subtitle track: \(engine.selectedSubtitleTrack.title)"
                         ) {
                             toggleSheet(.subtitles)
                         }
 
                         // Audio
                         ShadcnButton(
-                            engine.selectedAudioTrack?.title ?? "Audio",
                             icon: "waveform",
                             variant: .outline,
-                            size: .sm,
-                            isSelected: engine.activeInspectorSheet == .audio
+                            size: .iconSm,
+                            isSelected: engine.activeInspectorSheet == .audio,
+                            accessibilityLabel: engine.selectedAudioTrack.map { "Audio track: \($0.title)" } ?? "Audio tracks"
                         ) {
                             toggleSheet(.audio)
                         }
@@ -132,60 +151,87 @@ public struct LiquidGlassHUD: View {
                         // Speed
                         ShadcnButton(
                             String(format: "%.2f×", engine.playbackRate),
-                            icon: "gauge.with.needle",
                             variant: .outline,
                             size: .sm,
-                            isSelected: engine.activeInspectorSheet == .speed
+                            isSelected: engine.activeInspectorSheet == .speed,
+                            accessibilityLabel: "Playback speed \(String(format: "%.2f", engine.playbackRate)) times"
                         ) {
                             toggleSheet(.speed)
                         }
 
-                        // HW Info (Apple Silicon)
-                        ShadcnButton(
-                            icon: "cpu",
-                            variant: .ghost,
-                            size: .iconSm,
-                            isSelected: engine.activeInspectorSheet == .stats
-                        ) {
-                            toggleSheet(.stats)
+                        // HW Info (Apple Silicon) - hide if narrow
+                        if showHW {
+                            ShadcnButton(
+                                icon: "cpu",
+                                variant: .ghost,
+                                size: .iconSm,
+                                isSelected: engine.activeInspectorSheet == .stats,
+                                accessibilityLabel: "Playback statistics"
+                            ) {
+                                toggleSheet(.stats)
+                            }
+                            .transition(.opacity.combined(with: .scale(scale: 0.9)))
                         }
 
-                        // Fullscreen
-                        let isAnyFs = WindowManager.shared.isAnyFullscreen
+                        // Native Full Screen Toggle
+                        let isNativeFs = windowManager.isNativeFullscreen
                         ShadcnButton(
-                            icon: isAnyFs ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right",
+                            icon: isNativeFs ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right",
                             variant: .ghost,
                             size: .iconSm,
-                            isSelected: engine.activeInspectorSheet == .fullscreen
+                            isSelected: isNativeFs,
+                            accessibilityLabel: isNativeFs ? "Exit Full Screen" : "Enter Full Screen"
                         ) {
-                            toggleSheet(.fullscreen)
+                            withAnimation(.fluidSpring) {
+                                engine.activeInspectorSheet = nil
+                            }
+                            windowManager.toggleNativeFullscreen()
                         }
                     }
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.horizontal, isCompact ? 12 : 16)
+            .padding(.vertical, 10)
             .background(
-                RoundedRectangle(cornerRadius: ShadcnTheme.radiusLg, style: .continuous)
-                    .fill(ShadcnTheme.card.opacity(0.92))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: ShadcnTheme.radiusLg, style: .continuous)
-                            .strokeBorder(ShadcnTheme.border, lineWidth: 1)
-                    )
+                RoundedRectangle(cornerRadius: ShadcnTheme.radiusXl, style: .continuous)
+                    .fill(.ultraThinMaterial)
             )
-            .shadow(color: Color.black.opacity(0.4), radius: 14, y: 6)
-            .frame(maxWidth: 780)
+            .background(
+                RoundedRectangle(cornerRadius: ShadcnTheme.radiusXl, style: .continuous)
+                    .fill(ShadcnTheme.card.opacity(0.70))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: ShadcnTheme.radiusXl, style: .continuous)
+                    .strokeBorder(ShadcnTheme.border, lineWidth: 1)
+            )
+            .shadow(
+                color: Color(nsColor: NSColor(name: nil) { appearance in
+                    appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+                        ? NSColor(white: 0, alpha: 0.35)
+                        : NSColor(white: 0, alpha: 0.08)
+                }),
+                radius: 14,
+                y: 6
+            )
+            .frame(maxWidth: 720)
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, isCompact ? 10 : 20)
         .padding(.bottom, 16)
-        .animation(.easeInOut(duration: 0.15), value: engine.activeInspectorSheet)
+        .animation(.fluidSpring, value: showVolume)
+        .animation(.fluidSpring, value: showHW)
+        .animation(.fluidSpring, value: isCompact)
+        .animation(.fluidSpring, value: hudWidth)
+        .animation(.fluidSpring, value: engine.activeInspectorSheet != nil)
+        .animation(.fluidWindow, value: windowManager.currentLayoutState)
     }
 
     private func toggleSheet(_ sheet: VideoPlayerEngine.InspectorSheet) {
-        if engine.activeInspectorSheet == sheet {
-            engine.activeInspectorSheet = nil
-        } else {
-            engine.activeInspectorSheet = sheet
+        withAnimation(.fluidSpring) {
+            if engine.activeInspectorSheet == sheet {
+                engine.activeInspectorSheet = nil
+            } else {
+                engine.activeInspectorSheet = sheet
+            }
         }
     }
 

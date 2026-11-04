@@ -3,6 +3,32 @@ import SwiftUI
 import AVFoundation
 import AppKit
 
+private actor MetadataLoadGate {
+    private var availableSlots: Int
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    init(maxConcurrentLoads: Int) {
+        self.availableSlots = maxConcurrentLoads
+    }
+
+    func acquire() async {
+        guard availableSlots == 0 else {
+            availableSlots -= 1
+            return
+        }
+        await withCheckedContinuation { waiters.append($0) }
+    }
+
+    func release() {
+        if let waiter = waiters.first {
+            waiters.removeFirst()
+            waiter.resume()
+        } else {
+            availableSlots += 1
+        }
+    }
+}
+
 public enum SidebarCategory: Hashable {
     case allVideos
     case recent
@@ -38,17 +64,69 @@ public final class LibraryManager {
     public var viewMode: ViewMode = .grid
     public var sortOption: SortOption = .dateAdded
     public var isScanning: Bool = false
+    public var isSidebarVisible: Bool = true
+    public var isSearchActive: Bool = false
+    public private(set) var backStack: [SidebarCategory] = []
+    public private(set) var forwardStack: [SidebarCategory] = []
 
-    private let supportedExtensions: Set<String> = [
-        "mp4", "mov", "m4v", "mkv", "webm", "avi", "ts", "mts", "m2ts", "flv"
-    ]
-    private var thumbnailCache = NSCache<NSURL, NSImage>()
+    public var canGoBack: Bool {
+        !backStack.isEmpty
+    }
+
+    public var canGoForward: Bool {
+        !forwardStack.isEmpty
+    }
+
+    public func navigate(to category: SidebarCategory) {
+        guard category != selectedCategory else { return }
+        backStack.append(selectedCategory)
+        forwardStack.removeAll()
+        withAnimation(.fluidSpring) {
+            selectedCategory = category
+        }
+    }
+
+    public func goBack() {
+        guard let prev = backStack.popLast() else { return }
+        forwardStack.append(selectedCategory)
+        withAnimation(.fluidSpring) {
+            selectedCategory = prev
+        }
+    }
+
+    public func goForward() {
+        guard let next = forwardStack.popLast() else { return }
+        backStack.append(selectedCategory)
+        withAnimation(.fluidSpring) {
+            selectedCategory = next
+        }
+    }
+
+    public func toggleSidebar() {
+        withAnimation(.fluidSpring) {
+            isSidebarVisible.toggle()
+        }
+    }
+
+    public func toggleSearch() {
+        withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+            isSearchActive.toggle()
+            if !isSearchActive {
+                searchQuery = ""
+            }
+        }
+    }
+
+    private let supportedExtensions = MediaSupport.fileExtensions
     private let foldersKey = "frames_saved_folders_v1"
     private let progressKey = "frames_saved_progress_v1"
     private let favoritesKey = "frames_saved_favorites_v1"
+    private static let metadataLoadGate = MetadataLoadGate(maxConcurrentLoads: 2)
+    private var persistedFavoritePaths: Set<String> = []
+    private var persistedProgress: [String: [String: Double]] = [:]
+    private var activeScanCount = 0
 
     public init() {
-        thumbnailCache.countLimit = 200
         loadPersistedState()
     }
 
@@ -128,9 +206,9 @@ public final class LibraryManager {
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = true
-        panel.allowedContentTypes = [.movie, .video, .quickTimeMovie, .mpeg4Movie]
+        panel.allowedContentTypes = MediaSupport.contentTypes
         panel.prompt = "Open"
-        panel.message = "Select video file(s) to play"
+        panel.message = "Select video or audio file(s) to play"
 
         if panel.runModal() == .OK {
             let urls = panel.urls
@@ -172,32 +250,97 @@ public final class LibraryManager {
         savePersistedState()
     }
 
-    public func toggleFavorite(videoId: UUID) {
-        if let idx = videos.firstIndex(where: { $0.id == videoId }) {
-            videos[idx].isFavorite.toggle()
+    public func isFavorite(url: URL) -> Bool {
+        if let item = videos.first(where: { $0.url == url }) {
+            return item.isFavorite
+        }
+        return persistedFavoritePaths.contains(url.path)
+    }
+
+    public func toggleFavorite(url: URL) {
+        if let item = videos.first(where: { $0.url == url }) {
+            toggleFavorite(videoId: item.id)
+        } else {
+            let path = url.path
+            if persistedFavoritePaths.contains(path) {
+                persistedFavoritePaths.remove(path)
+            } else {
+                persistedFavoritePaths.insert(path)
+            }
             savePersistedState()
         }
     }
 
+    public func toggleFavorite(videoId: UUID) {
+        if let idx = videos.firstIndex(where: { $0.id == videoId }) {
+            videos[idx].isFavorite.toggle()
+            let path = videos[idx].url.path
+            if videos[idx].isFavorite {
+                persistedFavoritePaths.insert(path)
+            } else {
+                persistedFavoritePaths.remove(path)
+            }
+            savePersistedState()
+        }
+    }
+
+    /// Checks if a video has valid saved playback progress to prompt resume (between 2% and 98%)
+    public func savedResumeTime(for url: URL) -> (seconds: Double, formattedTime: String, progress: Double)? {
+        let item = videos.first(where: { $0.url == url })
+        let progress = item?.progress ?? (persistedProgress[url.path]?["progress"] ?? 0.0)
+        let duration = item?.duration ?? (persistedProgress[url.path]?["duration"] ?? 0.0)
+
+        guard progress > 0.02, progress < 0.98, duration > 0 else { return nil }
+        let resumeSecs = progress * duration
+        guard resumeSecs >= 3.0 else { return nil }
+
+        return (
+            seconds: resumeSecs,
+            formattedTime: TimeFormatting.format(seconds: resumeSecs),
+            progress: progress
+        )
+    }
+
+    /// Clears saved progress for a video when restarting from beginning
+    public func resetPlaybackProgress(for url: URL) {
+        if let idx = videos.firstIndex(where: { $0.url == url }) {
+            videos[idx].progress = 0.0
+        }
+        if var entry = persistedProgress[url.path] {
+            entry["progress"] = 0.0
+            persistedProgress[url.path] = entry
+        }
+        savePersistedState()
+    }
+
     public func recordPlayback(url: URL, duration: Double, progress: Double) {
+        let validProgress = min(max(progress, 0.0), 1.0)
         if let idx = videos.firstIndex(where: { $0.url == url }) {
             videos[idx].lastPlayedDate = Date()
-            videos[idx].progress = progress
+            videos[idx].progress = validProgress
             if duration > 0 {
                 videos[idx].duration = duration
             }
         } else {
             // New video not yet in library
-            let item = VideoItem(url: url, duration: duration, lastPlayedDate: Date(), progress: progress)
+            var item = restoredItem(VideoItem(url: url))
+            item.duration = duration
+            item.progress = validProgress
+            item.lastPlayedDate = Date()
             videos.insert(item, at: 0)
             loadMetadataAsync(for: item)
         }
+        persistedProgress[url.path] = [
+            "progress": validProgress,
+            "lastPlayed": Date().timeIntervalSince1970,
+            "duration": duration
+        ]
         savePersistedState()
     }
 
     public func addSingleVideoFile(url: URL) {
         if !videos.contains(where: { $0.url == url }) {
-            let item = VideoItem(url: url)
+            let item = restoredItem(VideoItem(url: url))
             videos.insert(item, at: 0)
             loadMetadataAsync(for: item)
         }
@@ -205,17 +348,22 @@ public final class LibraryManager {
 
     // MARK: - Background Scanning
     public func scanFolder(folder: FolderItem) {
+        activeScanCount += 1
         isScanning = true
         let folderURL = folder.url
         let folderId = folder.id
         let folderName = folder.name
         let exts = self.supportedExtensions
 
-        Task.detached(priority: .userInitiated) {
+        Task.detached(priority: .utility) {
             let foundURLs = Self.scanDirectory(at: folderURL, exts: exts)
             await MainActor.run { [weak self] in
                 guard let self = self else { return }
-                self.isScanning = false
+                self.activeScanCount = max(0, self.activeScanCount - 1)
+                self.isScanning = self.activeScanCount > 0
+
+                // A folder may have been removed while its scan was in flight.
+                guard self.folders.contains(where: { $0.id == folderId }) else { return }
 
                 if let idx = self.folders.firstIndex(where: { $0.id == folderId }) {
                     self.folders[idx].videoCount = foundURLs.count
@@ -223,7 +371,7 @@ public final class LibraryManager {
 
                 for url in foundURLs {
                     if !self.videos.contains(where: { $0.url == url }) {
-                        let video = VideoItem(url: url, folderName: folderName)
+                        let video = self.restoredItem(VideoItem(url: url, folderName: folderName))
                         self.videos.append(video)
                         self.loadMetadataAsync(for: video)
                     }
@@ -265,8 +413,11 @@ public final class LibraryManager {
         let url = item.url
         let videoId = item.id
 
-        Task.detached(priority: .background) {
+        Task.detached(priority: .utility) {
+            await Self.metadataLoadGate.acquire()
             let meta = await Self.extractMetadata(for: url)
+            await Self.metadataLoadGate.release()
+            guard !Task.isCancelled else { return }
             await MainActor.run { [weak self] in
                 guard let self = self, let idx = self.videos.firstIndex(where: { $0.id == videoId }) else { return }
                 self.videos[idx].duration = meta.duration
@@ -278,6 +429,22 @@ public final class LibraryManager {
                 }
             }
         }
+    }
+
+    private func restoredItem(_ item: VideoItem) -> VideoItem {
+        var restored = item
+        let path = item.url.path
+        restored.isFavorite = persistedFavoritePaths.contains(path) || item.isFavorite
+        if let entry = persistedProgress[path] {
+            restored.progress = entry["progress"] ?? item.progress
+            if let timestamp = entry["lastPlayed"], timestamp > 0 {
+                restored.lastPlayedDate = Date(timeIntervalSince1970: timestamp)
+            }
+            if let duration = entry["duration"], duration > 0 {
+                restored.duration = duration
+            }
+        }
+        return restored
     }
 
     private nonisolated static func extractMetadata(for url: URL) async -> ExtractedMetadata {
@@ -295,6 +462,7 @@ public final class LibraryManager {
             dur = durationCM.seconds.isFinite ? durationCM.seconds : 0.0
         }
 
+        var thumbImage: NSImage?
         if let tracks = try? await asset.loadTracks(withMediaType: .video), let track = tracks.first {
             if let size = try? await track.load(.naturalSize) {
                 let maxDim = max(size.width, size.height)
@@ -310,16 +478,14 @@ public final class LibraryManager {
                     res = "SD"
                 }
             }
-        }
 
-        let generator = AVAssetImageGenerator(asset: asset)
-        generator.appliesPreferredTrackTransform = true
-        generator.maximumSize = CGSize(width: 480, height: 270)
-        let thumbTime = CMTime(seconds: min(5.0, dur * 0.1), preferredTimescale: 600)
-        var thumbImage: NSImage?
-
-        if let cgImage = try? await generator.image(at: thumbTime).image {
-            thumbImage = NSImage(cgImage: cgImage, size: NSSize(width: 480, height: 270))
+            let generator = AVAssetImageGenerator(asset: asset)
+            generator.appliesPreferredTrackTransform = true
+            generator.maximumSize = CGSize(width: 480, height: 270)
+            let thumbTime = CMTime(seconds: min(5.0, dur * 0.1), preferredTimescale: 600)
+            if let cgImage = try? await generator.image(at: thumbTime).image {
+                thumbImage = NSImage(cgImage: cgImage, size: NSSize(width: 480, height: 270))
+            }
         }
 
         return ExtractedMetadata(
@@ -337,23 +503,32 @@ public final class LibraryManager {
             UserDefaults.standard.set(encoded, forKey: foldersKey)
         }
 
-        // Save favorites
-        let favs = videos.filter { $0.isFavorite }.map { $0.url.path }
-        UserDefaults.standard.set(favs, forKey: favoritesKey)
+        // Save favorites: sync with in-memory videos while preserving existing paths
+        for v in videos {
+            let path = v.url.path
+            if v.isFavorite {
+                persistedFavoritePaths.insert(path)
+            } else {
+                persistedFavoritePaths.remove(path)
+            }
+        }
+        UserDefaults.standard.set(Array(persistedFavoritePaths), forKey: favoritesKey)
 
-        // Save progress & recent timestamps
-        var progressMap: [String: [String: Double]] = [:]
+        // Save progress & recent timestamps: merge into persistedProgress
         for v in videos where v.progress > 0 || v.lastPlayedDate != nil {
-            progressMap[v.url.path] = [
+            persistedProgress[v.url.path] = [
                 "progress": v.progress,
                 "lastPlayed": v.lastPlayedDate?.timeIntervalSince1970 ?? 0,
                 "duration": v.duration
             ]
         }
-        UserDefaults.standard.set(progressMap, forKey: progressKey)
+        UserDefaults.standard.set(persistedProgress, forKey: progressKey)
     }
 
     private func loadPersistedState() {
+        persistedFavoritePaths = Set(UserDefaults.standard.stringArray(forKey: favoritesKey) ?? [])
+        persistedProgress = UserDefaults.standard.dictionary(forKey: progressKey) as? [String: [String: Double]] ?? [:]
+
         if let data = UserDefaults.standard.data(forKey: foldersKey),
            let savedFolders = try? JSONDecoder().decode([FolderItem].self, from: data) {
             self.folders = savedFolders
@@ -362,24 +537,9 @@ public final class LibraryManager {
             }
         }
 
-        let favPaths = Set(UserDefaults.standard.stringArray(forKey: favoritesKey) ?? [])
-        let progressMap = UserDefaults.standard.dictionary(forKey: progressKey) as? [String: [String: Double]] ?? [:]
-
         // Restore any videos already known
         for i in 0..<videos.count {
-            let path = videos[i].url.path
-            if favPaths.contains(path) {
-                videos[i].isFavorite = true
-            }
-            if let entry = progressMap[path] {
-                videos[i].progress = entry["progress"] ?? 0.0
-                if let ts = entry["lastPlayed"], ts > 0 {
-                    videos[i].lastPlayedDate = Date(timeIntervalSince1970: ts)
-                }
-                if let dur = entry["duration"], dur > 0 {
-                    videos[i].duration = dur
-                }
-            }
+            videos[i] = restoredItem(videos[i])
         }
     }
 }

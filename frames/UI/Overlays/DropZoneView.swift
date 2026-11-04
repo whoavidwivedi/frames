@@ -76,7 +76,7 @@ public struct DropZoneView: View {
                 .overlay(
                     RoundedRectangle(cornerRadius: ShadcnTheme.radiusXl, style: .continuous)
                         .strokeBorder(
-                            isTargeted ? Color.white : ShadcnTheme.border,
+                            isTargeted ? ShadcnTheme.primary : ShadcnTheme.border,
                             style: StrokeStyle(lineWidth: 1, dash: [4, 4])
                         )
                 )
@@ -111,16 +111,8 @@ public struct DropZoneView: View {
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
-        panel.allowedContentTypes = [
-            .movie,
-            .video,
-            .quickTimeMovie,
-            .mpeg4Movie,
-            UTType(filenameExtension: "mkv") ?? .movie,
-            UTType(filenameExtension: "webm") ?? .movie,
-            UTType(filenameExtension: "avi") ?? .movie
-        ]
-        panel.message = "Choose a video to open in Frames"
+        panel.allowedContentTypes = MediaSupport.contentTypes
+        panel.message = "Choose a video or audio file to open in Frames"
 
         if panel.runModal() == .OK, let url = panel.url {
             engine.loadMedia(from: url)

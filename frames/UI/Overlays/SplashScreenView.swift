@@ -18,16 +18,16 @@ public struct SplashScreenView: View {
 
     public var body: some View {
         ZStack {
-            // Deep OLED Obsidian Black
-            Color(red: 0.035, green: 0.035, blue: 0.039)
+            // Dynamic Shadcn neutral surface (Dark: #0a0a0a | Light: #ffffff)
+            ShadcnTheme.background
                 .ignoresSafeArea()
 
             // Just Text: "frames"
             ZStack {
                 // Base Typographic Layer
                 Text("frames")
-                    .font(.system(size: 44, weight: .medium, design: .default))
-                    .foregroundStyle(Color(red: 0.96, green: 0.96, blue: 0.98))
+                    .font(.system(size: 46, weight: .semibold, design: .default))
+                    .foregroundStyle(ShadcnTheme.foreground)
                     .tracking(textTracking)
                     .blur(radius: blurRadius)
                     .scaleEffect(textScale)
@@ -35,14 +35,14 @@ public struct SplashScreenView: View {
 
                 // Projector Optical Light Sweep (Sweeps across the letterforms)
                 Text("frames")
-                    .font(.system(size: 44, weight: .medium, design: .default))
+                    .font(.system(size: 46, weight: .semibold, design: .default))
                     .foregroundStyle(
                         LinearGradient(
                             stops: [
                                 .init(color: .clear, location: 0.0),
-                                .init(color: Color.white.opacity(0.4), location: 0.35),
-                                .init(color: Color.white, location: 0.5),
-                                .init(color: Color.white.opacity(0.4), location: 0.65),
+                                .init(color: ShadcnTheme.primaryHighlight.opacity(0.4), location: 0.35),
+                                .init(color: ShadcnTheme.foreground, location: 0.5),
+                                .init(color: ShadcnTheme.primaryHighlight.opacity(0.4), location: 0.65),
                                 .init(color: .clear, location: 1.0)
                             ],
                             startPoint: .leading,
@@ -53,16 +53,17 @@ public struct SplashScreenView: View {
                     .offset(x: shimmerOffset)
                     .mask(
                         Text("frames")
-                            .font(.system(size: 44, weight: .medium, design: .default))
+                            .font(.system(size: 46, weight: .semibold, design: .default))
                             .tracking(textTracking)
                     )
                     .scaleEffect(textScale)
                     .opacity(shimmerOpacity)
-                    .blendMode(.screen)
             }
             .scaleEffect(exitScale)
             .opacity(exitOpacity)
         }
+        .pointingHand()
+        .contentShape(Rectangle())
         .onAppear {
             startTypographicSequence()
         }

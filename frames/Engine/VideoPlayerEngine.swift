@@ -12,18 +12,29 @@ public final class VideoPlayerEngine {
     public private(set) var currentURL: URL?
     public var isPlaying: Bool = false
     public var isBuffering: Bool = false
+    public var hasEnded: Bool = false
+    public var onPlaybackEnded: (() -> Void)?
     public var currentTime: Double = 0.0
     public var lastSyncTime: Double = 0.0
     public var lastSyncDate: Date = Date()
     public var duration: Double = 0.0
     public var volume: Float = 1.0 {
         didSet {
-            player.volume = min(max(volume, 0.0), 1.0)
+            let clamped = min(max(volume, 0.0), 1.0)
+            player.volume = isMuted ? 0.0 : clamped
+            if isNativePipelineActive {
+                nativePipeline.setVolume(isMuted ? 0.0 : clamped)
+            }
         }
     }
     public var isMuted: Bool = false {
         didSet {
             player.isMuted = isMuted
+            let clamped = isMuted ? 0.0 : min(max(volume, 0.0), 1.0)
+            player.volume = clamped
+            if isNativePipelineActive {
+                nativePipeline.setVolume(clamped)
+            }
         }
     }
     public var playbackRate: Float = 1.0 {
@@ -33,8 +44,6 @@ public final class VideoPlayerEngine {
             }
         }
     }
-    public var audioGainBoost: Float = 1.0 // 1.0x (normal) to 2.0x (boosted)
-
     // MARK: - Metadata & Hardware
     public var metadata: VideoMetadata = VideoMetadata()
 
@@ -54,12 +63,16 @@ public final class VideoPlayerEngine {
     public var isFullscreen: Bool = false
     public var activeInspectorSheet: InspectorSheet? = nil
 
+    // MARK: - Native Metal & Demuxer Pipeline (Zero-Copy Apple Silicon)
+    public let nativePipeline = PlaybackPipeline()
+    public private(set) var isNativePipelineActive: Bool = false
+    public private(set) var playbackError: String?
+
     public enum InspectorSheet: String, Identifiable {
         case subtitles
         case audio
         case speed
         case stats
-        case fullscreen
 
         public var id: String { rawValue }
     }
@@ -69,14 +82,99 @@ public final class VideoPlayerEngine {
     private var statusObserver: NSKeyValueObservation?
     private var timeControlStatusObserver: NSKeyValueObservation?
     private var itemDidPlayToEndObserver: NSObjectProtocol?
+    private var bufferingTimer: Timer?
     private let securityBox = SecurityScopedBox()
+    private var loadGeneration: UInt = 0
+    private var pendingInitialSeekTime: Double?
+
+    private func updateBufferingStatus(_ isWaiting: Bool) {
+        bufferingTimer?.invalidate()
+        bufferingTimer = nil
+
+        if isWaiting {
+            // Debounce buffering indicator by 350ms so local file transitions and seeks never flash
+            bufferingTimer = Timer.scheduledTimer(withTimeInterval: 0.35, repeats: false) { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    guard let self = self, self.isPlaying else { return }
+                    self.isBuffering = true
+                }
+            }
+        } else {
+            self.isBuffering = false
+        }
+    }
 
     public init() {
         setupTimeObserver()
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self = self, let url = self.currentURL, !url.path.isEmpty, self.duration > 0 else { return }
+            let progress = self.hasEnded ? 1.0 : (self.currentTime / self.duration)
+            LibraryManager.shared.recordPlayback(url: url, duration: self.duration, progress: progress)
+        }
+    }
+
+    // MARK: - Media Lifecycle
+    public func unloadMedia() {
+        if let url = currentURL, !url.path.isEmpty, duration > 0 {
+            let progress = hasEnded ? 1.0 : (currentTime / duration)
+            LibraryManager.shared.recordPlayback(url: url, duration: duration, progress: progress)
+        }
+
+        loadGeneration &+= 1
+        clearPlayerItemObservers()
+
+        if isNativePipelineActive {
+            nativePipeline.stop()
+            isNativePipelineActive = false
+        }
+
+        player.pause()
+        player.replaceCurrentItem(with: nil)
+        securityBox.url = nil
+
+        currentURL = nil
+        pendingInitialSeekTime = nil
+        currentTime = 0.0
+        lastSyncTime = 0.0
+        lastSyncDate = Date()
+        duration = 0.0
+        isPlaying = false
+        isBuffering = false
+        hasEnded = false
+        playbackError = nil
+        activeSubtitleText = ""
+        availableSubtitleTracks = [SubtitleTrack.off]
+        selectedSubtitleTrack = SubtitleTrack.off
+        availableAudioTracks = []
+        selectedAudioTrack = nil
+        metadata = VideoMetadata()
+        activeInspectorSheet = nil
+        updateBufferingStatus(false)
     }
 
     // MARK: - Loading Media
-    public func loadMedia(from url: URL) {
+    public func loadMedia(from url: URL, initialSeekTime: Double? = nil) {
+        // Defensive check: if empty or a directory (except HLS movpkg bundles), unload cleanly
+        var isDir: ObjCBool = false
+        let fileExists = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir)
+        if url.path.isEmpty || (fileExists && isDir.boolValue && url.pathExtension.lowercased() != "movpkg") {
+            unloadMedia()
+            return
+        }
+
+        loadGeneration &+= 1
+        let generation = loadGeneration
+        clearPlayerItemObservers()
+
+        if isNativePipelineActive {
+            nativePipeline.stop()
+            isNativePipelineActive = false
+        }
+
         if url.startAccessingSecurityScopedResource() {
             securityBox.url = url
         } else {
@@ -84,33 +182,53 @@ public final class VideoPlayerEngine {
         }
 
         self.currentURL = url
-        self.currentTime = 0.0
-        self.lastSyncTime = 0.0
+        self.pendingInitialSeekTime = (initialSeekTime != nil && initialSeekTime! > 0) ? initialSeekTime : nil
+        let startSecs = initialSeekTime ?? 0.0
+        self.currentTime = startSecs
+        self.lastSyncTime = startSecs
         self.lastSyncDate = Date()
         self.duration = 0.0
+        self.hasEnded = false
+        self.updateBufferingStatus(false)
         self.activeSubtitleText = ""
         self.availableSubtitleTracks = [SubtitleTrack.off]
         self.selectedSubtitleTrack = SubtitleTrack.off
         self.availableAudioTracks = []
         self.selectedAudioTrack = nil
+        self.playbackError = nil
+
+        // If format is a Matroska-family container, immediately start native pipeline
+        if canUseNativeMatroskaPipeline(for: url) {
+            startNativePipeline(url: url, initialSeekTime: initialSeekTime)
+            return
+        }
+
+        self.isNativePipelineActive = false
 
         let asset = AVURLAsset(url: url)
         let playerItem = AVPlayerItem(asset: asset)
 
         // Apple Silicon low-latency audio/video configuration
-        playerItem.audioTimePitchAlgorithm = .timeDomain // High quality pitch preservation during speed changes
+        playerItem.audioTimePitchAlgorithm = .timeDomain
 
         observePlayerItem(playerItem)
         player.replaceCurrentItem(with: playerItem)
         player.volume = volume
         player.isMuted = isMuted
 
+        if let initialSeekTime, initialSeekTime > 0 {
+            let target = CMTime(seconds: initialSeekTime, preferredTimescale: 600)
+            player.seek(to: target, toleranceBefore: .zero, toleranceAfter: .zero)
+        }
+
         play()
 
-        Task {
-            await extractMetadata(from: asset, url: url)
-            await extractTracks(from: playerItem)
-            checkForExternalSubtitles(videoURL: url)
+        Task { [weak self] in
+            guard let self else { return }
+            await self.extractMetadata(from: asset, url: url, generation: generation)
+            await self.extractTracks(from: playerItem, generation: generation)
+            guard self.loadGeneration == generation, self.currentURL == url else { return }
+            self.checkForExternalSubtitles(videoURL: url)
         }
     }
 
@@ -120,13 +238,18 @@ public final class VideoPlayerEngine {
     private var displayTime: Double = 0.0
 
     public func play() {
-        if currentTime >= duration && duration > 0 {
+        if hasEnded || (currentTime >= duration && duration > 0) {
+            hasEnded = false
             seek(to: 0)
         }
         lastSyncTime = currentTime
         lastSyncDate = Date()
         displayTime = currentTime
-        player.rate = playbackRate
+        if isNativePipelineActive {
+            nativePipeline.play()
+        } else {
+            player.rate = playbackRate
+        }
         isPlaying = true
     }
 
@@ -135,12 +258,42 @@ public final class VideoPlayerEngine {
         lastSyncTime = currentTime
         lastSyncDate = Date()
         displayTime = currentTime
-        player.pause()
+        if isNativePipelineActive {
+            nativePipeline.pause()
+        } else {
+            player.pause()
+        }
         isPlaying = false
+        if let url = currentURL, !url.path.isEmpty, duration > 0 {
+            let progress = currentTime / duration
+            LibraryManager.shared.recordPlayback(url: url, duration: duration, progress: progress)
+        }
+    }
+
+    public func replay() {
+        hasEnded = false
+        seek(to: 0)
+        play()
+    }
+
+    public func markPlaybackEnded() {
+        guard !hasEnded else { return }
+        isPlaying = false
+        hasEnded = true
+        currentTime = duration > 0 ? duration : currentTime
+        controlsVisible = true
+        updateBufferingStatus(false)
+        NSCursor.setHiddenUntilMouseMoves(false)
+        if let url = currentURL, !url.path.isEmpty {
+            LibraryManager.shared.recordPlayback(url: url, duration: duration, progress: 1.0)
+        }
+        onPlaybackEnded?()
     }
 
     public func togglePlayPause() {
-        if isPlaying {
+        if hasEnded {
+            replay()
+        } else if isPlaying {
             pause()
         } else {
             play()
@@ -148,6 +301,9 @@ public final class VideoPlayerEngine {
     }
 
     public func currentInterpolatedTime(at date: Date = Date()) -> Double {
+        if isNativePipelineActive {
+            return currentTime
+        }
         guard duration > 0 else { return currentTime }
         if isScrubbing {
             return currentTime
@@ -167,17 +323,32 @@ public final class VideoPlayerEngine {
     }
 
     public func seek(to seconds: Double, exact: Bool = false) {
+        hasEnded = false
         let clamped = max(0.0, min(seconds, duration > 0 ? duration : seconds))
         currentTime = clamped
         lastSyncTime = clamped
         lastSyncDate = Date()
         displayTime = clamped
 
+        if isNativePipelineActive {
+            nativePipeline.seek(to: clamped, isScrubbing: !exact)
+            return
+        }
+
         let targetTime = CMTime(seconds: clamped, preferredTimescale: 600)
         chaseTime = targetTime
 
         if exact {
-            player.seek(to: targetTime, toleranceBefore: .zero, toleranceAfter: .zero)
+            isSeekInProgress = false
+            player.seek(to: targetTime, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    guard let self = self else { return }
+                    self.currentTime = clamped
+                    self.lastSyncTime = clamped
+                    self.lastSyncDate = Date()
+                    self.displayTime = clamped
+                }
+            }
         } else {
             guard !isSeekInProgress else { return }
             performChaseSeek()
@@ -303,6 +474,16 @@ public final class VideoPlayerEngine {
     }
 
     // MARK: - Internal Observers & Engine Logic
+    private var lastRecordedProgressTime: CFAbsoluteTime = 0
+
+    private func throttledRecordProgress() {
+        let now = CFAbsoluteTimeGetCurrent()
+        guard now - lastRecordedProgressTime >= 5.0, let url = currentURL, !url.path.isEmpty, duration > 0 else { return }
+        lastRecordedProgressTime = now
+        let progress = currentTime / duration
+        LibraryManager.shared.recordPlayback(url: url, duration: duration, progress: progress)
+    }
+
     private func setupTimeObserver() {
         let interval = CMTime(seconds: 0.05, preferredTimescale: 600)
         timeObserverToken = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
@@ -314,17 +495,14 @@ public final class VideoPlayerEngine {
                     self.lastSyncTime = secs
                     self.lastSyncDate = Date()
                     self.updateActiveSubtitle(at: secs)
+                    self.throttledRecordProgress()
                 }
             }
         }
     }
 
     private func observePlayerItem(_ item: AVPlayerItem) {
-        statusObserver?.invalidate()
-        timeControlStatusObserver?.invalidate()
-        if let endObserver = itemDidPlayToEndObserver {
-            NotificationCenter.default.removeObserver(endObserver)
-        }
+        clearPlayerItemObservers()
 
         statusObserver = item.observe(\.status, options: [.new]) { [weak self] playerItem, _ in
             Task { @MainActor [weak self] in
@@ -334,6 +512,27 @@ public final class VideoPlayerEngine {
                     if !d.isNaN && !d.isInfinite {
                         self.duration = d
                     }
+                    if let seekTime = self.pendingInitialSeekTime, seekTime > 0 {
+                        let targetTime = seekTime
+                        self.pendingInitialSeekTime = nil
+                        let target = CMTime(seconds: targetTime, preferredTimescale: 600)
+                        self.player.seek(to: target, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
+                            Task { @MainActor [weak self] in
+                                self?.currentTime = targetTime
+                                self?.lastSyncTime = targetTime
+                                self?.lastSyncDate = Date()
+                            }
+                        }
+                    }
+                } else if playerItem.status == .failed {
+                    guard self.player.currentItem === playerItem else { return }
+                    if let url = self.currentURL, self.canUseNativeMatroskaPipeline(for: url) {
+                        self.startNativePipeline(url: url, initialSeekTime: self.pendingInitialSeekTime)
+                        return
+                    }
+                    self.isBuffering = false
+                    self.isPlaying = false
+                    self.playbackError = playerItem.error?.localizedDescription ?? "macOS cannot decode this media on this Mac."
                 }
             }
         }
@@ -341,8 +540,8 @@ public final class VideoPlayerEngine {
         timeControlStatusObserver = player.observe(\.timeControlStatus, options: [.new]) { [weak self] p, _ in
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
-                self.isBuffering = (p.timeControlStatus == .waitingToPlayAtSpecifiedRate)
                 self.isPlaying = (p.timeControlStatus == .playing)
+                self.updateBufferingStatus(p.timeControlStatus == .waitingToPlayAtSpecifiedRate)
             }
         }
 
@@ -352,14 +551,91 @@ public final class VideoPlayerEngine {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.isPlaying = false
-                self?.currentTime = self?.duration ?? 0
+                self?.markPlaybackEnded()
             }
         }
     }
 
+    private func clearPlayerItemObservers() {
+        bufferingTimer?.invalidate()
+        bufferingTimer = nil
+        statusObserver?.invalidate()
+        statusObserver = nil
+        timeControlStatusObserver?.invalidate()
+        timeControlStatusObserver = nil
+        if let endObserver = itemDidPlayToEndObserver {
+            NotificationCenter.default.removeObserver(endObserver)
+        }
+        itemDidPlayToEndObserver = nil
+    }
+
+    private func canUseNativeMatroskaPipeline(for url: URL) -> Bool {
+        switch url.pathExtension.lowercased() {
+        case "mkv", "webm", "mka":
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Falls back only after AVFoundation rejects a Matroska-family container.
+    /// The new generation invalidates pending AVFoundation metadata tasks.
+    private func startNativePipeline(url: URL, initialSeekTime: Double? = nil) {
+        loadGeneration &+= 1
+        let generation = loadGeneration
+        clearPlayerItemObservers()
+        player.pause()
+        player.replaceCurrentItem(with: nil)
+        isNativePipelineActive = true
+        isPlaying = false
+        isBuffering = false
+        playbackError = nil
+
+        metadata.title = url.deletingPathExtension().lastPathComponent
+        metadata.container = url.pathExtension.uppercased()
+
+        Task { [weak self] in
+            guard let self else { return }
+            let success = await nativePipeline.load(url: url)
+            guard loadGeneration == generation, currentURL == url else {
+                if success { nativePipeline.stop() }
+                return
+            }
+
+            guard success else {
+                isNativePipelineActive = false
+                playbackError = "This \(url.pathExtension.uppercased()) file uses a codec that Frames cannot decode on this Mac."
+                return
+            }
+
+            duration = nativePipeline.duration
+            metadata.duration = nativePipeline.duration
+            nativePipeline.setVolume(isMuted ? 0.0 : volume)
+            nativePipeline.onPlaybackEnded = { [weak self] in
+                Task { @MainActor [weak self] in
+                    self?.markPlaybackEnded()
+                }
+            }
+            nativePipeline.onTimeUpdate = { [weak self] pts in
+                Task { @MainActor [weak self] in
+                    guard let self, !self.isScrubbing else { return }
+                    self.currentTime = pts
+                    self.lastSyncTime = pts
+                    self.lastSyncDate = Date()
+                    self.updateActiveSubtitle(at: pts)
+                    self.throttledRecordProgress()
+                }
+            }
+            if let initialSeekTime, initialSeekTime > 0 {
+                seek(to: initialSeekTime, exact: true)
+            }
+            play()
+            checkForExternalSubtitles(videoURL: url)
+        }
+    }
+
     // MARK: - Metadata Extraction
-    private func extractMetadata(from asset: AVURLAsset, url: URL) async {
+    private func extractMetadata(from asset: AVURLAsset, url: URL, generation: UInt) async {
         var meta = VideoMetadata()
         meta.title = url.deletingPathExtension().lastPathComponent
         meta.container = url.pathExtension.uppercased()
@@ -405,10 +681,11 @@ public final class VideoPlayerEngine {
             }
         }
 
+        guard loadGeneration == generation, currentURL == url else { return }
         self.metadata = meta
     }
 
-    private func extractTracks(from item: AVPlayerItem) async {
+    private func extractTracks(from item: AVPlayerItem, generation: UInt) async {
         // Extract audible (audio) tracks
         if let audioGroup = try? await item.asset.loadMediaSelectionGroup(for: .audible) {
             var audios: [AudioTrack] = []
@@ -423,6 +700,7 @@ public final class VideoPlayerEngine {
                 )
                 audios.append(track)
             }
+            guard loadGeneration == generation, player.currentItem === item else { return }
             self.availableAudioTracks = audios
             self.selectedAudioTrack = audios.first
         }
@@ -442,6 +720,7 @@ public final class VideoPlayerEngine {
                 )
                 subs.append(track)
             }
+            guard loadGeneration == generation, player.currentItem === item else { return }
             self.availableSubtitleTracks = subs
         }
     }

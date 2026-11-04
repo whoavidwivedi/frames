@@ -15,6 +15,16 @@ public enum ShadcnButtonSize {
     case icon
 }
 
+private struct ShadcnPressStyle: ButtonStyle {
+    let reduceMotion: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.97 : 1)
+            .animation(reduceMotion ? nil : .fluidQuick, value: configuration.isPressed)
+    }
+}
+
 public struct ShadcnButton: View {
     public let title: String?
     public let icon: String?
@@ -22,9 +32,11 @@ public struct ShadcnButton: View {
     public var variant: ShadcnButtonVariant = .default
     public var size: ShadcnButtonSize = .default
     public var isSelected: Bool = false
+    public var accessibilityLabel: String?
     public let action: () -> Void
 
     @State private var isHovering = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init(
         _ title: String? = nil,
@@ -33,6 +45,7 @@ public struct ShadcnButton: View {
         variant: ShadcnButtonVariant = .default,
         size: ShadcnButtonSize = .default,
         isSelected: Bool = false,
+        accessibilityLabel: String? = nil,
         action: @escaping () -> Void
     ) {
         self.title = title
@@ -41,6 +54,7 @@ public struct ShadcnButton: View {
         self.variant = variant
         self.size = size
         self.isSelected = isSelected
+        self.accessibilityLabel = accessibilityLabel
         self.action = action
     }
 
@@ -68,7 +82,7 @@ public struct ShadcnButton: View {
                         .padding(.vertical, 1)
                         .background(
                             RoundedRectangle(cornerRadius: 3, style: .continuous)
-                                .fill(Color.white.opacity(0.08))
+                                .fill(ShadcnTheme.accentActive)
                         )
                 }
             }
@@ -82,15 +96,21 @@ public struct ShadcnButton: View {
             )
             .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(ShadcnPressStyle(reduceMotion: reduceMotion))
         .pointingHand()
+        .accessibilityLabel(effectiveAccessibilityLabel)
+        .help(effectiveAccessibilityLabel)
         .onHover { isHovering = $0 }
-        .animation(.easeInOut(duration: 0.12), value: isHovering)
-        .animation(.easeInOut(duration: 0.12), value: isSelected)
+        .animation(reduceMotion ? nil : .fluidQuick, value: isHovering)
+        .animation(reduceMotion ? nil : .fluidQuick, value: isSelected)
     }
 
     private var isIconOnly: Bool {
         return title == nil && icon != nil
+    }
+
+    private var effectiveAccessibilityLabel: String {
+        accessibilityLabel ?? title ?? icon?.replacingOccurrences(of: ".", with: " ") ?? "Button"
     }
 
     private var height: CGFloat {
@@ -124,19 +144,16 @@ public struct ShadcnButton: View {
     }
 
     private var cornerRadius: CGFloat {
-        switch size {
-        case .sm, .iconSm: return ShadcnTheme.radiusSm
-        case .default, .icon: return ShadcnTheme.radiusMd
-        }
+        return ShadcnTheme.radius4xl
     }
 
     private var foregroundColor: Color {
         switch variant {
         case .default, .primary:
             return ShadcnTheme.primaryForeground
-        case .secondary, .outline:
-            return isHovering || isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary
-        case .ghost:
+        case .secondary:
+            return isHovering || isSelected ? ShadcnTheme.foreground : ShadcnTheme.secondaryForeground
+        case .outline, .ghost:
             return isHovering || isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary
         }
     }
@@ -144,19 +161,19 @@ public struct ShadcnButton: View {
     private var backgroundColor: Color {
         switch variant {
         case .default, .primary:
-            return isHovering ? Color.white.opacity(0.9) : ShadcnTheme.primary
+            return isHovering ? ShadcnTheme.primaryHighlight : ShadcnTheme.primary
         case .secondary:
-            return isHovering ? ShadcnTheme.cardHover : ShadcnTheme.card
+            return isHovering ? ShadcnTheme.cardHover : ShadcnTheme.secondary
         case .outline:
             if isSelected {
-                return Color.white.opacity(0.12)
+                return ShadcnTheme.accentActive
             }
-            return isHovering ? Color.white.opacity(0.06) : Color.clear
+            return isHovering ? ShadcnTheme.muted.opacity(0.6) : Color.clear
         case .ghost:
             if isSelected {
-                return Color.white.opacity(0.12)
+                return ShadcnTheme.accentActive
             }
-            return isHovering ? Color.white.opacity(0.07) : Color.clear
+            return isHovering ? ShadcnTheme.muted.opacity(0.5) : Color.clear
         }
     }
 
@@ -164,7 +181,9 @@ public struct ShadcnButton: View {
         switch variant {
         case .default, .primary:
             return Color.clear
-        case .secondary, .outline:
+        case .secondary:
+            return isHovering || isSelected ? ShadcnTheme.borderActive : ShadcnTheme.border
+        case .outline:
             if isSelected {
                 return ShadcnTheme.borderActive
             }

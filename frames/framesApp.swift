@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 @main
 struct framesApp: App {
     init() {
+        ThemeManager.shared.applyAppearance()
         if CommandLine.arguments.contains("--run-tests") {
             let result = FramesTestSuite.runAllTests()
             for line in result.logs {
@@ -48,6 +49,38 @@ struct framesApp: App {
                 }
                 .keyboardShortcut("f", modifiers: [.control, .command])
             }
+
+            CommandMenu("View") {
+                Button("Toggle Sidebar") {
+                    LibraryManager.shared.toggleSidebar()
+                }
+                .keyboardShortcut("b", modifiers: .command)
+            }
+
+            CommandMenu("Navigate") {
+                Button("Back") {
+                    NotificationCenter.default.post(name: .returnToDashboardNotification, object: nil)
+                    LibraryManager.shared.goBack()
+                }
+                .keyboardShortcut("[", modifiers: .command)
+
+                Button("Forward") {
+                    LibraryManager.shared.goForward()
+                }
+                .keyboardShortcut("]", modifiers: .command)
+                .disabled(!LibraryManager.shared.canGoForward)
+            }
+
+            CommandMenu("Appearance") {
+                Picker("Theme", selection: Binding(
+                    get: { ThemeManager.shared.mode },
+                    set: { ThemeManager.shared.mode = $0 }
+                )) {
+                    ForEach(ThemeMode.allCases) { mode in
+                        Label(mode.displayName, systemImage: mode.icon).tag(mode)
+                    }
+                }
+            }
         }
     }
 
@@ -56,8 +89,8 @@ struct framesApp: App {
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
-        panel.allowedContentTypes = [.movie, .video, .quickTimeMovie, .mpeg4Movie]
-        panel.message = "Choose a video to open in Frames"
+        panel.allowedContentTypes = MediaSupport.contentTypes
+        panel.message = "Choose a video or audio file to open in Frames"
 
         if panel.runModal() == .OK, let url = panel.url {
             NotificationCenter.default.post(name: .openVideoNotification, object: url)
@@ -67,4 +100,5 @@ struct framesApp: App {
 
 public extension Notification.Name {
     static let openVideoNotification = Notification.Name("FramesOpenVideoNotification")
+    static let returnToDashboardNotification = Notification.Name("FramesReturnToDashboardNotification")
 }

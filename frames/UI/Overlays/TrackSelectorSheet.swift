@@ -32,7 +32,9 @@ public struct SubtitleSelectorPanel: View {
                     ForEach(engine.availableSubtitleTracks) { track in
                         let isSelected = engine.selectedSubtitleTrack.id == track.id
                         Button {
-                            engine.selectSubtitleTrack(track)
+                            withAnimation(.fluidQuick) {
+                                engine.selectSubtitleTrack(track)
+                            }
                         } label: {
                             HStack {
                                 Text(track.title)
@@ -43,6 +45,7 @@ public struct SubtitleSelectorPanel: View {
                                     Image(systemName: "checkmark")
                                         .font(.system(size: 10, weight: .semibold))
                                         .foregroundStyle(ShadcnTheme.foreground)
+                                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
                                 }
                             }
                             .padding(.horizontal, 8)
@@ -55,6 +58,7 @@ public struct SubtitleSelectorPanel: View {
                         }
                         .buttonStyle(.plain)
                         .pointingHand()
+                        .animation(.fluidQuick, value: isSelected)
                     }
                 }
             }
@@ -160,7 +164,9 @@ public struct AudioSelectorPanel: View {
                     ForEach(engine.availableAudioTracks) { track in
                         let isSelected = engine.selectedAudioTrack?.id == track.id
                         Button {
-                            engine.selectAudioTrack(track)
+                            withAnimation(.fluidQuick) {
+                                engine.selectAudioTrack(track)
+                            }
                         } label: {
                             HStack {
                                 Text(track.title)
@@ -171,6 +177,7 @@ public struct AudioSelectorPanel: View {
                                     Image(systemName: "checkmark")
                                         .font(.system(size: 10, weight: .semibold))
                                         .foregroundStyle(ShadcnTheme.foreground)
+                                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
                                 }
                             }
                             .padding(.horizontal, 8)
@@ -183,30 +190,11 @@ public struct AudioSelectorPanel: View {
                         }
                         .buttonStyle(.plain)
                         .pointingHand()
+                        .animation(.fluidQuick, value: isSelected)
                     }
                 }
             }
 
-            Rectangle()
-                .fill(ShadcnTheme.border)
-                .frame(height: 1)
-
-            // Volume Booster
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text("Volume Boost")
-                        .font(.system(size: 11, weight: .regular))
-                        .foregroundStyle(ShadcnTheme.foregroundMuted)
-                    Spacer()
-                    Text(String(format: "%d%%", Int(engine.audioGainBoost * 100)))
-                        .font(.system(size: 11, weight: .medium, design: .monospaced))
-                        .foregroundStyle(ShadcnTheme.foreground)
-                }
-
-                Slider(value: $engine.audioGainBoost, in: 1.0...2.0, step: 0.1)
-                    .tint(ShadcnTheme.foreground)
-                    .pointingHand()
-            }
         }
         .frame(width: 230)
         .shadcnCard(cornerRadius: ShadcnTheme.radiusLg, padding: 12)

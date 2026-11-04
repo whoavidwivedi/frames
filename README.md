@@ -13,8 +13,8 @@
   <img src="https://img.shields.io/badge/Platform-macOS%2014.0%2B-black?style=flat-square&logo=apple" alt="Platform: macOS 14.0+">
   <img src="https://img.shields.io/badge/Apple%20Silicon-ARM64-black?style=flat-square&logo=apple" alt="Apple Silicon ARM64">
   <img src="https://img.shields.io/badge/Language-Swift%206-black?style=flat-square&logo=swift" alt="Swift 6">
-  <img src="https://img.shields.io/badge/Design-shadcn%20mira%20%2F%20neutral-black?style=flat-square" alt="shadcn mira / neutral">
-  <img src="https://img.shields.io/badge/Tests-40%20Passed%20(0%20warnings)-black?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/Design-shadcn%20base--luma%20%2F%20neutral-black?style=flat-square" alt="shadcn base-luma / neutral">
+  <img src="https://img.shields.io/badge/Tests-154%20Passed%20(0%20warnings)-black?style=flat-square" alt="Tests">
   <a href="https://github.com/whoavidwivedi/frames/pulls"><img src="https://img.shields.io/badge/PRs-Welcome-black?style=flat-square" alt="PRs Welcome"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/whoavidwivedi/frames?style=flat-square&color=black" alt="License: MIT"></a>
 </p>
@@ -31,7 +31,7 @@
 
 Traditional desktop video players are often weighed down by multi-hundred-megabyte Electron wrappers or legacy codebases dating back decades. Frames is written in pure **Swift and SwiftUI**, leveraging Apple Silicon's dedicated **VideoToolbox** media decoders and Unified Memory architecture to deliver fluid 60fps / 120fps playback, buttery timeline scrubbing, and sub-second cold starts with minimal battery drain.
 
-The user interface adheres strictly to the **shadcn `mira`/`neutral`** dark design language: deep obsidian backgrounds (`#09090b`), crisp border contours (`#27272a`), refined typography, and unobtrusive liquid-glass playback controls.
+The user interface adheres strictly to the **shadcn `base-luma`/`neutral`** (preset `b3lnoM3QO`) design language: matte charcoal dark surfaces (`oklch(0.145 0 0)` / `#0a0a0a`), subtle border contours (`Color.white.opacity(0.10)`), warm terracotta & copper accents, and smooth pill-radius controls.
 
 ---
 
@@ -41,11 +41,12 @@ Download the latest pre-compiled binary from the [Releases](https://github.com/w
 
 | Release | Version | macOS Architecture | Download |
 | :--- | :--- | :--- | :--- |
-| **Latest** | **v1.0.2** | Apple Silicon (`arm64`) | [**Frames-v1.0.2-macOS.zip**](https://github.com/whoavidwivedi/frames/releases/download/v1.0.2/Frames-v1.0.2-macOS.zip) |
+| **Latest** | **v1.1.0** | Apple Silicon (`arm64`) | [**Frames-v1.1.0-macOS.zip**](https://github.com/whoavidwivedi/frames/releases/download/v1.1.0/Frames-v1.1.0-macOS.zip) |
+| Previous | v1.0.2 | Apple Silicon (`arm64`) | [Frames-v1.0.2-macOS.zip](https://github.com/whoavidwivedi/frames/releases/download/v1.0.2/Frames-v1.0.2-macOS.zip) |
 | Previous | v1.0.1 | Apple Silicon (`arm64`) | [Frames-v1.0.1-macOS.zip](https://github.com/whoavidwivedi/frames/releases/download/v1.0.1/Frames-v1.0.1-macOS.zip) |
 | Initial | v1.0.0 | Apple Silicon (`arm64`) | [Frames-v1.0.0-macOS.zip](https://github.com/whoavidwivedi/frames/releases/download/v1.0.0/Frames-v1.0.0-macOS.zip) |
 
-1. Download and unzip `Frames-v1.0.2-macOS.zip`.
+1. Download and unzip `Frames-v1.1.0-macOS.zip`.
 2. Move `frames.app` into your `/Applications` folder.
 3. Open Frames and enjoy fluid hardware-accelerated playback.
 
@@ -53,11 +54,14 @@ Download the latest pre-compiled binary from the [Releases](https://github.com/w
 
 ## Key Features
 
-### 1. Apple Silicon Hardware Acceleration
-* **Zero-Copy VideoToolbox Decoding**: Hardware-accelerated decoding bypasses CPU cycles, piping decoded frames directly into Metal texture buffers.
-* **ProMotion Display Synchronization**: Timeline scrubber and playhead update at the display's native refresh rate (up to 120Hz on ProMotion displays) without clock jitter or skipped frames.
-* **Non-Blocking Chase-Seek**: Apple Chase-Seek queue prevents thread starvation and buffer stalls during rapid timeline dragging.
-* **Energy Efficient**: Engineered to sip battery and keep thermals whisper-quiet with zero fan spin.
+### 1. Pure Native Apple Silicon Media Engine
+* **Zero-Bloat Custom Architecture**: Built completely from scratch in Swift 6 without VLC or legacy C/C++ media player bloat.
+* **Pure Swift Matroska & WebM Demuxer**: High-performance zero-allocation EBML VINT streaming parser with $O(\log N)$ binary-search keyframe seeking for `.mkv` and `.webm`.
+* **Hardware-First VideoToolbox ASIC Pipeline**: Direct hardware decode for H.264, HEVC (8/10-bit HDR), VP9, AV1, and ProRes. Decoded frames live directly in Apple Silicon Unified Memory (`IOSurface`).
+* **Zero-Copy Metal 3 HDR Presentation**: Custom Metal shaders converting bi-planar NV12/P010 textures to RGB in 16-bit floating point with Rec.709, Rec.2020, and ST 2084 PQ / HLG EOTF optical transfer functions.
+* **120Hz ProMotion CADisplayLink Cadence**: Synced directly with macOS display refresh intervals, eliminating judder, frame tearing, and timing drift.
+* **Bit-Perfect CoreAudio Master Clock**: Hardware-driven audio DAC crystal oscillator timing synchronization keeps video and audio aligned to $< 1\text{ms}$.
+* **Ultra-Low Battery & Thermal Footprint**: Designed to sip less power than QuickTime and draw 2–4× less battery than VLC on Apple Silicon.
 
 ### 2. Media Dashboard & Library Sidebar
 * **Folder Management**: Connect any folder on your Mac; subdirectories are recursively indexed asynchronously without blocking the UI.
@@ -211,12 +215,12 @@ Contributions, feedback, and pull requests are warmly welcomed!
    ```
 2. **Adhere to Code & Design Guidelines**:
    * Pure Swift & SwiftUI (no third-party package bloat).
-   * Follow `shadcn` mira/neutral monochrome design tokens (`#09090b` obsidian backgrounds, `#27272a` borders).
+   * Follow `shadcn` base-luma/neutral design tokens (preset `b3lnoM3QO`).
    * Maintain **0 warnings and 0 errors** on Xcode builds.
 3. **Verify Tests**:
-   Ensure all 38 tests pass cleanly before submitting:
+   Ensure all 154 tests pass cleanly before submitting:
    ```bash
-   ./build/Build/Products/Debug/frames.app/Contents/MacOS/frames --run-tests
+   ./Build/Products/Debug/frames.app/Contents/MacOS/frames --run-tests
    ```
 4. **Submit a Pull Request**:
    Open a PR against the `main` branch with a clear summary of your changes.

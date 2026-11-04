@@ -1,6 +1,7 @@
 import SwiftUI
+import AppKit
 
-// Compatibility modifiers forwarding to ShadcnTheme
+// MARK: - Dual-Mode Liquid Glass (macOS Material + Shadcn b3lnoM3QO Tokens)
 public struct LiquidGlassCardModifier: ViewModifier {
     public var cornerRadius: CGFloat = ShadcnTheme.radiusLg
     public var padding: CGFloat = 12
@@ -10,12 +11,24 @@ public struct LiquidGlassCardModifier: ViewModifier {
             .padding(padding)
             .background(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(ShadcnTheme.card.opacity(0.96))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                            .strokeBorder(ShadcnTheme.border, lineWidth: 1)
-                    )
-                    .shadow(color: Color.black.opacity(0.5), radius: 14, y: 6)
+                    .fill(.ultraThinMaterial)
+            )
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(ShadcnTheme.card.opacity(0.65))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(ShadcnTheme.border, lineWidth: 1)
+            )
+            .shadow(
+                color: Color(nsColor: NSColor(name: nil) { appearance in
+                    appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+                        ? NSColor(white: 0, alpha: 0.35)
+                        : NSColor(white: 0, alpha: 0.08)
+                }),
+                radius: 14,
+                y: 6
             )
     }
 }
@@ -25,15 +38,19 @@ public struct LiquidGlassPillModifier: ViewModifier {
 
     public func body(content: Content) -> some View {
         content
-            .padding(.horizontal, 8)
+            .padding(.horizontal, 9)
             .padding(.vertical, 5)
             .background(
                 RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                    .fill(isSelected ? ShadcnTheme.accentActive : Color.clear)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                            .strokeBorder(isSelected ? ShadcnTheme.borderActive : ShadcnTheme.border, lineWidth: 1)
-                    )
+                    .fill(.ultraThinMaterial)
+            )
+            .background(
+                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                    .fill(isSelected ? ShadcnTheme.accentActive : ShadcnTheme.card.opacity(0.5))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                    .strokeBorder(isSelected ? ShadcnTheme.borderActive : ShadcnTheme.border, lineWidth: 1)
             )
     }
 }

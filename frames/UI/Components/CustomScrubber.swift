@@ -13,7 +13,11 @@ public struct CustomScrubber: View {
     }
 
     public var body: some View {
-        TimelineView(.animation(paused: !engine.isPlaying || engine.isBuffering || engine.isScrubbing)) { context in
+        let refreshInterval = engine.isPlaying && !engine.isBuffering && !engine.isScrubbing ? (1.0 / 30.0) : 60.0
+        // The decode and presentation pipeline remains display-paced; the control
+        // surface does not need to redraw at 60/120 Hz. Thirty updates per second
+        // keeps the clock visually fluid while avoiding needless SwiftUI work.
+        TimelineView(.periodic(from: .now, by: refreshInterval)) { context in
             GeometryReader { proxy in
                 let totalWidth = proxy.size.width
                 let duration = engine.duration > 0 ? engine.duration : 1.0
@@ -43,7 +47,7 @@ public struct CustomScrubber: View {
                         }
                     }
                 )
-                .tint(Color.white)
+                .tint(ShadcnTheme.primaryHighlight)
                 .frame(width: totalWidth, height: 24)
                 .contentShape(Rectangle())
                 .pointingHand()
@@ -76,8 +80,10 @@ public struct CustomScrubber: View {
                             )
                             .offset(x: max(8, min(totalWidth - 48, hoverLocationX - 18)), y: -24)
                             .allowsHitTesting(false)
+                            .transition(.opacity.combined(with: .scale(scale: 0.92)))
                     }
                 }
+                .animation(.fluidQuick, value: isHovering)
             }
             .frame(height: 24)
         }

@@ -30,7 +30,7 @@ public struct SubtitleOverlayView: View {
                     )
                     .padding(.horizontal, 28)
                     .padding(.bottom, 72)
-                    .transition(.opacity.animation(.easeInOut(duration: 0.12)))
+                    .transition(.opacity.animation(.fluidQuick))
             }
             .allowsHitTesting(false)
         }

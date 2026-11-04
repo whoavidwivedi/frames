@@ -31,7 +31,9 @@ public struct SpeedSelectorPanel: View {
                 ForEach(presets, id: \.self) { speed in
                     let isSelected = abs(engine.playbackRate - speed) < 0.01
                     Button {
-                        engine.playbackRate = speed
+                        withAnimation(.fluidQuick) {
+                            engine.playbackRate = speed
+                        }
                     } label: {
                         Text(String(format: "%.2f×", speed))
                             .font(.system(size: 11, weight: isSelected ? .semibold : .medium, design: .monospaced))
@@ -50,6 +52,7 @@ public struct SpeedSelectorPanel: View {
                     }
                     .buttonStyle(.plain)
                     .pointingHand()
+                    .animation(.fluidQuick, value: isSelected)
                 }
             }
 

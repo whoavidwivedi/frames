@@ -67,6 +67,46 @@ public final class KeyboardHandler {
                 return nil
             }
 
+            // macOS Default Navigation Back: Command + [ (⌘[)
+            if isCommand && !isControl && !isOption && keyCode == 33 {
+                Task { @MainActor in
+                    if engine.currentURL != nil {
+                        NotificationCenter.default.post(name: .returnToDashboardNotification, object: nil)
+                    } else {
+                        LibraryManager.shared.goBack()
+                    }
+                }
+                return nil
+            }
+
+            // macOS Navigation Forward: Command + ] (⌘])
+            if isCommand && !isControl && !isOption && keyCode == 30 {
+                Task { @MainActor in
+                    if engine.currentURL == nil {
+                        LibraryManager.shared.goForward()
+                    }
+                }
+                return nil
+            }
+
+            // Toggle Sidebar: Command + B (⌘B)
+            if isCommand && !isControl && !isOption && keyCode == 11 {
+                Task { @MainActor in
+                    LibraryManager.shared.toggleSidebar()
+                }
+                return nil
+            }
+
+            // Search Filter: Command + F (⌘F)
+            if isCommand && !isControl && !isOption && keyCode == 3 {
+                Task { @MainActor in
+                    if engine.currentURL == nil {
+                        LibraryManager.shared.toggleSearch()
+                    }
+                }
+                return nil
+            }
+
             // If any other Command or Control combination is pressed, let macOS handle it natively (e.g. ⌘Q, ⌘H, ⌥⌘H, ⌘O, ⌘`)
             if isCommand || isControl {
                 return event
@@ -151,17 +191,51 @@ public final class KeyboardHandler {
                 }
                 return nil
 
+            case 36: // Return key (Back to Dashboard on completion)
+                if engine.hasEnded {
+                    Task { @MainActor in
+                        NotificationCenter.default.post(name: .returnToDashboardNotification, object: nil)
+                    }
+                    return nil
+                }
+                return event
+
+            case 15: // R key (Replay on completion)
+                if engine.hasEnded {
+                    Task { @MainActor in
+                        engine.replay()
+                    }
+                    return nil
+                }
+                return event
+
+            case 51: // Backspace / Delete (Return to Dashboard)
+                if engine.currentURL != nil {
+                    Task { @MainActor in
+                        NotificationCenter.default.post(name: .returnToDashboardNotification, object: nil)
+                    }
+                    return nil
+                }
+                return event
+
             case 53: // Escape key
                 Task { @MainActor in
                     if engine.activeInspectorSheet != nil {
                         engine.activeInspectorSheet = nil
+                    } else if engine.playbackError != nil {
+                        if WindowManager.shared.isAnyFullscreen {
+                            WindowManager.shared.exitAnyFullscreen()
+                        }
+                        NotificationCenter.default.post(name: .returnToDashboardNotification, object: nil)
+                    } else if engine.hasEnded {
+                        if WindowManager.shared.isAnyFullscreen {
+                            WindowManager.shared.exitAnyFullscreen()
+                        }
+                        NotificationCenter.default.post(name: .returnToDashboardNotification, object: nil)
                     } else if WindowManager.shared.isAnyFullscreen {
                         WindowManager.shared.exitAnyFullscreen()
-                    } else if engine.currentURL != nil && !(engine.currentURL?.path.isEmpty ?? true) {
-                        let progress = engine.duration > 0 ? (engine.currentTime / engine.duration) : 0.0
-                        LibraryManager.shared.recordPlayback(url: engine.currentURL!, duration: engine.duration, progress: progress)
-                        engine.pause()
-                        engine.loadMedia(from: URL(fileURLWithPath: ""))
+                    } else if engine.currentURL != nil {
+                        NotificationCenter.default.post(name: .returnToDashboardNotification, object: nil)
                     }
                 }
                 return nil

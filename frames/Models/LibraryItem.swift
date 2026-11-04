@@ -79,9 +79,25 @@ public struct VideoItem: Identifiable, Hashable, Sendable {
     public func hash(into hasher: inout Hasher) {
         hasher.combine(id)
         hasher.combine(url)
+        hasher.combine(isFavorite)
+        hasher.combine(progress)
+        hasher.combine(duration)
+        hasher.combine(title)
     }
 
     public static func == (lhs: VideoItem, rhs: VideoItem) -> Bool {
-        lhs.id == rhs.id && lhs.url == rhs.url
+        lhs.id == rhs.id &&
+        lhs.url == rhs.url &&
+        lhs.isFavorite == rhs.isFavorite &&
+        lhs.progress == rhs.progress &&
+        lhs.duration == rhs.duration &&
+        lhs.fileSize == rhs.fileSize &&
+        lhs.resolution == rhs.resolution &&
+        lhs.isHDR == rhs.isHDR &&
+        lhs.title == rhs.title &&
+        lhs.folderName == rhs.folderName &&
+        lhs.dateAdded == rhs.dateAdded &&
+        lhs.lastPlayedDate == rhs.lastPlayedDate &&
+        lhs.thumbnail === rhs.thumbnail
     }
 }
