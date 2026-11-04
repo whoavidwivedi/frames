@@ -1070,14 +1070,18 @@ public enum FramesTestSuite {
         assertTest("CommandContext executeSelected Executes Action", condition: executedItemFired)
         assertTest("CommandContext executeSelected Dismisses Dialog", condition: dismissed)
 
-        // 8. CommandPaletteManager
+        // 8. CommandPaletteManager & Unified Search Trigger
         let manager = CommandPaletteManager.shared
         manager.close()
         assertTest("CommandPaletteManager Initial Closed", condition: !manager.isPresented)
         manager.open()
         assertTest("CommandPaletteManager Open", condition: manager.isPresented)
+        assertTest("Search Trigger Opens Command Palette", condition: manager.isPresented)
         manager.toggle()
         assertTest("CommandPaletteManager Toggle Inverts", condition: !manager.isPresented)
+        manager.open()
+        manager.close()
+        assertTest("Unified Search Affordance Closes Command Palette", condition: !manager.isPresented)
 
         // 9. Reactive Context Awareness (Settings, Playback, Library)
         let theme = ThemeManager.shared

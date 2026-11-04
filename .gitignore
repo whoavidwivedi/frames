@@ -1,11 +1,19 @@
-# macOS
+# ======================================================================
+# Frames — Professional .gitignore for macOS, Apple Silicon & Web
+# ======================================================================
+
+# macOS System & Finder
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
 .AppleDouble
 .LSOverride
 Icon
-._*
+Icon\r\r
 
-# Xcode
+# Xcode & DerivedData
 build/
 DerivedData/
 *.pbxuser
@@ -17,26 +25,49 @@ DerivedData/
 *.perspectivev3
 !default.perspectivev3
 xcuserdata/
-*.xccheckout
-*.moved-aside
+*.xcuserdatad/
 *.xcuserstate
 *.xcbkptlist
+*.xccheckout
+*.moved-aside
+*.ipa
+*.dSYM.zip
+*.dSYM
 
-# Swift Package Manager
+# Swift Package Manager & Modular Compilation
 .build/
 .swiftpm/
+Packages/
+Package.resolved
 
-# Fastlane / CI
+# Release Artifacts & Compressed Binaries
+dist/
+*.dmg
+*.zip
+*.pkg
+*.tar.gz
+
+# Local Website Runtime & Free Analytics Database
+website/data/
+website/public/downloads/
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Environment Variables & Sensitive Credentials
+.env
+.env.*
+*.p12
+*.cer
+*.keychain
+*.provisionprofile
+
+# Diagnostics & Logs
+*.log
+crashreporter/
 fastlane/report.xml
 fastlane/Preview.html
-fastlane/screenshots
-fastlane/test_output
-
-# Release Archives
-dist/
-*.zip
-*.dmg
-
-# Local Website Analytics Database
-website/data/
-
+fastlane/screenshots/
+fastlane/test_output/
