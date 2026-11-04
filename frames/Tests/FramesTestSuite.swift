@@ -1928,6 +1928,20 @@ public enum FramesTestSuite {
         assertTest("Annex-B Start Code Multi-Zero Padding Properly Handled", condition: extractedNals.count == 2)
         let convertedAVCC = NALParser.convertAnnexBToAVCC(annexBSampleWithPadding)
         assertTest("Annex-B Multi-Zero Padding Converted Without Extra Zeros", condition: convertedAVCC.count > 0 && convertedAVCC.count < annexBSampleWithPadding.count + 8)
+        // MARK: - 29. Repository Quality & CI Pipeline Assets
+        logs.append("\n[29] Testing Repository Quality & CI Pipeline Assets...")
+        let projectRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let ciWorkflow = projectRoot.appendingPathComponent(".github/workflows/ci.yml")
+        let releaseWorkflow = projectRoot.appendingPathComponent(".github/workflows/release.yml")
+        let prTemplate = projectRoot.appendingPathComponent(".github/PULL_REQUEST_TEMPLATE.md")
+        let contributing = projectRoot.appendingPathComponent("CONTRIBUTING.md")
+        let releaseScript = projectRoot.appendingPathComponent("scripts/release.sh")
+
+        assertTest("CI Workflow Defined (.github/workflows/ci.yml)", condition: FileManager.default.fileExists(atPath: ciWorkflow.path))
+        assertTest("Release Workflow Defined (.github/workflows/release.yml)", condition: FileManager.default.fileExists(atPath: releaseWorkflow.path))
+        assertTest("Pull Request Template Present", condition: FileManager.default.fileExists(atPath: prTemplate.path))
+        assertTest("Contributing Guidelines Present", condition: FileManager.default.fileExists(atPath: contributing.path))
+        assertTest("Release Pipeline Script Present", condition: FileManager.default.fileExists(atPath: releaseScript.path))
 
         // Summary
         logs.append("\n==========================================")
