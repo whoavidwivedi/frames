@@ -254,9 +254,6 @@ fi
 
 echo "==> [6/7] Committing version bump and creating git tag ${TAG}..."
 git add "${PROJECT_FILE}"
-if [[ -f "${PROJECT_ROOT}/dist/checksums.txt" ]]; then
-    git add -f "${PROJECT_ROOT}/dist/checksums.txt" 2>/dev/null || true
-fi
 
 # Only commit if changes exist
 if ! git diff --cached --quiet; then
