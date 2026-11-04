@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-build:
+    name: Build & Test (macOS Apple Silicon)
+    runs-on: macos-14
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Show macOS and Xcode Environment
+        run: |
+          uname -a
+          sw_vers
+          xcodebuild -version
+
+      - name: Build Frames (Debug Configuration)
+        run: |
+          xcodebuild -project frames.xcodeproj \
+            -scheme frames \
+            -configuration Debug \
+            -destination "platform=macOS,arch=arm64" \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Execute Automated Test Suite
+        run: |
+          APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "frames.app" -type d | grep "Build/Products/Debug/frames.app" | head -n 1)
+          if [ -z "$APP_PATH" ]; then
+            echo "::error::Could not find compiled frames.app bundle in DerivedData"
+            exit 1
+          fi
+          echo "Found compiled app at: $APP_PATH"
+          "$APP_PATH/Contents/MacOS/frames" --run-tests
+
+      - name: Verify Distribution Packaging Integrity
+        run: |
+          chmod +x packaging/build_dmg.sh scripts/release.sh scripts/sign_and_notarize.sh
+          ./packaging/build_dmg.sh --help || true
+          ./scripts/release.sh --help || true

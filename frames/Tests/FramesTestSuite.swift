@@ -1179,23 +1179,23 @@ public enum FramesTestSuite {
         // 3. GitHub API Decoding
         let sampleJSON = """
         {
-          "tag_name": "v1.2.0",
-          "name": "Frames v1.2.0 - High Performance Update",
+          "tag_name": "v2.0.0",
+          "name": "Frames v2.0.0 - Next Gen Major Update",
           "body": "## What's New\\n- Faster seeking\\n- Liquid Glass polish",
-          "html_url": "https://github.com/whoavidwivedi/frames/releases/tag/v1.2.0",
+          "html_url": "https://github.com/whoavidwivedi/frames/releases/tag/v2.0.0",
           "published_at": "2026-11-05T00:00:00Z",
           "assets": [
             {
               "id": 101,
-              "name": "Frames-v1.2.0-macOS.zip",
-              "browser_download_url": "https://github.com/whoavidwivedi/frames/releases/download/v1.2.0/Frames-v1.2.0-macOS.zip",
+              "name": "Frames-v2.0.0-macOS.zip",
+              "browser_download_url": "https://github.com/whoavidwivedi/frames/releases/download/v2.0.0/Frames-v2.0.0-macOS.zip",
               "size": 2500000,
               "content_type": "application/zip"
             },
             {
               "id": 102,
-              "name": "Frames-v1.2.0-AppleSilicon.dmg",
-              "browser_download_url": "https://github.com/whoavidwivedi/frames/releases/download/v1.2.0/Frames-v1.2.0-AppleSilicon.dmg",
+              "name": "Frames-v2.0.0-AppleSilicon.dmg",
+              "browser_download_url": "https://github.com/whoavidwivedi/frames/releases/download/v2.0.0/Frames-v2.0.0-AppleSilicon.dmg",
               "size": 2800000,
               "content_type": "application/x-apple-diskimage"
             }
@@ -1203,10 +1203,10 @@ public enum FramesTestSuite {
         }
         """
         let decodedRelease = try? JSONDecoder().decode(GitHubRelease.self, from: sampleJSON.data(using: .utf8)!)
-        assertTest("GitHub Release JSON Decoded", condition: decodedRelease != nil && decodedRelease?.tagName == "v1.2.0")
+        assertTest("GitHub Release JSON Decoded", condition: decodedRelease != nil && decodedRelease?.tagName == "v2.0.0")
         assertTest("GitHub Release Assets Count", condition: decodedRelease?.assets.count == 2)
         let zipAsset = decodedRelease?.assets.first(where: { $0.isZipPayload })
-        assertTest("Zip Asset Identified", condition: zipAsset != nil && zipAsset?.name == "Frames-v1.2.0-macOS.zip")
+        assertTest("Zip Asset Identified", condition: zipAsset != nil && zipAsset?.name == "Frames-v2.0.0-macOS.zip")
         assertTest("Asset Size Formatted Non-Empty", condition: zipAsset?.formattedSize.isEmpty == false)
 
         // 4. UpdateManager Release Processing
@@ -1218,16 +1218,16 @@ public enum FramesTestSuite {
         if let rel = decodedRelease {
             updater.processRelease(rel, manual: false)
             assertTest("UpdateManager Flags Available Update", condition: updater.hasUpdate)
-            assertTest("UpdateManager Available Version Matches", condition: updater.availableUpdate?.tagName == "v1.2.0")
+            assertTest("UpdateManager Available Version Matches", condition: updater.availableUpdate?.tagName == "v2.0.0")
 
             // Test Skip Version
-            updater.skipVersion("v1.2.0")
-            assertTest("UpdateManager Version Skipped Recorded", condition: updater.isVersionSkipped("v1.2.0"))
+            updater.skipVersion("v2.0.0")
+            assertTest("UpdateManager Version Skipped Recorded", condition: updater.isVersionSkipped("v2.0.0"))
             // Clean up skipped version
             var skipped = updater.skippedVersions
-            skipped.remove("v1.2.0")
+            skipped.remove("v2.0.0")
             updater.skippedVersions = skipped
-            assertTest("UpdateManager Version Unskipped", condition: !updater.isVersionSkipped("v1.2.0"))
+            assertTest("UpdateManager Version Unskipped", condition: !updater.isVersionSkipped("v2.0.0"))
         }
 
         // Test process older/same release
@@ -1261,6 +1261,23 @@ public enum FramesTestSuite {
         }
         try? FileManager.default.removeItem(at: tempDir)
         assertTest("Invalid Bundle Correctly Rejected", condition: invalidBundleRejected)
+
+        // [28] Testing Repository Quality & CI Pipeline Assets
+        logs.append("\n[28] Testing Repository Quality & CI Pipeline Assets...")
+        let projectRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let ciWorkflow = projectRoot.appendingPathComponent(".github/workflows/ci.yml")
+        let releaseWorkflow = projectRoot.appendingPathComponent(".github/workflows/release.yml")
+        let prTemplate = projectRoot.appendingPathComponent(".github/PULL_REQUEST_TEMPLATE.md")
+        let contributing = projectRoot.appendingPathComponent("CONTRIBUTING.md")
+        let releaseScript = projectRoot.appendingPathComponent("scripts/release.sh")
+        let buildDmgScript = projectRoot.appendingPathComponent("packaging/build_dmg.sh")
+
+        assertTest("CI Workflow Defined (.github/workflows/ci.yml)", condition: FileManager.default.fileExists(atPath: ciWorkflow.path))
+        assertTest("Release Workflow Defined (.github/workflows/release.yml)", condition: FileManager.default.fileExists(atPath: releaseWorkflow.path))
+        assertTest("Pull Request Template Present", condition: FileManager.default.fileExists(atPath: prTemplate.path))
+        assertTest("Contributing Guidelines Present", condition: FileManager.default.fileExists(atPath: contributing.path))
+        assertTest("Release Pipeline Script Present", condition: FileManager.default.fileExists(atPath: releaseScript.path))
+        assertTest("Retina DMG Packaging Script Present", condition: FileManager.default.fileExists(atPath: buildDmgScript.path))
 
         // Summary
         logs.append("\n==========================================")
