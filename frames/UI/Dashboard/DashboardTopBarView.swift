@@ -14,7 +14,6 @@ public struct DashboardTopBarView: View {
         case back
         case forward
         case search
-        case command
     }
 
     public init(library: LibraryManager, onPlayURL: @escaping (URL) -> Void) {
@@ -119,17 +118,17 @@ public struct DashboardTopBarView: View {
                         .transition(.opacity.combined(with: .scale(scale: 0.9)))
                     }
 
-                    // 4. Search Icon Button
+                    // 4. Search & Command Menu (⌘K, ⌘F)
                     Button {
-                        library.toggleSearch()
+                        CommandPaletteManager.shared.toggle()
                     } label: {
                         ZStack {
                             RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                .fill(hoveredButton == .search ? ShadcnTheme.cardHover : (library.isSearchActive ? ShadcnTheme.accentActive : Color.black.opacity(0.0001)))
+                                .fill(hoveredButton == .search ? ShadcnTheme.cardHover : (CommandPaletteManager.shared.isPresented ? ShadcnTheme.accentActive : Color.black.opacity(0.0001)))
 
                             Image(systemName: "magnifyingglass")
                                 .font(.system(size: 13, weight: .regular))
-                                .foregroundStyle(library.isSearchActive || !library.searchQuery.isEmpty ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
+                                .foregroundStyle(hoveredButton == .search || CommandPaletteManager.shared.isPresented ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
                         }
                         .frame(width: 28, height: 28)
                         .contentShape(Rectangle())
@@ -137,35 +136,10 @@ public struct DashboardTopBarView: View {
                     .buttonStyle(.plain)
                     .contentShape(Rectangle())
                     .pointingHand()
-                    .help("Search Videos (⌘F)")
+                    .help("Search Videos & Commands (⌘K, ⌘F)")
                     .onHover { h in
                         withAnimation(.fluidQuick) {
                             hoveredButton = h ? .search : nil
-                        }
-                    }
-
-                    // 5. Command Menu (⌘K)
-                    Button {
-                        CommandPaletteManager.shared.open()
-                    } label: {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                .fill(hoveredButton == .command ? ShadcnTheme.cardHover : (CommandPaletteManager.shared.isPresented ? ShadcnTheme.accentActive : Color.black.opacity(0.0001)))
-
-                            Image(systemName: "command")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(hoveredButton == .command || CommandPaletteManager.shared.isPresented ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
-                        }
-                        .frame(width: 28, height: 28)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .contentShape(Rectangle())
-                    .pointingHand()
-                    .help("Command Menu & Quick Actions (⌘K)")
-                    .onHover { h in
-                        withAnimation(.fluidQuick) {
-                            hoveredButton = h ? .command : nil
                         }
                     }
                 }

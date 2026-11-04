@@ -112,18 +112,8 @@ public final class KeyboardHandler {
                 return nil
             }
 
-            // Search Filter: Command + F (⌘F)
-            if isCommand && !isControl && !isOption && keyCode == 3 {
-                Task { @MainActor in
-                    if engine.currentURL == nil {
-                        LibraryManager.shared.toggleSearch()
-                    }
-                }
-                return nil
-            }
-
-            // Command Palette: Command + K (⌘K)
-            if isCommand && !isControl && !isOption && keyCode == 40 {
+            // Search & Command Palette: Command + F (⌘F) or Command + K (⌘K)
+            if isCommand && !isControl && !isOption && (keyCode == 3 || keyCode == 40) {
                 Task { @MainActor in
                     CommandPaletteManager.shared.toggle()
                 }

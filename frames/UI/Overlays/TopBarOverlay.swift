@@ -115,10 +115,10 @@ public struct TopBarOverlay: View {
                         .help(isFav ? "Remove from Favorites" : "Add to Favorites")
                     }
 
-                    ShadcnButton(icon: "command", variant: .ghost, size: .iconSm, accessibilityLabel: "Command Menu") {
-                        CommandPaletteManager.shared.open()
+                    ShadcnButton(icon: "magnifyingglass", variant: .ghost, size: .iconSm, accessibilityLabel: "Search & Commands") {
+                        CommandPaletteManager.shared.toggle()
                     }
-                    .help("Command Menu (⌘K)")
+                    .help("Search & Commands (⌘K, ⌘F)")
 
                     ShadcnButton(icon: "folder", variant: .ghost, size: .iconSm, accessibilityLabel: "Open media") {
                         openNewFile()
