@@ -207,6 +207,46 @@ public struct FramesCommandPalette: View {
                             engine.activeInspectorSheet = (engine.activeInspectorSheet == .stats ? nil : .stats)
                         }
 
+                        CommandItem(
+                            "Capture Frame Snapshot",
+                            id: "playback-capture-snapshot",
+                            subtitle: "Save high-res frame to ~/Pictures/Frames",
+                            icon: "camera.viewfinder",
+                            shortcut: "⌘S",
+                            keywords: ["snapshot", "screenshot", "capture", "photo", "image", "frame", "save"]
+                        ) {
+                            if let currentURL = engine.currentURL {
+                                _ = try? FrameCaptureEngine.shared.saveFrame(
+                                    pixelBuffer: nil,
+                                    videoTitle: currentURL.deletingPathExtension().lastPathComponent,
+                                    timestampSeconds: engine.currentTime
+                                )
+                            }
+                        }
+
+                        CommandItem(
+                            "Jump to Beginning (00:00)",
+                            id: "playback-jump-beginning",
+                            subtitle: "Seek to start of media",
+                            icon: "backward.end.fill",
+                            shortcut: "0",
+                            keywords: ["beginning", "start", "reset", "0", "seek"]
+                        ) {
+                            engine.seek(to: 0.0)
+                        }
+
+                        if engine.duration > 0 {
+                            CommandItem(
+                                "Jump to Halfway (50%)",
+                                id: "playback-jump-halfway",
+                                subtitle: "Seek to middle of media",
+                                icon: "arrow.right.to.line",
+                                keywords: ["half", "halfway", "middle", "50%"]
+                            ) {
+                                engine.seek(to: engine.duration * 0.5)
+                            }
+                        }
+
                         if engine.hasEnded {
                             CommandItem(
                                 "Replay Video",

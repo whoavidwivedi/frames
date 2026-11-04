@@ -1179,23 +1179,23 @@ public enum FramesTestSuite {
         // 3. GitHub API Decoding
         let sampleJSON = """
         {
-          "tag_name": "v1.2.0",
-          "name": "Frames v1.2.0 - High Performance Update",
+          "tag_name": "v2.0.0",
+          "name": "Frames v2.0.0 - Next Gen Major Update",
           "body": "## What's New\\n- Faster seeking\\n- Liquid Glass polish",
-          "html_url": "https://github.com/whoavidwivedi/frames/releases/tag/v1.2.0",
+          "html_url": "https://github.com/whoavidwivedi/frames/releases/tag/v2.0.0",
           "published_at": "2026-11-05T00:00:00Z",
           "assets": [
             {
               "id": 101,
-              "name": "Frames-v1.2.0-macOS.zip",
-              "browser_download_url": "https://github.com/whoavidwivedi/frames/releases/download/v1.2.0/Frames-v1.2.0-macOS.zip",
+              "name": "Frames-v2.0.0-macOS.zip",
+              "browser_download_url": "https://github.com/whoavidwivedi/frames/releases/download/v2.0.0/Frames-v2.0.0-macOS.zip",
               "size": 2500000,
               "content_type": "application/zip"
             },
             {
               "id": 102,
-              "name": "Frames-v1.2.0-AppleSilicon.dmg",
-              "browser_download_url": "https://github.com/whoavidwivedi/frames/releases/download/v1.2.0/Frames-v1.2.0-AppleSilicon.dmg",
+              "name": "Frames-v2.0.0-AppleSilicon.dmg",
+              "browser_download_url": "https://github.com/whoavidwivedi/frames/releases/download/v2.0.0/Frames-v2.0.0-AppleSilicon.dmg",
               "size": 2800000,
               "content_type": "application/x-apple-diskimage"
             }
@@ -1203,10 +1203,10 @@ public enum FramesTestSuite {
         }
         """
         let decodedRelease = try? JSONDecoder().decode(GitHubRelease.self, from: sampleJSON.data(using: .utf8)!)
-        assertTest("GitHub Release JSON Decoded", condition: decodedRelease != nil && decodedRelease?.tagName == "v1.2.0")
+        assertTest("GitHub Release JSON Decoded", condition: decodedRelease != nil && decodedRelease?.tagName == "v2.0.0")
         assertTest("GitHub Release Assets Count", condition: decodedRelease?.assets.count == 2)
         let zipAsset = decodedRelease?.assets.first(where: { $0.isZipPayload })
-        assertTest("Zip Asset Identified", condition: zipAsset != nil && zipAsset?.name == "Frames-v1.2.0-macOS.zip")
+        assertTest("Zip Asset Identified", condition: zipAsset != nil && zipAsset?.name == "Frames-v2.0.0-macOS.zip")
         assertTest("Asset Size Formatted Non-Empty", condition: zipAsset?.formattedSize.isEmpty == false)
 
         // 4. UpdateManager Release Processing
@@ -1218,16 +1218,16 @@ public enum FramesTestSuite {
         if let rel = decodedRelease {
             updater.processRelease(rel, manual: false)
             assertTest("UpdateManager Flags Available Update", condition: updater.hasUpdate)
-            assertTest("UpdateManager Available Version Matches", condition: updater.availableUpdate?.tagName == "v1.2.0")
+            assertTest("UpdateManager Available Version Matches", condition: updater.availableUpdate?.tagName == "v2.0.0")
 
             // Test Skip Version
-            updater.skipVersion("v1.2.0")
-            assertTest("UpdateManager Version Skipped Recorded", condition: updater.isVersionSkipped("v1.2.0"))
+            updater.skipVersion("v2.0.0")
+            assertTest("UpdateManager Version Skipped Recorded", condition: updater.isVersionSkipped("v2.0.0"))
             // Clean up skipped version
             var skipped = updater.skippedVersions
-            skipped.remove("v1.2.0")
+            skipped.remove("v2.0.0")
             updater.skippedVersions = skipped
-            assertTest("UpdateManager Version Unskipped", condition: !updater.isVersionSkipped("v1.2.0"))
+            assertTest("UpdateManager Version Unskipped", condition: !updater.isVersionSkipped("v2.0.0"))
         }
 
         // Test process older/same release
@@ -1261,6 +1261,72 @@ public enum FramesTestSuite {
         }
         try? FileManager.default.removeItem(at: tempDir)
         assertTest("Invalid Bundle Correctly Rejected", condition: invalidBundleRejected)
+
+        // [28] Testing Timestamp Jump Parser & Expression Engine
+        logs.append("\n[28] Testing Timestamp Jump Parser & Expression Engine...")
+        let jumpMMSS = TimeJumpParser.parse(query: "1:23")
+        assertTest("TimeJumpParser MM:SS Parse (1:23 -> 83s)", condition: jumpMMSS != nil && abs(jumpMMSS!.targetSeconds - 83.0) < 0.001)
+
+        let jumpHHMMSS = TimeJumpParser.parse(query: "01:23:45")
+        assertTest("TimeJumpParser HH:MM:SS Parse (01:23:45 -> 5025s)", condition: jumpHHMMSS != nil && abs(jumpHHMMSS!.targetSeconds - 5025.0) < 0.001)
+
+        let jumpLeadingColon = TimeJumpParser.parse(query: ":45")
+        assertTest("TimeJumpParser Leading Colon (:45 -> 45s)", condition: jumpLeadingColon != nil && abs(jumpLeadingColon!.targetSeconds - 45.0) < 0.001)
+
+        let jumpUnitSeconds = TimeJumpParser.parse(query: "90s")
+        assertTest("TimeJumpParser Unit Suffix Seconds (90s -> 90s)", condition: jumpUnitSeconds != nil && abs(jumpUnitSeconds!.targetSeconds - 90.0) < 0.001)
+
+        let jumpUnitMinutes = TimeJumpParser.parse(query: "15m")
+        assertTest("TimeJumpParser Unit Suffix Minutes (15m -> 900s)", condition: jumpUnitMinutes != nil && abs(jumpUnitMinutes!.targetSeconds - 900.0) < 0.001)
+
+        let jumpUnitHours = TimeJumpParser.parse(query: "2h")
+        assertTest("TimeJumpParser Unit Suffix Hours (2h -> 7200s)", condition: jumpUnitHours != nil && abs(jumpUnitHours!.targetSeconds - 7200.0) < 0.001)
+
+        let jumpRelativeForward = TimeJumpParser.parse(query: "+30s", currentTime: 60.0)
+        assertTest("TimeJumpParser Relative Forward (+30s from 60s -> 90s)", condition: jumpRelativeForward != nil && jumpRelativeForward!.isRelative && abs(jumpRelativeForward!.targetSeconds - 90.0) < 0.001)
+
+        let jumpRelativeBackward = TimeJumpParser.parse(query: "-15s", currentTime: 60.0)
+        assertTest("TimeJumpParser Relative Backward (-15s from 60s -> 45s)", condition: jumpRelativeBackward != nil && jumpRelativeBackward!.isRelative && abs(jumpRelativeBackward!.targetSeconds - 45.0) < 0.001)
+
+        let jumpNegativeClamp = TimeJumpParser.parse(query: "-90s", currentTime: 30.0)
+        assertTest("TimeJumpParser Negative Underflow Clamped to 0.0", condition: jumpNegativeClamp != nil && jumpNegativeClamp!.targetSeconds == 0.0)
+
+        let jumpDurationClamp = TimeJumpParser.parse(query: "600s", currentTime: 0.0, duration: 300.0)
+        assertTest("TimeJumpParser Duration Overflow Clamped to Duration", condition: jumpDurationClamp != nil && jumpDurationClamp!.targetSeconds == 300.0)
+
+        let jumpInvalid = TimeJumpParser.parse(query: "invalid_string_not_time")
+        assertTest("TimeJumpParser Invalid Input Rejected", condition: jumpInvalid == nil)
+
+        let jumpEmpty = TimeJumpParser.parse(query: "   ")
+        assertTest("TimeJumpParser Empty Input Rejected", condition: jumpEmpty == nil)
+
+        // [29] Testing High-Resolution Frame Capture Engine
+        logs.append("\n[29] Testing High-Resolution Frame Capture Engine...")
+        let tempCaptureDir = FileManager.default.temporaryDirectory.appendingPathComponent("FramesCaptureTest_\(UUID().uuidString)")
+        let captureEngine = FrameCaptureEngine(customFolder: tempCaptureDir)
+
+        var dirCreated = false
+        do {
+            let dir = try captureEngine.ensureDestinationDirectoryExists()
+            dirCreated = FileManager.default.fileExists(atPath: dir.path)
+        } catch {
+            dirCreated = false
+        }
+        assertTest("FrameCaptureEngine Directory Creation", condition: dirCreated)
+
+        let snapshotName = captureEngine.generateSnapshotFileName(videoTitle: "Apple Silicon Demo", timestampSeconds: 3665.0)
+        assertTest("FrameCaptureEngine Standard Filename Format", condition: snapshotName.hasPrefix("Frames_Apple_Silicon_Demo_") && snapshotName.contains("_01-01-05_") && snapshotName.hasSuffix(".png"))
+
+        var frameSaved = false
+        do {
+            let meta = try captureEngine.saveFrame(pixelBuffer: nil, videoTitle: "TestVideo", timestampSeconds: 120.0)
+            frameSaved = FileManager.default.fileExists(atPath: meta.fileURL.path) && meta.width > 0 && meta.height > 0
+        } catch {
+            frameSaved = false
+        }
+        assertTest("FrameCaptureEngine File Persistence & Metadata", condition: frameSaved)
+
+        try? FileManager.default.removeItem(at: tempCaptureDir)
 
         // Summary
         logs.append("\n==========================================")
