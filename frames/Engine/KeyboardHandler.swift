@@ -135,6 +135,28 @@ public final class KeyboardHandler {
                 return nil
             }
 
+            // Capture Frame Snapshot: Command + S (⌘S)
+            if isCommand && !isControl && !isOption && keyCode == 1 {
+                Task { @MainActor in
+                    if let currentURL = engine.currentURL {
+                        do {
+                            let metadata = try FrameCaptureEngine.shared.saveFrame(
+                                pixelBuffer: nil,
+                                videoTitle: currentURL.deletingPathExtension().lastPathComponent,
+                                timestampSeconds: engine.currentTime
+                            )
+                            NotificationCenter.default.post(
+                                name: Notification.Name("FramesSnapshotCapturedNotification"),
+                                object: metadata
+                            )
+                        } catch {
+                            print("Frame snapshot error: \(error)")
+                        }
+                    }
+                }
+                return nil
+            }
+
             // If any other Command or Control combination is pressed, let macOS handle it natively (e.g. ⌘Q, ⌘H, ⌥⌘H, ⌘O, ⌘`)
             if isCommand || isControl {
                 return event
