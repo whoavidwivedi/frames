@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Apple%20Silicon-ARM64-black?style=flat-square&logo=apple" alt="Apple Silicon ARM64">
   <img src="https://img.shields.io/badge/Language-Swift%206-black?style=flat-square&logo=swift" alt="Swift 6">
   <img src="https://img.shields.io/badge/Design-shadcn%20base--luma%20%2F%20neutral-black?style=flat-square" alt="shadcn base-luma / neutral">
-  <img src="https://img.shields.io/badge/Tests-232%20Passed%20(0%20warnings)-black?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-235%20Passed%20(0%20warnings)-black?style=flat-square" alt="Tests">
   <a href="https://github.com/whoavidwivedi/frames/pulls"><img src="https://img.shields.io/badge/PRs-Welcome-black?style=flat-square" alt="PRs Welcome"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/whoavidwivedi/frames?style=flat-square&color=black" alt="License: MIT"></a>
 </p>
@@ -41,13 +41,13 @@ Download the latest pre-compiled binary from the [Releases](https://github.com/w
 
 | Release | Version | macOS Architecture | Download |
 | :--- | :--- | :--- | :--- |
-| **Latest** | **v1.2.0** | Apple Silicon (`arm64`) | [**Frames-v1.2.0-macOS.zip**](https://github.com/whoavidwivedi/frames/releases/download/v1.2.0/Frames-v1.2.0-macOS.zip) · [**Frames-v1.2.0-AppleSilicon.dmg**](https://github.com/whoavidwivedi/frames/releases/download/v1.2.0/Frames-v1.2.0-AppleSilicon.dmg) |
+| **Latest** | **v1.2.0** | Apple Silicon (`arm64`) | [**Frames-v1.2.0-macOS.zip**](https://github.com/whoavidwivedi/frames/releases/download/v1.2.0/Frames-v1.2.0-macOS.zip) |
 | Previous | v1.1.0 | Apple Silicon (`arm64`) | [Frames-v1.1.0-macOS.zip](https://github.com/whoavidwivedi/frames/releases/download/v1.1.0/Frames-v1.1.0-macOS.zip) |
 | Previous | v1.0.2 | Apple Silicon (`arm64`) | [Frames-v1.0.2-macOS.zip](https://github.com/whoavidwivedi/frames/releases/download/v1.0.2/Frames-v1.0.2-macOS.zip) |
 | Previous | v1.0.1 | Apple Silicon (`arm64`) | [Frames-v1.0.1-macOS.zip](https://github.com/whoavidwivedi/frames/releases/download/v1.0.1/Frames-v1.0.1-macOS.zip) |
 | Initial | v1.0.0 | Apple Silicon (`arm64`) | [Frames-v1.0.0-macOS.zip](https://github.com/whoavidwivedi/frames/releases/download/v1.0.0/Frames-v1.0.0-macOS.zip) |
 
-1. Download `Frames-v1.2.0-AppleSilicon.dmg` or `Frames-v1.2.0-macOS.zip`.
+1. Download `Frames-v1.2.0-macOS.zip`.
 2. Move `frames.app` into your `/Applications` folder.
 3. Open Frames and enjoy fluid hardware-accelerated playback with built-in in-app OTA update support.
 
@@ -218,55 +218,6 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild \
 
 ---
 
-## 📦 DMG Packaging & Distribution
-
-Frames includes an Apple-grade automated DMG builder with custom drag-and-drop installer window, retina background styling, Applications symlink, and UDZO compression:
-
-```bash
-# Build the official Apple Silicon distribution DMG
-./packaging/build_dmg.sh
-```
-
-Output: `dist/Frames-v1.1.0-AppleSilicon.dmg`
-
-### Apple Developer ID Signing & Notarization
-
-For official public distribution outside the Mac App Store without Gatekeeper security prompts:
-
-```bash
-./scripts/sign_and_notarize.sh \
-  --identity "Developer ID Application: Your Name (TEAM_ID)" \
-  --keychain-profile "FRAMES_NOTARY" \
-  --dmg dist/Frames.dmg
-```
-
-This pipeline:
-1. Signs the DMG with Developer ID Application and secure Apple timestamp.
-2. Submits to Apple Notary Service via `xcrun notarytool`.
-3. Staples the notarization ticket via `xcrun stapler staple`.
-4. Validates Gatekeeper acceptance via `spctl`.
-
----
-
-## 🌐 Distribution Website & Free Real-Time Tracking
-
-Frames includes a modern single-page distribution site with 4K screenshots, dynamic DMG download trigger, and privacy-respecting free unique visitor & download tracking (zero third-party subscription costs):
-
-```bash
-# Start the distribution server on localhost:3000
-node website/server.js
-```
-
-* **Localhost URL:** [http://localhost:3000](http://localhost:3000)
-* **Direct DMG Stream:** [http://localhost:3000/download](http://localhost:3000/download)
-* **Live Analytics API:** [http://localhost:3000/api/stats](http://localhost:3000/api/stats)
-* **Feedback API:** `POST /api/feedback` (records to `website/data/feedback.json`)
-
----
-
-
----
-
 ## Contributing & Pull Requests
 
 Contributions, feedback, and pull requests are warmly welcomed!
@@ -283,7 +234,7 @@ Contributions, feedback, and pull requests are warmly welcomed!
    * Follow `shadcn` base-luma/neutral design tokens (preset `b3lnoM3QO`).
    * Maintain **0 warnings and 0 errors** on Xcode builds.
 3. **Verify Tests**:
-   Ensure all 154 tests pass cleanly before submitting:
+   Ensure all 235 tests pass cleanly before submitting:
    ```bash
    ./Build/Products/Debug/frames.app/Contents/MacOS/frames --run-tests
    ```

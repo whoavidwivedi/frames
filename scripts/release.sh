@@ -5,7 +5,7 @@ set -euo pipefail
 # Frames macOS Apple Silicon Official Release & GitHub Tagging Pipeline
 # ==============================================================================
 # Automates testing, version bumping, release compilation, code signing,
-# packaging (Retina DMG & ZIP), checksum generation, git tagging, and
+# packaging (macOS ZIP), checksum generation, git tagging, and
 # GitHub Release publication.
 # ==============================================================================
 
@@ -214,7 +214,7 @@ codesign --force --deep --sign - "${RELEASE_APP}"
 codesign --verify --verbose=1 "${RELEASE_APP}"
 
 # ------------------------------------------------------------------------------
-# 5. Packaging Artifacts (ZIP & Retina DMG)
+# 5. Packaging Artifacts (macOS ZIP)
 # ------------------------------------------------------------------------------
 echo "==> [5/7] Packaging distribution artifacts..."
 mkdir -p "${DIST_DIR}"
@@ -229,17 +229,12 @@ echo "Creating distribution ZIP: ${ZIP_PATH}..."
     ditto -c -k --keepParent "$(basename "${RELEASE_APP}")" "${ZIP_PATH}"
 )
 
-DMG_NAME="Frames-${TAG}-AppleSilicon.dmg"
-DMG_PATH="${DIST_DIR}/${DMG_NAME}"
-echo "Building Retina distribution DMG: ${DMG_PATH}..."
-"${PROJECT_ROOT}/packaging/build_dmg.sh" "${VERSION}"
-
 # Generate Checksums
 CHECKSUM_FILE="${DIST_DIR}/checksums.txt"
 echo "Generating SHA-256 checksums..."
 (
     cd "${DIST_DIR}"
-    shasum -a 256 "${ZIP_NAME}" "${DMG_NAME}" > "${CHECKSUM_FILE}"
+    shasum -a 256 "${ZIP_NAME}" > "${CHECKSUM_FILE}"
 )
 cat "${CHECKSUM_FILE}"
 
@@ -287,12 +282,12 @@ else
 • **In-App Production OTA Update Engine**: Instant update notifications without intrusive automatic restarts. Seamless in-app download, checksum integrity verification, atomic bundle swap, and app relaunch.
 • **Instant Update Discovery**: Background release checking against GitHub Releases with SemVer 2.0.0 resolution, manual check affordance in App Menu and Command Palette.
 • **Liquid Glass Update Modal**: Adaptive dual-mode interface showcasing real-time download progress, changelog highlights, and granular controls ("Update & Restart", "Later", "Skip this version").
-• **Apple Silicon Performance Polish**: 232/232 automated tests passing with zero regressions, strict concurrency compliance, and ultra-low unified memory footprint.
+• **Apple Silicon Performance Polish**: 235/235 automated tests passing with zero regressions, strict concurrency compliance, and ultra-low unified memory footprint.
 
 ### 📦 Installation
 
-1. Download \`${DMG_NAME}\` or \`${ZIP_NAME}\` below.
-2. Drag \`Frames.app\` to your \`/Applications\` folder.
+1. Download \`${ZIP_NAME}\` below.
+2. Unzip and drag \`Frames.app\` to your \`/Applications\` folder.
 3. Launch Frames and enjoy fluid hardware-accelerated playback.
 
 ### 🔐 SHA-256 Checksums
@@ -307,7 +302,6 @@ TITLE="${CUSTOM_TITLE:-Frames ${TAG} — Native Apple Silicon Media Engine & In-
 GH_FLAGS=(
     "${TAG}"
     "${ZIP_PATH}"
-    "${DMG_PATH}"
     "${CHECKSUM_FILE}"
     --title "${TITLE}"
     --notes-file "${TEMP_NOTES_FILE}"
