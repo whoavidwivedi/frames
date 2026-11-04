@@ -342,6 +342,75 @@ public enum FramesTestSuite {
         let dragView = TitleBarDragNSView(frame: NSRect(x: 0, y: 0, width: 200, height: 38))
         assertTest("TitleBarDragNSView Initialized", condition: dragView.wantsLayer)
 
+        // MARK: - VideoListRowView Thumbnail Hover Isolation Tests
+        let testListVideo = lib.videos.first ?? VideoItem(url: testSingleURL)
+
+        // 1. Spec & Design Token Verification
+        assertTest("List Thumbnail Dimensions Match 76x43 Spec", condition: VideoListRowView.thumbnailWidth == 76 && VideoListRowView.thumbnailHeight == 43)
+        assertTest("List Thumbnail Play Badge Matches 28pt Spec", condition: VideoListRowView.playBadgeDiameter == 28)
+        assertTest("List Thumbnail Play Icon Matches 10pt Spec", condition: VideoListRowView.playIconSize == 10)
+        assertTest("List Thumbnail Scrim Opacity Matches 0.32 Spec", condition: VideoListRowView.scrimOpacity == 0.32)
+        assertTest("List Thumbnail Card Fill Opacity Matches 0.65 Spec", condition: VideoListRowView.badgeCardFillOpacity == 0.65)
+
+        // 2. When only row is hovered, thumbnail is NOT hovered and play overlay is hidden
+        let rowHoveredOnly = VideoListRowView(
+            video: testListVideo,
+            isHovered: true,
+            containerWidth: 600,
+            onHover: { _ in },
+            library: lib,
+            onPlayURL: { _ in },
+            initialThumbnailHovered: false
+        )
+        assertTest("List Row Hover Isolates Thumbnail State (Row Hovered, Thumbnail Not Hovered)", condition: rowHoveredOnly.isHovered == true && rowHoveredOnly.isThumbnailHoveredValue == false)
+        assertTest("List Thumbnail Play Overlay Hidden When Only Row Hovered", condition: !rowHoveredOnly.shouldShowThumbnailPlayOverlay && !VideoListRowView.shouldShowPlayOverlay(isThumbnailHovered: false, isRowHovered: true))
+
+        // 3. AppKit NSHostingView Integration Mount
+        let hostView = NSHostingView(rootView: rowHoveredOnly)
+        assertTest("VideoListRowView AppKit NSHostingView Mount", condition: hostView.fittingSize.height > 0)
+
+        // 4. When thumbnail itself is hovered, play overlay is visible
+        let thumbHovered = VideoListRowView(
+            video: testListVideo,
+            isHovered: false,
+            containerWidth: 600,
+            onHover: { _ in },
+            library: lib,
+            onPlayURL: { _ in },
+            initialThumbnailHovered: true
+        )
+        assertTest("List Thumbnail Play Overlay Visible On Thumbnail Hover", condition: thumbHovered.shouldShowThumbnailPlayOverlay && VideoListRowView.shouldShowPlayOverlay(isThumbnailHovered: true, isRowHovered: false))
+        assertTest("List Thumbnail Play Overlay Visible When Both Row & Thumbnail Hovered", condition: VideoListRowView.shouldShowPlayOverlay(isThumbnailHovered: true, isRowHovered: true))
+
+        // 5. Dynamic hover state mutation simulation
+        var mutableRowView = VideoListRowView(
+            video: testListVideo,
+            isHovered: false,
+            containerWidth: 600,
+            onHover: { _ in },
+            library: lib,
+            onPlayURL: { _ in }
+        )
+        assertTest("List Row Thumbnail Default State False", condition: !mutableRowView.isThumbnailHoveredValue)
+        mutableRowView.simulateThumbnailHover(true)
+        assertTest("List Row Thumbnail Hover Simulation Active", condition: mutableRowView.isThumbnailHoveredValue && mutableRowView.shouldShowThumbnailPlayOverlay)
+        mutableRowView.simulateThumbnailHover(false)
+        assertTest("List Row Thumbnail Hover Simulation Reset", condition: !mutableRowView.isThumbnailHoveredValue && !mutableRowView.shouldShowThumbnailPlayOverlay)
+
+        // 6. Thumbnail hover callback mechanism
+        var thumbCallbackReceived: Bool? = nil
+        let callbackRowView = VideoListRowView(
+            video: testListVideo,
+            isHovered: true,
+            containerWidth: 600,
+            onHover: { _ in },
+            library: lib,
+            onPlayURL: { _ in },
+            onThumbnailHover: { h in thumbCallbackReceived = h }
+        )
+        callbackRowView.onThumbnailHover?(true)
+        assertTest("List Row Thumbnail Hover Callback Invocation", condition: thumbCallbackReceived == true)
+
         // MARK: - 10. macOS Window Management Tests
         logs.append("\n[10] Testing macOS Window Management & Fullscreen States...")
         let wm = WindowManager.shared

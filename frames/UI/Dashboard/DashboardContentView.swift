@@ -625,6 +625,53 @@ public struct VideoListRowView: View {
     public var onHover: (Bool) -> Void
     @Bindable var library: LibraryManager
     public var onPlayURL: (URL) -> Void
+    public var onThumbnailHover: ((Bool) -> Void)? = nil
+
+    // MARK: - Mini Thumbnail Dimensions & Spec Constants
+    public static let thumbnailWidth: CGFloat = 76
+    public static let thumbnailHeight: CGFloat = 43
+    public static let playBadgeDiameter: CGFloat = 28
+    public static let playIconSize: CGFloat = 10
+    public static let scrimOpacity: Double = 0.32
+    public static let badgeCardFillOpacity: Double = 0.65
+
+    @State private var isThumbnailHovered: Bool = false
+
+    public init(
+        video: VideoItem,
+        isHovered: Bool,
+        containerWidth: CGFloat,
+        onHover: @escaping (Bool) -> Void,
+        library: LibraryManager,
+        onPlayURL: @escaping (URL) -> Void,
+        initialThumbnailHovered: Bool = false,
+        onThumbnailHover: ((Bool) -> Void)? = nil
+    ) {
+        self.video = video
+        self.isHovered = isHovered
+        self.containerWidth = containerWidth
+        self.onHover = onHover
+        self._library = Bindable(wrappedValue: library)
+        self.onPlayURL = onPlayURL
+        self._isThumbnailHovered = State(initialValue: initialThumbnailHovered)
+        self.onThumbnailHover = onThumbnailHover
+    }
+
+    public var isThumbnailHoveredValue: Bool {
+        _isThumbnailHovered.wrappedValue
+    }
+
+    public mutating func simulateThumbnailHover(_ hovered: Bool) {
+        _isThumbnailHovered = State(initialValue: hovered)
+    }
+
+    public var shouldShowThumbnailPlayOverlay: Bool {
+        isThumbnailHoveredValue
+    }
+
+    public static func shouldShowPlayOverlay(isThumbnailHovered: Bool, isRowHovered: Bool) -> Bool {
+        return isThumbnailHovered
+    }
 
     public var body: some View {
         HStack(spacing: 12) {
@@ -632,29 +679,51 @@ public struct VideoListRowView: View {
             ZStack {
                 Rectangle()
                     .fill(ShadcnTheme.cardHover)
-                    .frame(width: 76, height: 43)
+                    .frame(width: Self.thumbnailWidth, height: Self.thumbnailHeight)
 
                 Image(systemName: "film")
                     .font(.system(size: 14, weight: .light))
                     .foregroundStyle(ShadcnTheme.foregroundMuted.opacity(0.65))
 
-                // Play button overlay on list thumbnail on hover
-                if isHovered {
-                    Color.black.opacity(0.38)
-                        .overlay(
-                            Image(systemName: "play.fill")
-                                .font(.system(size: 12))
-                                .foregroundStyle(Color.white)
-                        )
-                        .transition(.opacity)
+                // Hover Play Overlay (shows play button only on thumbnail hover)
+                ZStack {
+                    if isThumbnailHovered {
+                        Color.black.opacity(Self.scrimOpacity)
+                            .overlay(
+                                Circle()
+                                    .fill(.ultraThinMaterial)
+                                    .frame(width: Self.playBadgeDiameter, height: Self.playBadgeDiameter)
+                                    .overlay(
+                                        Circle()
+                                            .fill(ShadcnTheme.card.opacity(Self.badgeCardFillOpacity))
+                                    )
+                                    .overlay(
+                                        Circle()
+                                            .strokeBorder(ShadcnTheme.borderActive, lineWidth: 1)
+                                    )
+                                    .overlay(
+                                        Image(systemName: "play.fill")
+                                            .font(.system(size: Self.playIconSize))
+                                            .foregroundStyle(ShadcnTheme.foreground)
+                                            .offset(x: 1)
+                                    )
+                            )
+                            .transition(.opacity)
+                    }
                 }
+                .animation(.fluidQuick, value: isThumbnailHovered)
             }
+            .frame(width: Self.thumbnailWidth, height: Self.thumbnailHeight)
             .clipShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                     .strokeBorder(ShadcnTheme.border, lineWidth: 1)
             )
-            .animation(.fluidQuick, value: isHovered)
+            .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
+            .onHover { hovering in
+                isThumbnailHovered = hovering
+                onThumbnailHover?(hovering)
+            }
 
             // Title & Folder
             VStack(alignment: .leading, spacing: 3) {
@@ -742,6 +811,11 @@ public struct VideoListRowView: View {
         .pointingHand()
         .onHover { h in
             onHover(h)
+        }
+        .onChange(of: isHovered) { _, hovered in
+            if !hovered {
+                isThumbnailHovered = false
+            }
         }
         .contextMenu {
             Button("Play in Frames") {
