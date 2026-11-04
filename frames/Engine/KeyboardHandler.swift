@@ -16,8 +16,19 @@ public final class KeyboardHandler {
 
     private func setupMonitor(engine: VideoPlayerEngine) {
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            // Don't intercept if user is typing into a text field, EXCEPT for Escape (dismiss focus)
+            // Don't intercept if user is typing into a text field, EXCEPT for Escape (dismiss focus) or Cmd+K
             if let firstResponder = NSApp.keyWindow?.firstResponder, firstResponder is NSTextView || firstResponder is NSTextField {
+                if CommandPaletteManager.shared.isPresented {
+                    return event
+                }
+
+                if event.modifierFlags.contains(.command) && !event.modifierFlags.contains(.control) && !event.modifierFlags.contains(.option) && event.keyCode == 40 {
+                    Task { @MainActor in
+                        CommandPaletteManager.shared.toggle()
+                    }
+                    return nil
+                }
+
                 if event.keyCode == 53 {
                     Task { @MainActor in
                         NSApp.keyWindow?.makeFirstResponder(nil)
@@ -25,6 +36,10 @@ public final class KeyboardHandler {
                     }
                     return nil
                 }
+                return event
+            }
+
+            if CommandPaletteManager.shared.isPresented {
                 return event
             }
 
@@ -103,6 +118,14 @@ public final class KeyboardHandler {
                     if engine.currentURL == nil {
                         LibraryManager.shared.toggleSearch()
                     }
+                }
+                return nil
+            }
+
+            // Command Palette: Command + K (⌘K)
+            if isCommand && !isControl && !isOption && keyCode == 40 {
+                Task { @MainActor in
+                    CommandPaletteManager.shared.toggle()
                 }
                 return nil
             }

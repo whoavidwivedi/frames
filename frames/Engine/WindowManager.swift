@@ -131,7 +131,8 @@ public final class WindowManager {
             queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated {
-                self?.updateLayoutState()
+                guard let self = self, !self.isLiveResizing else { return }
+                self.updateLayoutState()
             }
         }
     }
@@ -272,8 +273,12 @@ public final class WindowManager {
         currentWindowSize = win.frame.size
         let newState = computeLayoutState(window: win)
         if newState != currentLayoutState {
-            withAnimation(.fluidWindow) {
+            if isLiveResizing {
                 currentLayoutState = newState
+            } else {
+                withAnimation(.fluidWindow) {
+                    currentLayoutState = newState
+                }
             }
         }
     }

@@ -33,4 +33,6 @@ fastlane/screenshots
 fastlane/test_output
 
 # Release Archives
+dist/
 *.zip
+*.dmg

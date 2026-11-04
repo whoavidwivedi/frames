@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 
-public struct ResumePromptData: Identifiable {
+public struct ResumePromptData: Identifiable, Sendable {
     public let id = UUID()
     public let url: URL
     public let resumeSeconds: Double
@@ -11,6 +11,10 @@ public struct ResumePromptData: Identifiable {
 
     public var title: String {
         url.deletingPathExtension().lastPathComponent
+    }
+
+    public var format: String {
+        url.pathExtension.uppercased()
     }
 
     public init(url: URL, resumeSeconds: Double, formattedTime: String, formattedDuration: String, progress: Double) {
@@ -29,8 +33,8 @@ public struct ResumePlaybackOverlay: View {
     public var onCancel: () -> Void
 
     @State private var isHoveringResume: Bool = false
-    @State private var isHoveringRestart: Bool = false
-    @State private var isHoveringCancel: Bool = false
+    @State private var isHoveringStartOver: Bool = false
+    @State private var isHoveringClose: Bool = false
 
     public init(
         prompt: ResumePromptData,
@@ -46,177 +50,141 @@ public struct ResumePlaybackOverlay: View {
 
     public var body: some View {
         ZStack {
-            // Dismissible semi-transparent backdrop
-            Color.black.opacity(0.45)
+            // Minimal ambient backdrop
+            Color.black.opacity(0.3)
                 .ignoresSafeArea()
                 .onTapGesture {
                     onCancel()
                 }
 
-            // Floating Liquid Glass Dialog Card
-            VStack(spacing: 18) {
-                // Top row with clock icon and close button
-                HStack(alignment: .top) {
-                    ZStack {
-                        Circle()
-                            .fill(ShadcnTheme.cardHover)
-                            .frame(width: 44, height: 44)
-                            .overlay(
-                                Circle()
-                                    .strokeBorder(ShadcnTheme.border, lineWidth: 1)
-                            )
+            // Flat, clean & minimal card (zero drop shadows)
+            VStack(alignment: .leading, spacing: 12) {
+                // Header: Title + Close
+                HStack(alignment: .center, spacing: 8) {
+                    Image(systemName: "clock")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
 
-                        Image(systemName: "clock.arrow.circlepath")
-                            .font(.system(size: 20, weight: .semibold))
-                            .foregroundStyle(ShadcnTheme.primaryHighlight)
-                    }
+                    Text("Resume Playback?")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(ShadcnTheme.foreground)
 
                     Spacer()
 
                     Button {
                         onCancel()
                     } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(ShadcnTheme.foregroundMuted)
-                            .frame(width: 26, height: 26)
-                            .background(
-                                Circle()
-                                    .fill(isHoveringCancel ? ShadcnTheme.cardHover : Color.clear)
-                            )
-                            .contentShape(Circle())
+                        ZStack {
+                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                .fill(isHoveringClose ? ShadcnTheme.cardHover : Color.black.opacity(0.0001))
+
+                            Image(systemName: "xmark")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(isHoveringClose ? ShadcnTheme.foreground : ShadcnTheme.foregroundMuted)
+                        }
+                        .frame(width: 20, height: 20)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .contentShape(Rectangle())
                     .pointingHand()
-                    .onHover { h in
-                        withAnimation(.fluidQuick) {
-                            isHoveringCancel = h
-                        }
-                    }
-                    .animation(.fluidQuick, value: isHoveringCancel)
+                    .keyboardShortcut(.cancelAction)
                     .help("Dismiss (Esc)")
+                    .onHover { h in
+                        isHoveringClose = h
+                    }
                 }
 
-                // Title and Media Information
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Resume Playback?")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(ShadcnTheme.foreground)
-
+                // File name & time left off
+                VStack(alignment: .leading, spacing: 3) {
                     Text(prompt.title)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(ShadcnTheme.foreground)
                         .lineLimit(1)
                         .truncationMode(.middle)
 
-                    Text("You left off at \(prompt.formattedTime) of \(prompt.formattedDuration).")
-                        .font(.system(size: 12))
+                    Text("Left off at \(prompt.formattedTime) of \(prompt.formattedDuration)")
+                        .font(.system(size: 11))
                         .foregroundStyle(ShadcnTheme.foregroundMuted)
-
-                    // Visual Progress Bar
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            Capsule()
-                                .fill(ShadcnTheme.accentActive)
-                                .frame(height: 5)
-
-                            Capsule()
-                                .fill(ShadcnTheme.primaryHighlight)
-                                .frame(width: max(6, geo.size.width * CGFloat(min(max(prompt.progress, 0.0), 1.0))), height: 5)
-                        }
-                    }
-                    .frame(height: 5)
-                    .padding(.top, 4)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
 
-                // Action Buttons
-                VStack(spacing: 8) {
-                    // Option 1: Continue where you left off
-                    Button {
-                        onResume(prompt.url, prompt.resumeSeconds)
-                    } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: "play.fill")
-                                .font(.system(size: 12))
-                            Text("Continue where you left off (at \(prompt.formattedTime))")
-                                .font(.system(size: 12, weight: .semibold))
-                            Spacer()
-                        }
-                        .foregroundStyle(ShadcnTheme.primaryForeground)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .background(
-                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
-                                .fill(isHoveringResume ? ShadcnTheme.primaryHighlight : ShadcnTheme.primary)
-                        )
-                        .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                    .pointingHand()
-                    .scaleEffect(isHoveringResume ? 1.01 : 1.0)
-                    .animation(.fluidQuick, value: isHoveringResume)
-                    .onHover { h in
-                        withAnimation(.fluidQuick) {
-                            isHoveringResume = h
-                        }
-                    }
+                // Flat progress line
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(ShadcnTheme.border)
+                            .frame(height: 3)
 
-                    // Option 2: Start over from beginning
+                        Capsule()
+                            .fill(ShadcnTheme.foreground)
+                            .frame(width: max(3, geo.size.width * CGFloat(min(max(prompt.progress, 0.0), 1.0))), height: 3)
+                    }
+                }
+                .frame(height: 3)
+                .padding(.vertical, 2)
+
+                // Clean side-by-side action buttons
+                HStack(spacing: 8) {
+                    // Start Over
                     Button {
                         onStartOver(prompt.url)
                     } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: "arrow.counterclockwise")
-                                .font(.system(size: 12))
-                            Text("Start over from beginning")
-                                .font(.system(size: 12, weight: .medium))
-                            Spacer()
-                        }
-                        .foregroundStyle(ShadcnTheme.foreground)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .background(
-                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
-                                .fill(isHoveringRestart ? ShadcnTheme.cardHover : ShadcnTheme.card)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
-                                        .strokeBorder(isHoveringRestart ? ShadcnTheme.borderActive : ShadcnTheme.border, lineWidth: 1)
-                                )
-                        )
-                        .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous))
+                        Text("Start Over")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 30)
+                            .background(
+                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                    .fill(isHoveringStartOver ? ShadcnTheme.cardHover : Color.black.opacity(0.0001))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                    .strokeBorder(ShadcnTheme.border, lineWidth: 1)
+                            )
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .contentShape(Rectangle())
                     .pointingHand()
-                    .scaleEffect(isHoveringRestart ? 1.01 : 1.0)
-                    .animation(.fluidQuick, value: isHoveringRestart)
+                    .keyboardShortcut("r", modifiers: [])
                     .onHover { h in
-                        withAnimation(.fluidQuick) {
-                            isHoveringRestart = h
-                        }
+                        isHoveringStartOver = h
+                    }
+
+                    // Resume
+                    Button {
+                        onResume(prompt.url, prompt.resumeSeconds)
+                    } label: {
+                        Text("Resume")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(ShadcnTheme.primaryForeground)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 30)
+                            .background(
+                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                    .fill(isHoveringResume ? ShadcnTheme.primaryHighlight : ShadcnTheme.primary)
+                            )
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .contentShape(Rectangle())
+                    .pointingHand()
+                    .keyboardShortcut(.defaultAction)
+                    .onHover { h in
+                        isHoveringResume = h
                     }
                 }
             }
-            .padding(20)
-            .frame(maxWidth: 410)
-            .padding(.horizontal, 20)
+            .padding(14)
+            .frame(width: 320)
             .background(
-                RoundedRectangle(cornerRadius: ShadcnTheme.radiusXl, style: .continuous)
-                    .fill(.ultraThinMaterial)
-            )
-            .background(
-                RoundedRectangle(cornerRadius: ShadcnTheme.radiusXl, style: .continuous)
-                    .fill(ShadcnTheme.card.opacity(0.85))
+                RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
+                    .fill(ShadcnTheme.card)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: ShadcnTheme.radiusXl, style: .continuous)
+                RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
                     .strokeBorder(ShadcnTheme.border, lineWidth: 1)
-            )
-            .shadow(
-                color: Color.black.opacity(0.35),
-                radius: 24,
-                x: 0,
-                y: 10
             )
         }
     }

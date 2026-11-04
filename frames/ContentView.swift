@@ -7,12 +7,14 @@ struct ContentView: View {
     @State private var library = LibraryManager.shared
     @State private var themeManager = ThemeManager.shared
     @State private var windowManager = WindowManager.shared
+    @State private var commandPalette = CommandPaletteManager.shared
     @State private var keyboardHandler: KeyboardHandler?
     @State private var hideControlsTimer: Timer?
     @State private var isTargetedForDrop: Bool = false
     @State private var lastControlsTimerReset = Date.distantPast
     @State private var showSplash: Bool = true
     @State private var pendingResumePrompt: ResumePromptData? = nil
+    @State private var updateManager = UpdateManager.shared
 
     var body: some View {
         ZStack {
@@ -191,6 +193,50 @@ struct ContentView: View {
                 .zIndex(90)
             }
 
+            // Command Palette Modal Dialog
+            if commandPalette.isPresented {
+                FramesCommandPalette(
+                    isPresented: $commandPalette.isPresented,
+                    engine: engine,
+                    library: library,
+                    themeManager: themeManager,
+                    windowManager: windowManager,
+                    onPlayURL: { url in
+                        requestPlayVideo(url: url)
+                    },
+                    onOpenFilePicker: {
+                        openFileDialog()
+                    }
+                )
+                .zIndex(150)
+            }
+
+            // Update Available Modal Dialog
+            if updateManager.isUpdatePromptPresented, let update = updateManager.availableUpdate {
+                UpdateAvailableOverlay(
+                    update: update,
+                    manager: updateManager,
+                    onDismiss: {
+                        withAnimation(.fluidSpring) {
+                            updateManager.dismissPrompt()
+                        }
+                    }
+                )
+                .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                .zIndex(160)
+            }
+
+            // Manual Check Notice Toast
+            if let notice = updateManager.manualCheckNotice {
+                UpdateNoticeToast(notice: notice) {
+                    withAnimation(.fluidQuick) {
+                        updateManager.dismissNotice()
+                    }
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+                .zIndex(170)
+            }
+
             // Splash Screen Animation on App Launch
             if showSplash {
                 SplashScreenView {
@@ -198,7 +244,12 @@ struct ContentView: View {
                         showSplash = false
                     }
                 }
-                .transition(.opacity)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                .ignoresSafeArea()
+                .transition(.asymmetric(
+                    insertion: .opacity,
+                    removal: .opacity.combined(with: .scale(scale: 1.04, anchor: .center))
+                ))
                 .zIndex(100)
             }
         }
@@ -245,6 +296,12 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .returnToDashboardNotification)) { _ in
             returnToDashboard()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .toggleCommandPaletteNotification)) { _ in
+            commandPalette.toggle()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .requestOpenFilePickerNotification)) { _ in
+            openFileDialog()
+        }
         .onDrop(of: [.fileURL], isTargeted: $isTargetedForDrop) { providers in
             guard let provider = providers.first else { return false }
             _ = provider.loadObject(ofClass: URL.self) { url, _ in
@@ -255,6 +312,11 @@ struct ContentView: View {
                 }
             }
             return true
+        }
+        .task {
+            // Delayed background check so startup is instant and non-blocking
+            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            updateManager.checkForUpdates(manual: false)
         }
         .preferredColorScheme(themeManager.mode.colorScheme)
     }
@@ -340,6 +402,19 @@ struct ContentView: View {
             WindowManager.shared.exitAnyFullscreen()
         } else {
             WindowManager.shared.toggleNativeFullscreen()
+        }
+    }
+
+    private func openFileDialog() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = MediaSupport.contentTypes
+        panel.message = "Choose a video or audio file to open in Frames"
+
+        if panel.runModal() == .OK, let url = panel.url {
+            handleDroppedURL(url)
         }
     }
 }

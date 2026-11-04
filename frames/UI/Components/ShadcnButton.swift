@@ -97,6 +97,7 @@ public struct ShadcnButton: View {
             .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         }
         .buttonStyle(ShadcnPressStyle(reduceMotion: reduceMotion))
+        .contentShape(Rectangle())
         .pointingHand()
         .accessibilityLabel(effectiveAccessibilityLabel)
         .help(effectiveAccessibilityLabel)
@@ -168,12 +169,12 @@ public struct ShadcnButton: View {
             if isSelected {
                 return ShadcnTheme.accentActive
             }
-            return isHovering ? ShadcnTheme.muted.opacity(0.6) : Color.clear
+            return isHovering ? ShadcnTheme.muted.opacity(0.6) : Color.black.opacity(0.0001)
         case .ghost:
             if isSelected {
                 return ShadcnTheme.accentActive
             }
-            return isHovering ? ShadcnTheme.muted.opacity(0.5) : Color.clear
+            return isHovering ? ShadcnTheme.muted.opacity(0.5) : Color.black.opacity(0.0001)
         }
     }
 

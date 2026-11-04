@@ -4,11 +4,11 @@ public struct SplashScreenView: View {
     public var onComplete: () -> Void
 
     @State private var textOpacity: Double = 0.0
-    @State private var blurRadius: CGFloat = 16.0
-    @State private var textTracking: CGFloat = -1.0
-    @State private var textScale: CGFloat = 0.94
-    @State private var shimmerOffset: CGFloat = -180
-    @State private var shimmerOpacity: Double = 0.0
+    @State private var blurRadius: CGFloat = 14.0
+    @State private var textTracking: CGFloat = 1.5
+    @State private var textScale: CGFloat = 0.90
+    @State private var bloomRadius: CGFloat = 10.0
+    @State private var bloomOpacity: Double = 0.0
     @State private var exitScale: CGFloat = 1.0
     @State private var exitOpacity: Double = 1.0
 
@@ -17,51 +17,46 @@ public struct SplashScreenView: View {
     }
 
     public var body: some View {
-        ZStack {
+        ZStack(alignment: .center) {
             // Dynamic Shadcn neutral surface (Dark: #0a0a0a | Light: #ffffff)
             ShadcnTheme.background
                 .ignoresSafeArea()
 
-            // Just Text: "frames"
-            ZStack {
-                // Base Typographic Layer
+            // Centered Typographic Composition
+            ZStack(alignment: .center) {
+                // Base Typographic Layer (Emerges strictly from center)
                 Text("frames")
                     .font(.system(size: 46, weight: .semibold, design: .default))
                     .foregroundStyle(ShadcnTheme.foreground)
                     .tracking(textTracking)
                     .blur(radius: blurRadius)
-                    .scaleEffect(textScale)
+                    .scaleEffect(textScale, anchor: .center)
                     .opacity(textOpacity)
 
-                // Projector Optical Light Sweep (Sweeps across the letterforms)
+                // Symmetrical Radial Center Bloom (Emanates outward strictly from the center of the word)
                 Text("frames")
                     .font(.system(size: 46, weight: .semibold, design: .default))
                     .foregroundStyle(
-                        LinearGradient(
+                        RadialGradient(
                             stops: [
-                                .init(color: .clear, location: 0.0),
-                                .init(color: ShadcnTheme.primaryHighlight.opacity(0.4), location: 0.35),
-                                .init(color: ShadcnTheme.foreground, location: 0.5),
-                                .init(color: ShadcnTheme.primaryHighlight.opacity(0.4), location: 0.65),
-                                .init(color: .clear, location: 1.0)
+                                .init(color: ShadcnTheme.foreground, location: 0.0),
+                                .init(color: ShadcnTheme.primaryHighlight.opacity(0.85), location: 0.4),
+                                .init(color: Color.clear, location: 1.0)
                             ],
-                            startPoint: .leading,
-                            endPoint: .trailing
+                            center: .center,
+                            startRadius: 0,
+                            endRadius: bloomRadius
                         )
                     )
                     .tracking(textTracking)
-                    .offset(x: shimmerOffset)
-                    .mask(
-                        Text("frames")
-                            .font(.system(size: 46, weight: .semibold, design: .default))
-                            .tracking(textTracking)
-                    )
-                    .scaleEffect(textScale)
-                    .opacity(shimmerOpacity)
+                    .scaleEffect(textScale, anchor: .center)
+                    .opacity(bloomOpacity)
             }
-            .scaleEffect(exitScale)
+            .scaleEffect(exitScale, anchor: .center)
             .opacity(exitOpacity)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        .ignoresSafeArea()
         .pointingHand()
         .contentShape(Rectangle())
         .onAppear {
@@ -73,31 +68,31 @@ public struct SplashScreenView: View {
     }
 
     private func startTypographicSequence() {
-        // Stage 1: Text emerges from optical lens blur & breathes open (0.0s - 0.6s)
+        // Stage 1: Text emerges symmetrically from the optical center (0.0s - 0.65s)
         withAnimation(.easeOut(duration: 0.65)) {
             textOpacity = 1.0
             blurRadius = 0.0
             textScale = 1.0
-            textTracking = 4.0
+            textTracking = 3.5
         }
 
-        // Stage 2: Crystalline Light Sweep across the word (0.3s - 0.9s)
+        // Stage 2: Symmetrical crystalline radial light bloom expanding outward from the center (0.3s - 0.95s)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            shimmerOpacity = 1.0
+            bloomOpacity = 0.85
             withAnimation(.easeInOut(duration: 0.65)) {
-                shimmerOffset = 180
+                bloomRadius = 180.0
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                withAnimation(.easeOut(duration: 0.2)) {
-                    shimmerOpacity = 0.0
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                withAnimation(.easeOut(duration: 0.25)) {
+                    bloomOpacity = 0.0
                 }
             }
         }
 
-        // Stage 3: Gentle Cinematic Dissolve into App (1.25s)
+        // Stage 3: Gentle Cinematic Dissolve from the center into App (1.25s)
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.25) {
             withAnimation(.easeInOut(duration: 0.35)) {
-                exitScale = 1.03
+                exitScale = 1.04
                 exitOpacity = 0.0
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {

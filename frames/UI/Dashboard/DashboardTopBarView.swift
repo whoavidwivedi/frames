@@ -7,12 +7,14 @@ public struct DashboardTopBarView: View {
     @State private var hoveredButton: HoveredButton? = nil
     @State private var themeManager = ThemeManager.shared
     @State private var windowManager = WindowManager.shared
+    @State private var updateManager = UpdateManager.shared
 
     private enum HoveredButton {
         case sidebar
         case back
         case forward
         case search
+        case command
     }
 
     public init(library: LibraryManager, onPlayURL: @escaping (URL) -> Void) {
@@ -36,22 +38,24 @@ public struct DashboardTopBarView: View {
                     .frame(width: trafficSpacerWidth, height: 1)
 
                 // MARK: - Navigation & Sidebar Toolbar Controls (Antigravity Style)
-                HStack(spacing: 3) {
+                HStack(spacing: 4) {
                     // 1. Sidebar Toggle Button
                     Button {
                         library.toggleSidebar()
                     } label: {
-                        Image(systemName: "sidebar.leading")
-                            .font(.system(size: 13, weight: .regular))
-                            .foregroundStyle(library.isSidebarVisible ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
-                            .frame(width: 26, height: 26)
-                            .background(
-                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                    .fill(hoveredButton == .sidebar ? ShadcnTheme.cardHover : (library.isSidebarVisible ? ShadcnTheme.accentActive : Color.clear))
-                            )
-                            .contentShape(Rectangle())
+                        ZStack {
+                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                .fill(hoveredButton == .sidebar ? ShadcnTheme.cardHover : (library.isSidebarVisible ? ShadcnTheme.accentActive : Color.black.opacity(0.0001)))
+
+                            Image(systemName: "sidebar.leading")
+                                .font(.system(size: 13, weight: .regular))
+                                .foregroundStyle(library.isSidebarVisible ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
+                        }
+                        .frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .contentShape(Rectangle())
                     .pointingHand()
                     .help("Toggle Sidebar (⌘B)")
                     .onHover { h in
@@ -64,18 +68,20 @@ public struct DashboardTopBarView: View {
                     Button {
                         library.goBack()
                     } label: {
-                        Image(systemName: "arrow.left")
-                            .font(.system(size: 13, weight: .regular))
-                            .foregroundStyle(library.canGoBack ? ShadcnTheme.foreground : ShadcnTheme.foregroundMuted.opacity(0.35))
-                            .frame(width: 26, height: 26)
-                            .background(
-                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                    .fill(hoveredButton == .back && library.canGoBack ? ShadcnTheme.cardHover : Color.clear)
-                            )
-                            .contentShape(Rectangle())
+                        ZStack {
+                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                .fill(hoveredButton == .back && library.canGoBack ? ShadcnTheme.cardHover : Color.black.opacity(0.0001))
+
+                            Image(systemName: "arrow.left")
+                                .font(.system(size: 13, weight: .regular))
+                                .foregroundStyle(library.canGoBack ? ShadcnTheme.foreground : ShadcnTheme.foregroundMuted.opacity(0.35))
+                        }
+                        .frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .disabled(!library.canGoBack)
+                    .contentShape(Rectangle())
                     .pointingHand()
                     .help("Back (⌘[)")
                     .onHover { h in
@@ -89,18 +95,20 @@ public struct DashboardTopBarView: View {
                         Button {
                             library.goForward()
                         } label: {
-                            Image(systemName: "arrow.right")
-                                .font(.system(size: 13, weight: .regular))
-                                .foregroundStyle(library.canGoForward ? ShadcnTheme.foreground : ShadcnTheme.foregroundMuted.opacity(0.35))
-                                .frame(width: 26, height: 26)
-                                .background(
-                                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                        .fill(hoveredButton == .forward && library.canGoForward ? ShadcnTheme.cardHover : Color.clear)
-                                )
-                                .contentShape(Rectangle())
+                            ZStack {
+                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                    .fill(hoveredButton == .forward && library.canGoForward ? ShadcnTheme.cardHover : Color.black.opacity(0.0001))
+
+                                Image(systemName: "arrow.right")
+                                    .font(.system(size: 13, weight: .regular))
+                                    .foregroundStyle(library.canGoForward ? ShadcnTheme.foreground : ShadcnTheme.foregroundMuted.opacity(0.35))
+                            }
+                            .frame(width: 28, height: 28)
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .disabled(!library.canGoForward)
+                        .contentShape(Rectangle())
                         .pointingHand()
                         .help("Forward (⌘])")
                         .onHover { h in
@@ -115,22 +123,49 @@ public struct DashboardTopBarView: View {
                     Button {
                         library.toggleSearch()
                     } label: {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 13, weight: .regular))
-                            .foregroundStyle(library.isSearchActive || !library.searchQuery.isEmpty ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
-                            .frame(width: 26, height: 26)
-                            .background(
-                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                    .fill(hoveredButton == .search ? ShadcnTheme.cardHover : (library.isSearchActive ? ShadcnTheme.accentActive : Color.clear))
-                            )
-                            .contentShape(Rectangle())
+                        ZStack {
+                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                .fill(hoveredButton == .search ? ShadcnTheme.cardHover : (library.isSearchActive ? ShadcnTheme.accentActive : Color.black.opacity(0.0001)))
+
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 13, weight: .regular))
+                                .foregroundStyle(library.isSearchActive || !library.searchQuery.isEmpty ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
+                        }
+                        .frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .contentShape(Rectangle())
                     .pointingHand()
                     .help("Search Videos (⌘F)")
                     .onHover { h in
                         withAnimation(.fluidQuick) {
                             hoveredButton = h ? .search : nil
+                        }
+                    }
+
+                    // 5. Command Menu (⌘K)
+                    Button {
+                        CommandPaletteManager.shared.open()
+                    } label: {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                .fill(hoveredButton == .command ? ShadcnTheme.cardHover : (CommandPaletteManager.shared.isPresented ? ShadcnTheme.accentActive : Color.black.opacity(0.0001)))
+
+                            Image(systemName: "command")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(hoveredButton == .command || CommandPaletteManager.shared.isPresented ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
+                        }
+                        .frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .contentShape(Rectangle())
+                    .pointingHand()
+                    .help("Command Menu & Quick Actions (⌘K)")
+                    .onHover { h in
+                        withAnimation(.fluidQuick) {
+                            hoveredButton = h ? .command : nil
                         }
                     }
                 }
@@ -184,11 +219,17 @@ public struct DashboardTopBarView: View {
                                     library.searchQuery = ""
                                 }
                             } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(.system(size: 10))
-                                    .foregroundStyle(ShadcnTheme.foregroundMuted)
+                                ZStack {
+                                    Color.black.opacity(0.0001)
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(ShadcnTheme.foregroundMuted)
+                                }
+                                .frame(width: 20, height: 20)
+                                .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
+                            .contentShape(Rectangle())
                             .pointingHand()
                             .transition(.opacity.combined(with: .scale(scale: 0.9)))
                         }
@@ -253,6 +294,7 @@ public struct DashboardTopBarView: View {
                         .foregroundStyle(ShadcnTheme.foregroundSecondary)
                         .padding(.horizontal, isCompactSort ? 7 : 8)
                         .padding(.vertical, 5)
+                        .frame(minHeight: 28)
                         .background(
                             RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                                 .fill(ShadcnTheme.card)
@@ -261,9 +303,11 @@ public struct DashboardTopBarView: View {
                                         .strokeBorder(ShadcnTheme.border, lineWidth: 1)
                                 )
                         )
+                        .contentShape(Rectangle())
                     }
                     .menuStyle(.borderlessButton)
                     .fixedSize()
+                    .contentShape(Rectangle())
                     .pointingHand()
                     .help("Sort: \(library.sortOption.rawValue)")
 
@@ -274,13 +318,19 @@ public struct DashboardTopBarView: View {
                                 library.viewMode = .grid
                             }
                         } label: {
-                            Image(systemName: "square.grid.2x2")
-                                .font(.system(size: 11))
-                                .foregroundStyle(library.viewMode == .grid ? ShadcnTheme.foreground : ShadcnTheme.foregroundMuted)
-                                .frame(width: 26, height: 26)
-                                .background(library.viewMode == .grid ? ShadcnTheme.accentActive : Color.clear)
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 0)
+                                    .fill(library.viewMode == .grid ? ShadcnTheme.accentActive : Color.black.opacity(0.0001))
+
+                                Image(systemName: "square.grid.2x2")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(library.viewMode == .grid ? ShadcnTheme.foreground : ShadcnTheme.foregroundMuted)
+                            }
+                            .frame(width: 28, height: 28)
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .contentShape(Rectangle())
                         .pointingHand()
 
                         Button {
@@ -288,13 +338,19 @@ public struct DashboardTopBarView: View {
                                 library.viewMode = .list
                             }
                         } label: {
-                            Image(systemName: "list.bullet")
-                                .font(.system(size: 11))
-                                .foregroundStyle(library.viewMode == .list ? ShadcnTheme.foreground : ShadcnTheme.foregroundMuted)
-                                .frame(width: 26, height: 26)
-                                .background(library.viewMode == .list ? ShadcnTheme.accentActive : Color.clear)
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 0)
+                                    .fill(library.viewMode == .list ? ShadcnTheme.accentActive : Color.black.opacity(0.0001))
+
+                                Image(systemName: "list.bullet")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(library.viewMode == .list ? ShadcnTheme.foreground : ShadcnTheme.foregroundMuted)
+                            }
+                            .frame(width: 28, height: 28)
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .contentShape(Rectangle())
                         .pointingHand()
                     }
                     .background(ShadcnTheme.card)
@@ -305,27 +361,67 @@ public struct DashboardTopBarView: View {
                     )
                     .help("Switch View Mode")
 
+                    // OTA Update Available Pill Button
+                    if updateManager.hasUpdate {
+                        Button {
+                            withAnimation(.fluidSpring) {
+                                updateManager.presentUpdatePrompt()
+                            }
+                        } label: {
+                            HStack(spacing: 5) {
+                                Circle()
+                                    .fill(Color(red: 249/255.0, green: 115/255.0, blue: 22/255.0))
+                                    .frame(width: 6, height: 6)
+
+                                if !isNarrow {
+                                    Text("Update Available")
+                                        .font(.system(size: 11, weight: .medium))
+                                        .foregroundStyle(ShadcnTheme.foreground)
+                                }
+                            }
+                            .padding(.horizontal, isNarrow ? 6 : 8)
+                            .padding(.vertical, 5)
+                            .frame(minHeight: 28)
+                            .background(
+                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                    .fill(ShadcnTheme.card)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                            .strokeBorder(Color(red: 249/255.0, green: 115/255.0, blue: 22/255.0).opacity(0.4), lineWidth: 1)
+                                    )
+                            )
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .pointingHand()
+                        .help("Update Available: \(updateManager.availableUpdate?.tagName ?? "")")
+                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                    }
+
                     // 1-Click Theme Toggle Button (Apple Native System Appearance Icon)
                     Button {
                         withAnimation(.fluidSmooth) {
                             themeManager.toggleTheme()
                         }
                     } label: {
-                        Image(systemName: "circle.righthalf.filled")
-                            .font(.system(size: 12))
-                            .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                            .rotationEffect(.degrees(themeManager.isDark ? 180 : 0))
-                            .frame(width: 26, height: 26)
-                            .background(
-                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                    .fill(ShadcnTheme.card)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                            .strokeBorder(ShadcnTheme.border, lineWidth: 1)
-                                    )
-                            )
+                        ZStack {
+                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                .fill(ShadcnTheme.card)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                        .strokeBorder(ShadcnTheme.border, lineWidth: 1)
+                                )
+
+                            Image(systemName: "circle.righthalf.filled")
+                                .font(.system(size: 12))
+                                .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                                .rotationEffect(.degrees(themeManager.isDark ? 180 : 0))
+                        }
+                        .frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .contentShape(Rectangle())
                     .pointingHand()
                     .animation(.fluidSpring, value: themeManager.isDark)
                     .help(themeManager.isDark ? "Switch to Light Mode" : "Switch to Dark Mode")
@@ -334,11 +430,6 @@ public struct DashboardTopBarView: View {
             }
             .frame(width: geo.size.width, height: 38)
             .background(ShadcnTheme.background)
-            .animation(.fluidSpring, value: isNarrow)
-            .animation(.fluidSpring, value: isUltraNarrow)
-            .animation(.fluidSpring, value: showBadge)
-            .animation(.fluidSpring, value: isCompactSort)
-            .animation(.fluidSpring, value: trafficSpacerWidth)
             .animation(.fluidSpring, value: library.isSearchActive)
             .animation(.fluidSpring, value: library.viewMode)
             .animation(.fluidWindow, value: windowManager.currentLayoutState)

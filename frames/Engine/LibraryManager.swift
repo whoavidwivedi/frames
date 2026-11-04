@@ -121,8 +121,10 @@ public final class LibraryManager {
     private let foldersKey = "frames_saved_folders_v1"
     private let progressKey = "frames_saved_progress_v1"
     private let favoritesKey = "frames_saved_favorites_v1"
+    private let individualVideosKey = "frames_saved_individual_videos_v1"
     private static let metadataLoadGate = MetadataLoadGate(maxConcurrentLoads: 2)
     private var persistedFavoritePaths: Set<String> = []
+    private var persistedIndividualVideoPaths: Set<String> = []
     private var persistedProgress: [String: [String: Double]] = [:]
     private var activeScanCount = 0
 
@@ -219,6 +221,35 @@ public final class LibraryManager {
                 }
                 onSelected(first)
             }
+        }
+    }
+
+    public func selectAndAddVideos(onAdded: (([URL]) -> Void)? = nil) {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = true
+        panel.allowedContentTypes = MediaSupport.contentTypes + [.folder, .directory]
+        panel.prompt = "Add"
+        panel.message = "Select video files or folder to add to library"
+
+        if panel.runModal() == .OK {
+            let urls = panel.urls
+            var addedURLs: [URL] = []
+            for url in urls {
+                var isDir: ObjCBool = false
+                if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue {
+                    addFolder(url: url)
+                    addedURLs.append(url)
+                } else {
+                    addSingleVideoFile(url: url)
+                    addedURLs.append(url)
+                }
+            }
+            if selectedCategory == .favorites || selectedCategory == .recent {
+                selectedCategory = .allVideos
+            }
+            onAdded?(addedURLs)
         }
     }
 
@@ -339,9 +370,17 @@ public final class LibraryManager {
     }
 
     public func addSingleVideoFile(url: URL) {
-        if !videos.contains(where: { $0.url == url }) {
-            let item = restoredItem(VideoItem(url: url))
+        let cleanURL = url.standardizedFileURL
+        if let existingIdx = videos.firstIndex(where: { $0.url.standardizedFileURL == cleanURL }) {
+            let item = videos.remove(at: existingIdx)
             videos.insert(item, at: 0)
+            persistedIndividualVideoPaths.insert(cleanURL.path)
+            savePersistedState()
+        } else {
+            let item = restoredItem(VideoItem(url: cleanURL))
+            videos.insert(item, at: 0)
+            persistedIndividualVideoPaths.insert(cleanURL.path)
+            savePersistedState()
             loadMetadataAsync(for: item)
         }
     }
@@ -462,7 +501,6 @@ public final class LibraryManager {
             dur = durationCM.seconds.isFinite ? durationCM.seconds : 0.0
         }
 
-        var thumbImage: NSImage?
         if let tracks = try? await asset.loadTracks(withMediaType: .video), let track = tracks.first {
             if let size = try? await track.load(.naturalSize) {
                 let maxDim = max(size.width, size.height)
@@ -478,14 +516,6 @@ public final class LibraryManager {
                     res = "SD"
                 }
             }
-
-            let generator = AVAssetImageGenerator(asset: asset)
-            generator.appliesPreferredTrackTransform = true
-            generator.maximumSize = CGSize(width: 480, height: 270)
-            let thumbTime = CMTime(seconds: min(5.0, dur * 0.1), preferredTimescale: 600)
-            if let cgImage = try? await generator.image(at: thumbTime).image {
-                thumbImage = NSImage(cgImage: cgImage, size: NSSize(width: 480, height: 270))
-            }
         }
 
         return ExtractedMetadata(
@@ -493,7 +523,7 @@ public final class LibraryManager {
             resolution: res,
             isHDR: isHDR,
             fileSize: fileSize,
-            thumbnail: thumbImage
+            thumbnail: nil
         )
     }
 
@@ -502,6 +532,8 @@ public final class LibraryManager {
         if let encoded = try? JSONEncoder().encode(folders) {
             UserDefaults.standard.set(encoded, forKey: foldersKey)
         }
+
+        UserDefaults.standard.set(Array(persistedIndividualVideoPaths), forKey: individualVideosKey)
 
         // Save favorites: sync with in-memory videos while preserving existing paths
         for v in videos {
@@ -527,7 +559,18 @@ public final class LibraryManager {
 
     private func loadPersistedState() {
         persistedFavoritePaths = Set(UserDefaults.standard.stringArray(forKey: favoritesKey) ?? [])
+        persistedIndividualVideoPaths = Set(UserDefaults.standard.stringArray(forKey: individualVideosKey) ?? [])
         persistedProgress = UserDefaults.standard.dictionary(forKey: progressKey) as? [String: [String: Double]] ?? [:]
+
+        // Restore individually added videos
+        for path in persistedIndividualVideoPaths {
+            let url = URL(fileURLWithPath: path)
+            if FileManager.default.fileExists(atPath: path), !videos.contains(where: { $0.url == url }) {
+                let item = restoredItem(VideoItem(url: url))
+                videos.append(item)
+                loadMetadataAsync(for: item)
+            }
+        }
 
         if let data = UserDefaults.standard.data(forKey: foldersKey),
            let savedFolders = try? JSONDecoder().decode([FolderItem].self, from: data) {

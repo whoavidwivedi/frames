@@ -19,8 +19,15 @@ struct framesApp: App {
             ContentView()
         }
         .windowStyle(.hiddenTitleBar)
+        .defaultSize(width: 980, height: 620)
         .commands {
-            CommandGroup(replacing: .newItem) {
+            SwiftUI.CommandGroup(after: .appInfo) {
+                Button("Check for Updates...") {
+                    UpdateManager.shared.checkForUpdates(manual: true)
+                }
+            }
+
+            SwiftUI.CommandGroup(replacing: .newItem) {
                 Button("Open File...") {
                     openFileDialog()
                 }
@@ -32,7 +39,7 @@ struct framesApp: App {
                 .keyboardShortcut("w", modifiers: .command)
             }
 
-            CommandGroup(replacing: .windowArrangement) {
+            SwiftUI.CommandGroup(replacing: .windowArrangement) {
                 Button("Minimize") {
                     NSApp.keyWindow?.miniaturize(nil)
                 }
@@ -55,6 +62,13 @@ struct framesApp: App {
                     LibraryManager.shared.toggleSidebar()
                 }
                 .keyboardShortcut("b", modifiers: .command)
+
+                Divider()
+
+                Button("Command Palette...") {
+                    CommandPaletteManager.shared.toggle()
+                }
+                .keyboardShortcut("k", modifiers: .command)
             }
 
             CommandMenu("Navigate") {
@@ -101,4 +115,6 @@ struct framesApp: App {
 public extension Notification.Name {
     static let openVideoNotification = Notification.Name("FramesOpenVideoNotification")
     static let returnToDashboardNotification = Notification.Name("FramesReturnToDashboardNotification")
+    static let toggleCommandPaletteNotification = Notification.Name("FramesToggleCommandPaletteNotification")
+    static let requestOpenFilePickerNotification = Notification.Name("FramesRequestOpenFilePickerNotification")
 }

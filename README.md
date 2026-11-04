@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Apple%20Silicon-ARM64-black?style=flat-square&logo=apple" alt="Apple Silicon ARM64">
   <img src="https://img.shields.io/badge/Language-Swift%206-black?style=flat-square&logo=swift" alt="Swift 6">
   <img src="https://img.shields.io/badge/Design-shadcn%20base--luma%20%2F%20neutral-black?style=flat-square" alt="shadcn base-luma / neutral">
-  <img src="https://img.shields.io/badge/Tests-154%20Passed%20(0%20warnings)-black?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-232%20Passed%20(0%20warnings)-black?style=flat-square" alt="Tests">
   <a href="https://github.com/whoavidwivedi/frames/pulls"><img src="https://img.shields.io/badge/PRs-Welcome-black?style=flat-square" alt="PRs Welcome"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/whoavidwivedi/frames?style=flat-square&color=black" alt="License: MIT"></a>
 </p>
@@ -41,14 +41,15 @@ Download the latest pre-compiled binary from the [Releases](https://github.com/w
 
 | Release | Version | macOS Architecture | Download |
 | :--- | :--- | :--- | :--- |
-| **Latest** | **v1.1.0** | Apple Silicon (`arm64`) | [**Frames-v1.1.0-macOS.zip**](https://github.com/whoavidwivedi/frames/releases/download/v1.1.0/Frames-v1.1.0-macOS.zip) |
+| **Latest** | **v1.2.0** | Apple Silicon (`arm64`) | [**Frames-v1.2.0-macOS.zip**](https://github.com/whoavidwivedi/frames/releases/download/v1.2.0/Frames-v1.2.0-macOS.zip) · [**Frames-v1.2.0-AppleSilicon.dmg**](https://github.com/whoavidwivedi/frames/releases/download/v1.2.0/Frames-v1.2.0-AppleSilicon.dmg) |
+| Previous | v1.1.0 | Apple Silicon (`arm64`) | [Frames-v1.1.0-macOS.zip](https://github.com/whoavidwivedi/frames/releases/download/v1.1.0/Frames-v1.1.0-macOS.zip) |
 | Previous | v1.0.2 | Apple Silicon (`arm64`) | [Frames-v1.0.2-macOS.zip](https://github.com/whoavidwivedi/frames/releases/download/v1.0.2/Frames-v1.0.2-macOS.zip) |
 | Previous | v1.0.1 | Apple Silicon (`arm64`) | [Frames-v1.0.1-macOS.zip](https://github.com/whoavidwivedi/frames/releases/download/v1.0.1/Frames-v1.0.1-macOS.zip) |
 | Initial | v1.0.0 | Apple Silicon (`arm64`) | [Frames-v1.0.0-macOS.zip](https://github.com/whoavidwivedi/frames/releases/download/v1.0.0/Frames-v1.0.0-macOS.zip) |
 
-1. Download and unzip `Frames-v1.1.0-macOS.zip`.
+1. Download `Frames-v1.2.0-AppleSilicon.dmg` or `Frames-v1.2.0-macOS.zip`.
 2. Move `frames.app` into your `/Applications` folder.
-3. Open Frames and enjoy fluid hardware-accelerated playback.
+3. Open Frames and enjoy fluid hardware-accelerated playback with built-in in-app OTA update support.
 
 ---
 
@@ -77,6 +78,16 @@ Download the latest pre-compiled binary from the [Releases](https://github.com/w
 ### 4. Precision Subtitle Engine
 * Seamless support for external `.srt` and `.vtt` subtitles via drag-and-drop or file picker.
 * Real-time HTML tag stripping (`<i>`, `<b>`, `<font>`) and sub-millisecond timestamp parsing.
+
+### 5. In-App Production OTA Update Engine
+* **Non-Intrusive Update Discovery**: Asynchronous background query against GitHub Releases API with SemVer 2.0.0 parsing. Never forces disruptive silent updates.
+* **Liquid Glass Update Modal**: Sleek adaptive modal displaying version diff (`v1.1.0 → v1.2.0`), release notes highlights, download size, and real-time download progress.
+* **Granular User Control**: "Update & Restart", "Later", and "Skip this version" options, plus manual check affordance in App Menu (`Frames -> Check for Updates...`) and Command Palette.
+* **Atomic Bundle Swap & Clean Restart**: Validates package signature and bundle integrity, atomically replaces the application bundle, cleans quarantine flags, and smoothly restarts.
+
+### 6. Command Palette (`⌘K`)
+* **Instant Keyboard Access**: Press `⌘K` from anywhere in the app to search and execute any command, switch themes, navigate folders, adjust audio/video playback, or check for updates.
+* **Fuzzy Filtering**: Multi-token search with keyboard shortcuts and arrow-key navigation.
 
 ---
 
@@ -197,8 +208,62 @@ git clone https://github.com/whoavidwivedi/frames.git
 cd frames
 
 # 2. Build Release configuration with xcodebuild
-xcodebuild -project frames.xcodeproj -scheme frames -configuration Release build
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild \
+  -project frames.xcodeproj \
+  -scheme frames \
+  -configuration Release \
+  -derivedDataPath ./build/DerivedData \
+  build
 ```
+
+---
+
+## 📦 DMG Packaging & Distribution
+
+Frames includes an Apple-grade automated DMG builder with custom drag-and-drop installer window, retina background styling, Applications symlink, and UDZO compression:
+
+```bash
+# Build the official Apple Silicon distribution DMG
+./packaging/build_dmg.sh
+```
+
+Output: `dist/Frames-v1.1.0-AppleSilicon.dmg`
+
+### Apple Developer ID Signing & Notarization
+
+For official public distribution outside the Mac App Store without Gatekeeper security prompts:
+
+```bash
+./scripts/sign_and_notarize.sh \
+  --identity "Developer ID Application: Your Name (TEAM_ID)" \
+  --keychain-profile "FRAMES_NOTARY" \
+  --dmg dist/Frames.dmg
+```
+
+This pipeline:
+1. Signs the DMG with Developer ID Application and secure Apple timestamp.
+2. Submits to Apple Notary Service via `xcrun notarytool`.
+3. Staples the notarization ticket via `xcrun stapler staple`.
+4. Validates Gatekeeper acceptance via `spctl`.
+
+---
+
+## 🌐 Distribution Website & Free Real-Time Tracking
+
+Frames includes a modern single-page distribution site with 4K screenshots, dynamic DMG download trigger, and privacy-respecting free unique visitor & download tracking (zero third-party subscription costs):
+
+```bash
+# Start the distribution server on localhost:3000
+node website/server.js
+```
+
+* **Localhost URL:** [http://localhost:3000](http://localhost:3000)
+* **Direct DMG Stream:** [http://localhost:3000/download](http://localhost:3000/download)
+* **Live Analytics API:** [http://localhost:3000/api/stats](http://localhost:3000/api/stats)
+* **Feedback API:** `POST /api/feedback` (records to `website/data/feedback.json`)
+
+---
+
 
 ---
 

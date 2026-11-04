@@ -50,8 +50,10 @@ public struct TopBarOverlay: View {
                             RoundedRectangle(cornerRadius: ShadcnTheme.radius4xl, style: .continuous)
                                 .strokeBorder(ShadcnTheme.border, lineWidth: 1)
                         )
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .contentShape(Rectangle())
                     .pointingHand()
                     .help("Back to Dashboard (Esc or ⌘[)")
 
@@ -94,22 +96,29 @@ public struct TopBarOverlay: View {
                                 LibraryManager.shared.toggleFavorite(url: url)
                             }
                         } label: {
-                            Image(systemName: isFav ? "star.fill" : "star")
-                                .font(.system(size: 12))
-                                .foregroundStyle(isFav ? Color(red: 1.0, green: 0.8, blue: 0.0) : ShadcnTheme.foregroundSecondary)
-                                .frame(width: 26, height: 26)
-                                .scaleEffect(isFav ? 1.08 : 0.95)
-                                .background(
-                                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                        .fill(isFav ? Color(red: 1.0, green: 0.8, blue: 0.0).opacity(0.15) : Color.clear)
-                                )
-                                .contentShape(Rectangle())
+                            ZStack {
+                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                    .fill(isFav ? Color(red: 1.0, green: 0.8, blue: 0.0).opacity(0.15) : Color.black.opacity(0.0001))
+
+                                Image(systemName: isFav ? "star.fill" : "star")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(isFav ? Color(red: 1.0, green: 0.8, blue: 0.0) : ShadcnTheme.foregroundSecondary)
+                                    .scaleEffect(isFav ? 1.08 : 0.95)
+                            }
+                            .frame(width: 28, height: 28)
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .contentShape(Rectangle())
                         .pointingHand()
                         .animation(.fluidSpring, value: isFav)
                         .help(isFav ? "Remove from Favorites" : "Add to Favorites")
                     }
+
+                    ShadcnButton(icon: "command", variant: .ghost, size: .iconSm, accessibilityLabel: "Command Menu") {
+                        CommandPaletteManager.shared.open()
+                    }
+                    .help("Command Menu (⌘K)")
 
                     ShadcnButton(icon: "folder", variant: .ghost, size: .iconSm, accessibilityLabel: "Open media") {
                         openNewFile()

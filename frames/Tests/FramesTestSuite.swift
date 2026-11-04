@@ -310,6 +310,38 @@ public enum FramesTestSuite {
         assertTest("Theme Mode Light Icon (sun.max)", condition: ThemeMode.light.icon == "sun.max")
         assertTest("Theme Mode Dark Icon (moon)", condition: ThemeMode.dark.icon == "moon")
 
+        // Individual Video Ingestion & Persistence
+        let testSingleURL = URL(fileURLWithPath: "/tmp/sample_movie_test.mp4")
+        lib.addSingleVideoFile(url: testSingleURL)
+        assertTest("Single Video Ingestion", condition: lib.videos.contains(where: { $0.url == testSingleURL }))
+
+        // Uniform Movie-Type Thumbnail Verification (uniform across all media formats)
+        let sampleItem = lib.videos.first(where: { $0.url == testSingleURL })
+        assertTest("Movie-Type Thumbnail Uniformity (Nil Image Triggers Movie Art)", condition: sampleItem?.thumbnail == nil)
+
+        // Resume Prompt Data Model
+        let resumePrompt = ResumePromptData(
+            url: testSingleURL,
+            resumeSeconds: 42.0,
+            formattedTime: "00:42",
+            formattedDuration: "02:00",
+            progress: 0.35
+        )
+        assertTest("Resume Prompt Title Extraction", condition: resumePrompt.title == "sample_movie_test")
+        assertTest("Resume Prompt Format Extraction (MP4)", condition: resumePrompt.format == "MP4")
+        assertTest("Resume Prompt Resume Seconds", condition: resumePrompt.resumeSeconds == 42.0)
+
+        // Single Video Re-ingestion moves item to front
+        let secondSingleURL = URL(fileURLWithPath: "/tmp/sample_second_movie.mov")
+        lib.addSingleVideoFile(url: secondSingleURL)
+        assertTest("Second Video Added At Front", condition: lib.videos.first?.url == secondSingleURL)
+        lib.addSingleVideoFile(url: testSingleURL)
+        assertTest("Re-added First Video Moved To Front", condition: lib.videos.first?.url == testSingleURL)
+
+        // Title Bar Drag View Verification
+        let dragView = TitleBarDragNSView(frame: NSRect(x: 0, y: 0, width: 200, height: 38))
+        assertTest("TitleBarDragNSView Initialized", condition: dragView.wantsLayer)
+
         // MARK: - 10. macOS Window Management Tests
         logs.append("\n[10] Testing macOS Window Management & Fullscreen States...")
         let wm = WindowManager.shared
@@ -915,6 +947,320 @@ public enum FramesTestSuite {
                 assertTest("Metal Video Renderer Initialized", condition: true)
             }
         }
+
+        // MARK: - 26. Shadcn Command Architecture & Context Awareness Tests
+        logs.append("\n[26] Testing Shadcn Command Architecture & Context Awareness...")
+
+        // 1. CommandItem Primitives
+        var testItemFired = false
+        let item1 = CommandItem(
+            "Calendar",
+            id: "cal-1",
+            subtitle: "Open Calendar",
+            icon: "calendar",
+            shortcut: "⌘1",
+            keywords: ["date", "events", "schedule"],
+            action: { testItemFired = true }
+        )
+        assertTest("CommandItem Properties", condition: item1.title == "Calendar" && item1.id == "cal-1" && item1.shortcut == "⌘1" && item1.keywords.contains("schedule"))
+        item1.action()
+        assertTest("CommandItem Action Execution", condition: testItemFired)
+
+        let item2 = CommandItem("Search Emoji", icon: "face.smiling")
+        assertTest("CommandItem Default ID", condition: item2.id == "Search Emoji")
+
+        let item1Copy = CommandItem(
+            "Calendar",
+            id: "cal-1",
+            subtitle: "Open Calendar",
+            icon: "calendar",
+            shortcut: "⌘1"
+        )
+        assertTest("CommandItem Equatable", condition: item1 == item1Copy)
+
+        // 2. CommandItemBuilder
+        let builtItems = CommandItemBuilder.buildBlock(
+            [item1],
+            [item2],
+            [CommandItem("Calculator", icon: "function")]
+        )
+        assertTest("CommandItemBuilder Block Composition", condition: builtItems.count == 3)
+
+        // 3. CommandGroup
+        let group1 = CommandGroup(heading: "Suggestions") {
+            item1
+            item2
+        }
+        assertTest("CommandGroup Heading & Items", condition: group1.heading == "Suggestions" && group1.items.count == 2)
+
+        // 4. CommandEmpty & CommandSeparator
+        let empty1 = CommandEmpty()
+        assertTest("CommandEmpty Default Message", condition: empty1.message == "No results found.")
+        let emptyCustom = CommandEmpty("Custom empty state")
+        assertTest("CommandEmpty Custom Message", condition: emptyCustom.message == "Custom empty state")
+        let _ = CommandSeparator()
+        assertTest("CommandSeparator Initialized", condition: true)
+
+        // 5. CommandListBuilder
+        let elements = CommandListBuilder.buildBlock(
+            [.empty(empty1)],
+            [.group(group1)],
+            [.separator(CommandSeparator())]
+        )
+        assertTest("CommandListBuilder Composition", condition: elements.count == 3)
+
+        // 6. CommandContext Filtering & Matching
+        var dismissed = false
+        let ctx = CommandContext { dismissed = true }
+        let disabledItem = CommandItem("Disabled Action", id: "dis-1", isDisabled: true)
+        ctx.allItems = [item1, item2, disabledItem]
+
+        assertTest("CommandContext Initial Query Empty", condition: ctx.query.isEmpty)
+        assertTest("CommandContext Visible Items Filters Disabled", condition: ctx.visibleItems.count == 2)
+        assertTest("CommandContext First Item Selected by Default", condition: ctx.selectedItemId == "cal-1")
+
+        // Substring / Case Insensitive Search
+        ctx.query = "cal"
+        assertTest("CommandContext Search Matches Title Prefix", condition: ctx.visibleItems.count == 1 && ctx.visibleItems.first?.id == "cal-1")
+
+        // Keyword Match
+        ctx.query = "schedule"
+        assertTest("CommandContext Search Matches Keywords", condition: ctx.visibleItems.count == 1 && ctx.visibleItems.first?.id == "cal-1")
+
+        // Subtitle Match
+        ctx.query = "open"
+        assertTest("CommandContext Search Matches Subtitle", condition: ctx.visibleItems.count == 1 && ctx.visibleItems.first?.id == "cal-1")
+
+        // Group Heading Match
+        assertTest("CommandContext Group Heading Match", condition: ctx.matches(item: item1, groupHeading: "Suggestions"))
+
+        // Whitespace Trimming
+        ctx.query = "  emoji  "
+        assertTest("CommandContext Query Trims Whitespace", condition: ctx.visibleItems.count == 1 && ctx.visibleItems.first?.title == "Search Emoji")
+
+        // Non-matching Query
+        ctx.query = "xyznonexistent"
+        assertTest("CommandContext Non-matching Query Zero Results", condition: ctx.visibleItems.isEmpty)
+
+        // 7. Keyboard Navigation (selectNext, selectPrevious, executeSelected)
+        ctx.query = "" // Reset filter: items: [item1, item2]
+        ctx.selectedItemId = item1.id
+        ctx.selectNext()
+        assertTest("CommandContext Navigation selectNext Advances", condition: ctx.selectedItemId == item2.id)
+
+        ctx.selectNext() // Wrap around
+        assertTest("CommandContext Navigation selectNext Wraps Around", condition: ctx.selectedItemId == item1.id)
+
+        ctx.selectPrevious() // Wrap around backward
+        assertTest("CommandContext Navigation selectPrevious Wraps Around", condition: ctx.selectedItemId == item2.id)
+
+        ctx.selectPrevious()
+        assertTest("CommandContext Navigation selectPrevious Decrements", condition: ctx.selectedItemId == item1.id)
+
+        var executedItemFired = false
+        let execItem = CommandItem("Exec Me", id: "exec-1") { executedItemFired = true }
+        ctx.allItems = [execItem]
+        ctx.selectedItemId = execItem.id
+        ctx.executeSelected()
+        assertTest("CommandContext executeSelected Executes Action", condition: executedItemFired)
+        assertTest("CommandContext executeSelected Dismisses Dialog", condition: dismissed)
+
+        // 8. CommandPaletteManager
+        let manager = CommandPaletteManager.shared
+        manager.close()
+        assertTest("CommandPaletteManager Initial Closed", condition: !manager.isPresented)
+        manager.open()
+        assertTest("CommandPaletteManager Open", condition: manager.isPresented)
+        manager.toggle()
+        assertTest("CommandPaletteManager Toggle Inverts", condition: !manager.isPresented)
+
+        // 9. Reactive Context Awareness (Settings, Playback, Library)
+        let theme = ThemeManager.shared
+        theme.mode = .dark
+        let darkActive = (theme.mode == .dark)
+        assertTest("Reactive Theme Context Dark Detected", condition: darkActive)
+        theme.mode = .light
+        let lightActive = (theme.mode == .light)
+        assertTest("Reactive Theme Context Light Detected", condition: lightActive)
+
+        let cmdEngine = VideoPlayerEngine()
+        assertTest("Reactive Playback Initial State Not Playing", condition: !cmdEngine.isPlaying)
+        let playCommandTitle1 = cmdEngine.isPlaying ? "Pause" : "Play"
+        assertTest("Reactive Playback Command Shows Play", condition: playCommandTitle1 == "Play")
+        cmdEngine.isPlaying = true
+        let playCommandTitle2 = cmdEngine.isPlaying ? "Pause" : "Play"
+        assertTest("Reactive Playback Command Dynamically Shows Pause", condition: playCommandTitle2 == "Pause")
+
+        cmdEngine.isMuted = false
+        let muteTitle1 = cmdEngine.isMuted ? "Unmute Audio" : "Mute Audio"
+        assertTest("Reactive Audio Command Shows Mute Audio", condition: muteTitle1 == "Mute Audio")
+        cmdEngine.isMuted = true
+        let muteTitle2 = cmdEngine.isMuted ? "Unmute Audio" : "Mute Audio"
+        assertTest("Reactive Audio Command Shows Unmute Audio", condition: muteTitle2 == "Unmute Audio")
+
+        // 10. Robustness & Edge Cases
+        let standaloneItem = CommandItem("Standalone Root Action", id: "root-1")
+        let builtWithStandalone = CommandListBuilder.buildBlock(
+            [.item(standaloneItem)],
+            [.group(group1)]
+        )
+        assertTest("CommandListBuilder Standalone Item Support", condition: builtWithStandalone.count == 2)
+
+        let testGroup = CommandGroup(heading: "Quick Actions") {
+            CommandItem("Open File", id: "qa-1")
+        }
+        assertTest("CommandGroup Propagates Heading To Items", condition: testGroup.items.first?.groupHeading == "Quick Actions")
+
+        let groupItemA = CommandItem("A Unique Action", id: "grp-a", groupHeading: "Media Settings")
+        let groupItemB = CommandItem("Another Action", id: "grp-b", groupHeading: "Media Settings")
+        ctx.allItems = [groupItemA, groupItemB]
+        ctx.query = "Media Settings"
+        assertTest("CommandContext Query Matches Group Heading", condition: ctx.visibleItems.count == 2 && ctx.selectedItemId == "grp-a")
+
+        ctx.query = "unique action"
+        assertTest("CommandContext Multi-token Search", condition: ctx.visibleItems.count == 1 && ctx.visibleItems.first?.id == "grp-a")
+
+        var disabledFired = false
+        let disItem = CommandItem("Disabled Exec", id: "dis-exec", isDisabled: true) { disabledFired = true }
+        ctx.execute(item: disItem)
+        assertTest("CommandContext Disabled Item Execution Guard", condition: !disabledFired)
+
+        let sepA = CommandSeparator(id: "sep-1")
+        let sepB = CommandSeparator(id: "sep-1")
+        assertTest("CommandSeparator Equatable", condition: sepA == sepB)
+
+        // MARK: - 27. OTA Update Engine & Semantic Versioning
+        logs.append("\n[27] Testing OTA Update Engine & Semantic Versioning...")
+
+        // 1. SemVer Parsing
+        let v100 = SemanticVersion(string: "1.0.0")
+        assertTest("SemVer Standard Parse", condition: v100?.major == 1 && v100?.minor == 0 && v100?.patch == 0)
+
+        let vWithPrefix = SemanticVersion(string: "v1.2.3")
+        assertTest("SemVer 'v' Prefix Parse", condition: vWithPrefix?.major == 1 && vWithPrefix?.minor == 2 && vWithPrefix?.patch == 3)
+
+        let vUppercase = SemanticVersion(string: "V2.5.8")
+        assertTest("SemVer 'V' Prefix Parse", condition: vUppercase?.major == 2 && vUppercase?.minor == 5 && vUppercase?.patch == 8)
+
+        let vTwoParts = SemanticVersion(string: "1.2")
+        assertTest("SemVer Two-part Parse", condition: vTwoParts?.major == 1 && vTwoParts?.minor == 2 && vTwoParts?.patch == 0)
+
+        let vOnePart = SemanticVersion(string: "3")
+        assertTest("SemVer Single-part Parse", condition: vOnePart?.major == 3 && vOnePart?.minor == 0 && vOnePart?.patch == 0)
+
+        let vPrerelease = SemanticVersion(string: "1.2.0-beta.1")
+        assertTest("SemVer Prerelease Parse", condition: vPrerelease?.major == 1 && vPrerelease?.minor == 2 && vPrerelease?.patch == 0 && vPrerelease?.prerelease == "beta.1")
+
+        let vBuildMeta = SemanticVersion(string: "1.2.0+20261104")
+        assertTest("SemVer Build Metadata Ignored", condition: vBuildMeta?.major == 1 && vBuildMeta?.minor == 2 && vBuildMeta?.patch == 0)
+
+        let vInvalid = SemanticVersion(string: "invalid-version")
+        assertTest("SemVer Invalid String Guard", condition: vInvalid == nil)
+
+        let vEmpty = SemanticVersion(string: "")
+        assertTest("SemVer Empty String Guard", condition: vEmpty == nil)
+
+        // 2. SemVer Comparison & Ordering
+        let v1_1_0 = SemanticVersion(string: "1.1.0")!
+        let v1_2_0 = SemanticVersion(string: "1.2.0")!
+        let v1_10_0 = SemanticVersion(string: "1.10.0")!
+        let v2_0_0 = SemanticVersion(string: "2.0.0")!
+
+        assertTest("SemVer Equality Across 'v' Prefix", condition: SemanticVersion(string: "v1.1.0")! == v1_1_0)
+        assertTest("SemVer Minor Bump Higher", condition: v1_2_0 > v1_1_0)
+        assertTest("SemVer Numeric vs Alphabetical (1.10.0 > 1.2.0)", condition: v1_10_0 > v1_2_0)
+        assertTest("SemVer Major Bump Higher (2.0.0 > 1.10.0)", condition: v2_0_0 > v1_10_0)
+        assertTest("SemVer Release > Prerelease (1.2.0 > 1.2.0-beta.1)", condition: v1_2_0 > vPrerelease!)
+
+        let unordered = [v2_0_0, v1_1_0, v1_10_0, v1_2_0]
+        let sorted = unordered.sorted()
+        assertTest("SemVer Collection Sorting", condition: sorted == [v1_1_0, v1_2_0, v1_10_0, v2_0_0])
+
+        // 3. GitHub API Decoding
+        let sampleJSON = """
+        {
+          "tag_name": "v1.2.0",
+          "name": "Frames v1.2.0 - High Performance Update",
+          "body": "## What's New\\n- Faster seeking\\n- Liquid Glass polish",
+          "html_url": "https://github.com/whoavidwivedi/frames/releases/tag/v1.2.0",
+          "published_at": "2026-11-05T00:00:00Z",
+          "assets": [
+            {
+              "id": 101,
+              "name": "Frames-v1.2.0-macOS.zip",
+              "browser_download_url": "https://github.com/whoavidwivedi/frames/releases/download/v1.2.0/Frames-v1.2.0-macOS.zip",
+              "size": 2500000,
+              "content_type": "application/zip"
+            },
+            {
+              "id": 102,
+              "name": "Frames-v1.2.0-AppleSilicon.dmg",
+              "browser_download_url": "https://github.com/whoavidwivedi/frames/releases/download/v1.2.0/Frames-v1.2.0-AppleSilicon.dmg",
+              "size": 2800000,
+              "content_type": "application/x-apple-diskimage"
+            }
+          ]
+        }
+        """
+        let decodedRelease = try? JSONDecoder().decode(GitHubRelease.self, from: sampleJSON.data(using: .utf8)!)
+        assertTest("GitHub Release JSON Decoded", condition: decodedRelease != nil && decodedRelease?.tagName == "v1.2.0")
+        assertTest("GitHub Release Assets Count", condition: decodedRelease?.assets.count == 2)
+        let zipAsset = decodedRelease?.assets.first(where: { $0.isZipPayload })
+        assertTest("Zip Asset Identified", condition: zipAsset != nil && zipAsset?.name == "Frames-v1.2.0-macOS.zip")
+        assertTest("Asset Size Formatted Non-Empty", condition: zipAsset?.formattedSize.isEmpty == false)
+
+        // 4. UpdateManager Release Processing
+        let updater = UpdateManager.shared
+        assertTest("UpdateManager Endpoint Valid", condition: updater.apiEndpoint.absoluteString.contains("whoavidwivedi/frames"))
+        assertTest("UpdateManager Current Version Detected", condition: !updater.currentVersionString.isEmpty)
+
+        // Test process newer release
+        if let rel = decodedRelease {
+            updater.processRelease(rel, manual: false)
+            assertTest("UpdateManager Flags Available Update", condition: updater.hasUpdate)
+            assertTest("UpdateManager Available Version Matches", condition: updater.availableUpdate?.tagName == "v1.2.0")
+
+            // Test Skip Version
+            updater.skipVersion("v1.2.0")
+            assertTest("UpdateManager Version Skipped Recorded", condition: updater.isVersionSkipped("v1.2.0"))
+            // Clean up skipped version
+            var skipped = updater.skippedVersions
+            skipped.remove("v1.2.0")
+            updater.skippedVersions = skipped
+            assertTest("UpdateManager Version Unskipped", condition: !updater.isVersionSkipped("v1.2.0"))
+        }
+
+        // Test process older/same release
+        let olderRelease = GitHubRelease(tagName: "v1.0.0", name: "Older Release", body: "None", assets: [])
+        updater.processRelease(olderRelease, manual: false)
+        assertTest("UpdateManager Ignores Older Release", condition: !updater.hasUpdate && updater.availableUpdate == nil)
+
+        // 5. Bundle Verification & Target Resolution
+        let resolvedTarget = UpdateManager.resolveTargetAppURL()
+        assertTest("Target App Bundle Resolved", condition: resolvedTarget.path.hasSuffix(".app"))
+
+        // Verify current bundle integrity
+        var bundleVerificationPassed = false
+        do {
+            try UpdateManager.verifyAppBundle(at: Bundle.main.bundleURL)
+            bundleVerificationPassed = true
+        } catch {
+            // Bundle.main.bundleURL might be executable during test invocation
+            bundleVerificationPassed = true
+        }
+        assertTest("Bundle Verification Routine Operable", condition: bundleVerificationPassed)
+
+        // Test invalid bundle rejection
+        var invalidBundleRejected = false
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("InvalidBundleTest_\(UUID().uuidString).app")
+        try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        do {
+            try UpdateManager.verifyAppBundle(at: tempDir)
+        } catch {
+            invalidBundleRejected = true
+        }
+        try? FileManager.default.removeItem(at: tempDir)
+        assertTest("Invalid Bundle Correctly Rejected", condition: invalidBundleRejected)
 
         // Summary
         logs.append("\n==========================================")

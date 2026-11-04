@@ -40,7 +40,6 @@ public struct DashboardView: View {
                 }
             }
             .animation(.fluidSpring, value: library.isSidebarVisible)
-            .animation(.fluidSpring, value: sidebarWidth)
             .animation(.fluidWindow, value: windowManager.currentLayoutState)
         }
         .frame(minWidth: 460, minHeight: 320)

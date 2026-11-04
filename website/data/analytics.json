@@ -1,0 +1,36 @@
+{
+  "uniqueVisitors": 3,
+  "totalPageViews": 9,
+  "totalDownloads": 5,
+  "uniqueDownloads": 1,
+  "visitorUuids": {
+    "test-uuid-123": "2026-11-04T21:10:08.727Z",
+    "test-uuid-1": "2026-11-04T21:10:10.212Z",
+    "test-uuid-2": "2026-11-04T21:10:10.228Z",
+    "browser-uuid-chrome": "2026-11-04T21:10:23.281Z",
+    "browser-uuid-safari": "2026-11-04T21:10:23.300Z"
+  },
+  "visitorHashes": {
+    "2754b20830f1e486a8053703eaaa25f49af43db18dcc18cefed5c299d3b0641d": "2026-11-04T21:10:08.727Z",
+    "62363e486e369cd13f92c4e60a26fbcad269d44f56b52abcd348c90aeacfd8c4": "2026-11-04T21:10:23.281Z",
+    "ef14f79e596608bc6c538f9f36b75b612c838b3b10d2ce6b894d03d2cb51230f": "2026-11-04T21:10:23.300Z"
+  },
+  "downloadUuids": {
+    "sim-user-1": 1
+  },
+  "downloadHashes": {
+    "2754b20830f1e486a8053703eaaa25f49af43db18dcc18cefed5c299d3b0641d": 5
+  },
+  "dailyVisits": {
+    "2026-11-04": {
+      "unique": 3,
+      "total": 9
+    }
+  },
+  "dailyDownloads": {
+    "2026-11-04": {
+      "unique": 1,
+      "total": 5
+    }
+  }
+}
