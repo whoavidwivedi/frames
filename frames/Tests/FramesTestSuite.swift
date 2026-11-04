@@ -353,9 +353,14 @@ public enum FramesTestSuite {
         assertTest("Controls Visibility State Mutation", condition: testEngine.controlsVisible == false)
 
         // Playback Completion & Return Navigation
+        var autoReturnTriggered = false
+        testEngine.onPlaybackEnded = {
+            autoReturnTriggered = true
+        }
         testEngine.markPlaybackEnded()
         assertTest("Playback Ended State Sets hasEnded", condition: testEngine.hasEnded == true)
         assertTest("Playback Ended Restores Controls Visibility", condition: testEngine.controlsVisible == true)
+        assertTest("Playback Ended Triggers onPlaybackEnded Auto-Return", condition: autoReturnTriggered)
         testEngine.replay()
         assertTest("Playback Replay Resets hasEnded", condition: testEngine.hasEnded == false)
         assertTest("Engine Default isBuffering False", condition: testEngine.isBuffering == false)
@@ -1179,23 +1184,23 @@ public enum FramesTestSuite {
         // 3. GitHub API Decoding
         let sampleJSON = """
         {
-          "tag_name": "v1.2.0",
-          "name": "Frames v1.2.0 - High Performance Update",
+          "tag_name": "v2.0.0",
+          "name": "Frames v2.0.0 - Next Gen Major Update",
           "body": "## What's New\\n- Faster seeking\\n- Liquid Glass polish",
-          "html_url": "https://github.com/whoavidwivedi/frames/releases/tag/v1.2.0",
+          "html_url": "https://github.com/whoavidwivedi/frames/releases/tag/v2.0.0",
           "published_at": "2026-11-05T00:00:00Z",
           "assets": [
             {
               "id": 101,
-              "name": "Frames-v1.2.0-macOS.zip",
-              "browser_download_url": "https://github.com/whoavidwivedi/frames/releases/download/v1.2.0/Frames-v1.2.0-macOS.zip",
+              "name": "Frames-v2.0.0-macOS.zip",
+              "browser_download_url": "https://github.com/whoavidwivedi/frames/releases/download/v2.0.0/Frames-v2.0.0-macOS.zip",
               "size": 2500000,
               "content_type": "application/zip"
             },
             {
               "id": 102,
-              "name": "Frames-v1.2.0-AppleSilicon.dmg",
-              "browser_download_url": "https://github.com/whoavidwivedi/frames/releases/download/v1.2.0/Frames-v1.2.0-AppleSilicon.dmg",
+              "name": "Frames-v2.0.0-AppleSilicon.dmg",
+              "browser_download_url": "https://github.com/whoavidwivedi/frames/releases/download/v2.0.0/Frames-v2.0.0-AppleSilicon.dmg",
               "size": 2800000,
               "content_type": "application/x-apple-diskimage"
             }
@@ -1203,10 +1208,10 @@ public enum FramesTestSuite {
         }
         """
         let decodedRelease = try? JSONDecoder().decode(GitHubRelease.self, from: sampleJSON.data(using: .utf8)!)
-        assertTest("GitHub Release JSON Decoded", condition: decodedRelease != nil && decodedRelease?.tagName == "v1.2.0")
+        assertTest("GitHub Release JSON Decoded", condition: decodedRelease != nil && decodedRelease?.tagName == "v2.0.0")
         assertTest("GitHub Release Assets Count", condition: decodedRelease?.assets.count == 2)
         let zipAsset = decodedRelease?.assets.first(where: { $0.isZipPayload })
-        assertTest("Zip Asset Identified", condition: zipAsset != nil && zipAsset?.name == "Frames-v1.2.0-macOS.zip")
+        assertTest("Zip Asset Identified", condition: zipAsset != nil && zipAsset?.name == "Frames-v2.0.0-macOS.zip")
         assertTest("Asset Size Formatted Non-Empty", condition: zipAsset?.formattedSize.isEmpty == false)
 
         // 4. UpdateManager Release Processing
@@ -1218,16 +1223,16 @@ public enum FramesTestSuite {
         if let rel = decodedRelease {
             updater.processRelease(rel, manual: false)
             assertTest("UpdateManager Flags Available Update", condition: updater.hasUpdate)
-            assertTest("UpdateManager Available Version Matches", condition: updater.availableUpdate?.tagName == "v1.2.0")
+            assertTest("UpdateManager Available Version Matches", condition: updater.availableUpdate?.tagName == "v2.0.0")
 
             // Test Skip Version
-            updater.skipVersion("v1.2.0")
-            assertTest("UpdateManager Version Skipped Recorded", condition: updater.isVersionSkipped("v1.2.0"))
+            updater.skipVersion("v2.0.0")
+            assertTest("UpdateManager Version Skipped Recorded", condition: updater.isVersionSkipped("v2.0.0"))
             // Clean up skipped version
             var skipped = updater.skippedVersions
-            skipped.remove("v1.2.0")
+            skipped.remove("v2.0.0")
             updater.skippedVersions = skipped
-            assertTest("UpdateManager Version Unskipped", condition: !updater.isVersionSkipped("v1.2.0"))
+            assertTest("UpdateManager Version Unskipped", condition: !updater.isVersionSkipped("v2.0.0"))
         }
 
         // Test process older/same release

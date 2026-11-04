@@ -145,20 +145,6 @@ struct ContentView: View {
                                 .strokeBorder(ShadcnTheme.border, lineWidth: 1)
                         )
                     }
-
-                    // Playback Completion Overlay
-                    if engine.hasEnded {
-                        PlaybackCompletionOverlay(
-                            title: engine.metadata.title,
-                            onReturnToDashboard: {
-                                returnToDashboard()
-                            },
-                            onReplay: {
-                                engine.replay()
-                            }
-                        )
-                        .transition(.opacity.combined(with: .scale(scale: 0.96)))
-                    }
                 }
                 .onContinuousHover { _ in
                     resetControlsTimer(force: false)
@@ -277,15 +263,16 @@ struct ContentView: View {
         }
         .onChange(of: engine.hasEnded) { _, hasEnded in
             if hasEnded {
-                hideControlsTimer?.invalidate()
-                withAnimation(.fluidSpring) {
-                    engine.controlsVisible = true
-                }
-                NSCursor.setHiddenUntilMouseMoves(false)
+                returnToDashboard()
             }
         }
         .onAppear {
             keyboardHandler = KeyboardHandler(engine: engine)
+            engine.onPlaybackEnded = {
+                Task { @MainActor in
+                    returnToDashboard()
+                }
+            }
             resetControlsTimer()
         }
         .onReceive(NotificationCenter.default.publisher(for: .openVideoNotification)) { notification in
