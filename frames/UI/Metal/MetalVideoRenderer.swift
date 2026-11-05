@@ -96,9 +96,25 @@ nonisolated public final class MetalVideoRenderer: @unchecked Sendable {
         }
     }
     
+    private var frameCount: UInt64 = 0
+    private var lastBufferWidth: Int = 0
+    private var lastBufferHeight: Int = 0
+    private var lastLayerWidth: Float = 0
+    private var lastLayerHeight: Float = 0
+    private var cachedAspectScale = simd_float2(1.0, 1.0)
+
     // MARK: - Frame Submission
     
-    /// Updates the current frame to display with zero-copy IOSurface binding.
+    /// Directly updates the current frame for display link rendering without invoking external callbacks.
+    public func setBufferForDisplay(_ pixelBuffer: CVPixelBuffer, colorSpaceMode: Int32 = 0, is10Bit: Bool = false) {
+        renderLock.lock()
+        self.currentPixelBuffer = pixelBuffer
+        self.currentColorSpaceMode = colorSpaceMode
+        self.is10Bit = is10Bit
+        renderLock.unlock()
+    }
+
+    /// Updates the current frame to display with zero-copy IOSurface binding and notifies listeners.
     public func updateFrame(_ pixelBuffer: CVPixelBuffer, colorSpaceMode: Int32 = 0, is10Bit: Bool = false) {
         renderLock.lock()
         self.currentPixelBuffer = pixelBuffer
@@ -112,6 +128,14 @@ nonisolated public final class MetalVideoRenderer: @unchecked Sendable {
     public func clearFrame() {
         renderLock.lock()
         self.currentPixelBuffer = nil
+        self.lastBufferWidth = 0
+        self.lastBufferHeight = 0
+        self.lastLayerWidth = 0
+        self.lastLayerHeight = 0
+        self.cachedAspectScale = simd_float2(1.0, 1.0)
+        if let cache = textureCache {
+            CVMetalTextureCacheFlush(cache, 0)
+        }
         let callback = onFrameAvailable
         renderLock.unlock()
         callback?()
@@ -192,10 +216,17 @@ nonisolated public final class MetalVideoRenderer: @unchecked Sendable {
             return
         }
         
-        // Calculate aspect-ratio preservation scale
+        // Calculate aspect-ratio preservation scale with dimensions caching
         let layerWidth = Float(layer.drawableSize.width)
         let layerHeight = Float(layer.drawableSize.height)
-        var aspectScale = simd_float2(1.0, 1.0)
+        var aspectScale = cachedAspectScale
+
+        if width != lastBufferWidth || height != lastBufferHeight || layerWidth != lastLayerWidth || layerHeight != lastLayerHeight {
+            lastBufferWidth = width
+            lastBufferHeight = height
+            lastLayerWidth = layerWidth
+            lastLayerHeight = layerHeight
+
         if layerWidth > 0 && layerHeight > 0 && width > 0 && height > 0 {
             var par: Float = 1.0
             if let parDict = CVBufferCopyAttachment(buffer, kCVImageBufferPixelAspectRatioKey, nil) as? [String: Any] {
@@ -211,6 +242,8 @@ nonisolated public final class MetalVideoRenderer: @unchecked Sendable {
                 aspectScale = simd_float2(videoAspect / viewAspect, 1.0)
             } else {
                 aspectScale = simd_float2(1.0, viewAspect / videoAspect)
+            }
+                cachedAspectScale = aspectScale
             }
         }
         
@@ -258,6 +291,12 @@ nonisolated public final class MetalVideoRenderer: @unchecked Sendable {
         
         cmdBuffer.present(drawable)
         cmdBuffer.commit()
+
+        // Periodic texture cache maintenance to release unused IOSurfaces back to system pool
+        frameCount &+= 1
+        if (frameCount & 0x7F) == 0 { // Every 128 frames
+            CVMetalTextureCacheFlush(cache, 0)
+        }
     }
     
     // MARK: - Color Transforms

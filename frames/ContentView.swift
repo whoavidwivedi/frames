@@ -34,7 +34,11 @@ struct ContentView: View {
                 ZStack {
                     // Direct Hardware Video Surface (Zero-Copy Metal 3 HDR or AVPlayerLayer)
                     if engine.isNativePipelineActive {
-                        MetalVideoCanvasView(renderer: engine.nativePipeline.renderer) {
+                        MetalVideoCanvasView(
+                            renderer: engine.nativePipeline.renderer,
+                            isPlaying: engine.isPlaying,
+                            videoFrameRate: engine.metadata.frameRate > 0 ? engine.metadata.frameRate : 60.0
+                        ) {
                             engine.nativePipeline.nextFrameForDisplay()
                         }
                         .ignoresSafeArea()

@@ -221,7 +221,9 @@ public final class VideoPlayerEngine {
 
         // Apple Silicon low-latency audio/video configuration
         playerItem.audioTimePitchAlgorithm = .timeDomain
-        playerItem.isAudioSpatializationAllowed = SettingsManager.shared.spatialAudioEnabled
+        playerItem.allowedAudioSpatializationFormats = SettingsManager.shared.spatialAudioEnabled
+            ? .monoStereoAndMultichannel
+            : []
 
         observePlayerItem(playerItem)
         player.replaceCurrentItem(with: playerItem)
@@ -272,6 +274,9 @@ public final class VideoPlayerEngine {
         displayTime = currentTime
         if isNativePipelineActive {
             nativePipeline.pause()
+            currentTime = nativePipeline.currentTime
+            lastSyncTime = currentTime
+            displayTime = currentTime
         } else {
             player.pause()
         }
@@ -313,9 +318,6 @@ public final class VideoPlayerEngine {
     }
 
     public func currentInterpolatedTime(at date: Date = Date()) -> Double {
-        if isNativePipelineActive {
-            return currentTime
-        }
         guard duration > 0 else { return currentTime }
         if isScrubbing {
             return currentTime
@@ -407,22 +409,16 @@ public final class VideoPlayerEngine {
     // MARK: - Subtitles Management
     public func selectSubtitleTrack(_ track: SubtitleTrack) {
         selectedSubtitleTrack = track
+        // Never show stale text from the previously selected track while cues load.
+        activeSubtitleText = ""
 
         if isNativePipelineActive {
             if track.id == SubtitleTrack.off.id {
                 nativePipeline.selectSubtitleTrack(trackNumber: nil)
-                activeSubtitleText = ""
             } else {
+                // Cues are extracted once in the background at load time. Never scan the
+                // container on the main thread here: large MKVs would freeze the whole app.
                 nativePipeline.selectSubtitleTrack(trackNumber: track.trackNumber)
-                if track.cues.isEmpty, let trackNumber = track.trackNumber, let d = nativePipeline.demuxer {
-                    let extracted = d.extractSubtitleCues(for: trackNumber)
-                    if !extracted.isEmpty {
-                        self.selectedSubtitleTrack.cues = extracted
-                        if let idx = availableSubtitleTracks.firstIndex(where: { $0.id == track.id }) {
-                            availableSubtitleTracks[idx].cues = extracted
-                        }
-                    }
-                }
                 updateActiveSubtitle(at: currentTime)
             }
             return
@@ -492,6 +488,8 @@ public final class VideoPlayerEngine {
             } else {
                 activeSubtitleText = ""
             }
+        } else {
+            activeSubtitleText = ""
         }
     }
 
@@ -753,7 +751,6 @@ public final class VideoPlayerEngine {
             }
 
             self.nativePipeline.onSubtitleCue = { [weak self] cue in
-                Task { @MainActor [weak self] in
                     guard let self, self.selectedSubtitleTrack.id != SubtitleTrack.off.id else { return }
                     if self.selectedSubtitleTrack.trackNumber == self.nativePipeline.activeSubtitleTrackNumber {
                         if !self.selectedSubtitleTrack.cues.contains(where: { abs($0.startTime - cue.startTime) < 0.1 }) {
@@ -764,20 +761,20 @@ public final class VideoPlayerEngine {
                         }
                     }
                 }
-            }
 
             // Background extraction of embedded subtitle cues
+            // Background extraction of embedded subtitle cues in a single high-efficiency pass
             if let demuxer = self.nativePipeline.demuxer {
                 Task.detached(priority: .utility) { [weak self, weak demuxer] in
                     guard let demuxer else { return }
-                    for subTrack in demuxer.subtitleTracks {
-                        let cues = demuxer.extractSubtitleCues(for: subTrack.trackNumber)
-                        guard !cues.isEmpty else { continue }
+                    let allCues = demuxer.extractAllSubtitleCues()
+                    guard !allCues.isEmpty else { return }
                         await MainActor.run { [weak self] in
                             guard let self, self.loadGeneration == generation else { return }
-                            if let idx = self.availableSubtitleTracks.firstIndex(where: { $0.trackNumber == subTrack.trackNumber }) {
+                        for (trackNumber, cues) in allCues {
+                            if let idx = self.availableSubtitleTracks.firstIndex(where: { $0.trackNumber == trackNumber }) {
                                 self.availableSubtitleTracks[idx].cues = cues
-                                if self.selectedSubtitleTrack.trackNumber == subTrack.trackNumber {
+                                if self.selectedSubtitleTrack.trackNumber == trackNumber {
                                     self.selectedSubtitleTrack.cues = cues
                                     self.updateActiveSubtitle(at: self.currentTime)
                                 }
@@ -788,12 +785,9 @@ public final class VideoPlayerEngine {
             }
 
             nativePipeline.onPlaybackEnded = { [weak self] in
-                Task { @MainActor [weak self] in
                     self?.markPlaybackEnded()
                 }
-            }
             nativePipeline.onTimeUpdate = { [weak self] pts in
-                Task { @MainActor [weak self] in
                     guard let self, !self.isScrubbing else { return }
                     self.currentTime = pts
                     self.lastSyncTime = pts
@@ -801,7 +795,6 @@ public final class VideoPlayerEngine {
                     self.updateActiveSubtitle(at: pts)
                     self.throttledRecordProgress()
                 }
-            }
             if let initialSeekTime, initialSeekTime > 0 {
                 seek(to: initialSeekTime, exact: true)
             }
@@ -872,9 +865,9 @@ public final class VideoPlayerEngine {
                 let displayName = option.displayName
                 let lang = option.locale?.language.languageCode?.identifier ?? option.extendedLanguageTag ?? option.locale?.identifier
                 
-                var channelLayout = "Stereo"
+                let channelLayout = "Stereo"
                 var formatDesc = "AAC"
-                if let subType = option.mediaSubTypes.first as? NSNumber {
+                if let subType = option.mediaSubTypes.first {
                     let fourCC = subType.uint32Value.fourCCString
                     formatDesc = LanguageHelper.audioCodecDescription(codecID: fourCC)
                 }
@@ -902,7 +895,9 @@ public final class VideoPlayerEngine {
 
         if audios.isEmpty, let tracks = try? await item.asset.loadTracks(withMediaType: .audio) {
             for (idx, track) in tracks.enumerated() {
-                let lang = (try? await track.load(.extendedLanguageTag)) ?? track.languageCode
+                let extendedTag = try? await track.load(.extendedLanguageTag)
+                let languageCode = try? await track.load(.languageCode)
+                let lang = extendedTag ?? languageCode
                 var channels = 2
                 var formatDesc = "AAC"
                 if let formats = try? await track.load(.formatDescriptions), let desc = formats.first {
@@ -966,7 +961,9 @@ public final class VideoPlayerEngine {
 
         if subs.count <= 1, let tracks = try? await item.asset.loadTracks(withMediaType: .subtitle) {
             for (idx, track) in tracks.enumerated() {
-                let lang = (try? await track.load(.extendedLanguageTag)) ?? track.languageCode
+                let extendedTag = try? await track.load(.extendedLanguageTag)
+                let languageCode = try? await track.load(.languageCode)
+                let lang = extendedTag ?? languageCode
                 let title = LanguageHelper.formattedTrackTitle(displayName: "Subtitle \(idx + 1)", language: lang)
                 subs.append(SubtitleTrack(
                     id: "av_sub_track_\(track.trackID)_\(idx)",

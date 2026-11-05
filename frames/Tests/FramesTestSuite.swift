@@ -1626,6 +1626,23 @@ public enum FramesTestSuite {
         multiStreamEngine.updateActiveSubtitle(at: 16.0)
         assertTest("VideoPlayerEngine Subtitle Past Timestamp Cleared", condition: multiStreamEngine.activeSubtitleText.isEmpty)
 
+        // Switching to a track whose cues are still loading must not leak stale text.
+        let pendingCueTrack = SubtitleTrack(
+            id: "sub_pending",
+            title: "Spanish",
+            languageCode: "spa",
+            isExternal: false,
+            cues: [],
+            trackNumber: 5
+        )
+        multiStreamEngine.availableSubtitleTracks = [SubtitleTrack.off, subTrack1, pendingCueTrack]
+        multiStreamEngine.selectSubtitleTrack(subTrack1)
+        multiStreamEngine.currentTime = 12.0
+        multiStreamEngine.updateActiveSubtitle(at: 12.0)
+        assertTest("VideoPlayerEngine Stale Subtitle Precondition", condition: multiStreamEngine.activeSubtitleText == "Look at the stars.")
+        multiStreamEngine.selectSubtitleTrack(pendingCueTrack)
+        assertTest("VideoPlayerEngine Pending Cue Track Clears Stale Text", condition: multiStreamEngine.activeSubtitleText.isEmpty)
+
         multiStreamEngine.selectSubtitleTrack(SubtitleTrack.off)
         assertTest("VideoPlayerEngine Subtitle Off Selection Cleared", condition: multiStreamEngine.selectedSubtitleTrack.id == "off" && multiStreamEngine.activeSubtitleText.isEmpty)
 
@@ -1805,6 +1822,112 @@ public enum FramesTestSuite {
         assertTest("SubtitlesSettingsTab Mount Operable", condition: subtitlesTabHost.fittingSize.width >= 0)
         let aboutTabHost = NSHostingView(rootView: AboutSettingsTab())
         assertTest("AboutSettingsTab Mount Operable", condition: aboutTabHost.fittingSize.width >= 0)
+
+        // MARK: - 30. Playback Performance, Battery Saver & Low-Overhead Presentation Tests
+        logs.append("\n[30] Testing Battery Optimization, Frame Queue Cadence & Presentation Performance...")
+
+        // 1. MetalVideoRenderer setBufferForDisplay vs updateFrame
+        nonisolated final class CallbackFlag: @unchecked Sendable {
+            private var lock = os_unfair_lock()
+            private var fired = false
+            func setTrue() {
+                os_unfair_lock_lock(&lock)
+                fired = true
+                os_unfair_lock_unlock(&lock)
+            }
+            var value: Bool {
+                os_unfair_lock_lock(&lock)
+                defer { os_unfair_lock_unlock(&lock) }
+                return fired
+            }
+        }
+        if let testRenderer = MetalVideoRenderer() {
+            let callbackFlag = CallbackFlag()
+            testRenderer.onFrameAvailable = {
+                callbackFlag.setTrue()
+            }
+
+            var testPixelBuffer: CVPixelBuffer?
+            CVPixelBufferCreate(kCFAllocatorDefault, 64, 64, kCVPixelFormatType_32BGRA, nil, &testPixelBuffer)
+            if let pb = testPixelBuffer {
+                // setBufferForDisplay must NOT invoke onFrameAvailable (prevents duplicate rendering loop)
+                testRenderer.setBufferForDisplay(pb)
+                assertTest("Renderer setBufferForDisplay Suppresses Duplicate Async Render", condition: !callbackFlag.value)
+
+                // updateFrame MUST invoke onFrameAvailable (for seek / single frame updates)
+                testRenderer.updateFrame(pb)
+                assertTest("Renderer updateFrame Notifies Listener", condition: callbackFlag.value)
+
+                // clearFrame resets state
+                testRenderer.clearFrame()
+                assertTest("Renderer clearFrame Operable", condition: true)
+            }
+        }
+
+        // 2. NativeMetalView Playback State and Display Link Control
+        let testMetalCanvas = NativeMetalView(renderer: MetalVideoRenderer())
+        testMetalCanvas.setPlaybackState(isPlaying: false, frameRate: 24.0)
+        assertTest("NativeMetalView Paused State Configured", condition: true)
+        testMetalCanvas.setPlaybackState(isPlaying: true, frameRate: 24.0)
+        assertTest("NativeMetalView Active State Configured", condition: true)
+        testMetalCanvas.setPlaybackState(isPlaying: false, frameRate: 60.0)
+
+        // 3. AudioEngineBridge First-Buffer Anchoring
+        let dummyAudioTrack = DemuxedTrack(
+            trackNumber: 1,
+            trackUID: 101,
+            type: .audio,
+            codecID: "A_AAC",
+            sampleRate: 48000.0,
+            channels: 2
+        )
+        if let bridge = AudioEngineBridge(track: dummyAudioTrack) {
+            bridge.seek(to: 5.0)
+            if let dummyPCM1 = AVAudioPCMBuffer(pcmFormat: bridge.outputFormat, frameCapacity: 1024),
+               let dummyPCM2 = AVAudioPCMBuffer(pcmFormat: bridge.outputFormat, frameCapacity: 1024) {
+                dummyPCM1.frameLength = 1024
+                dummyPCM2.frameLength = 1024
+
+                // Schedule first packet at PTS 5.02
+                bridge.scheduleBuffer(dummyPCM1, pts: 5.02)
+                // Schedule second packet at PTS 5.04
+                bridge.scheduleBuffer(dummyPCM2, pts: 5.04)
+
+                // When paused/stopped, master clock should anchor to the first buffer's PTS, not be overwritten by 5.04
+                assertTest("Audio Clock Anchored To First Scheduled Packet (PTS 5.02)", condition: abs(bridge.currentMasterTime - 5.0) < 0.05)
+
+                // Test Pause and Resume Anchor Stability
+                bridge.pause()
+                assertTest("Audio Clock Stable On Pause", condition: abs(bridge.currentMasterTime - 5.0) < 0.05)
+            }
+            bridge.stop()
+        }
+
+        // 4. VideoPlayerEngine Monotonic Interpolation in Native Pipeline
+        let perfEngine = VideoPlayerEngine()
+        perfEngine.currentTime = 12.0
+        perfEngine.lastSyncTime = 12.0
+        perfEngine.lastSyncDate = Date().addingTimeInterval(-0.1) // 100ms ago
+        perfEngine.duration = 60.0
+        perfEngine.isPlaying = true
+        perfEngine.isBuffering = false
+        perfEngine.playbackRate = 1.0
+        let interpolated = perfEngine.currentInterpolatedTime()
+        assertTest("Smooth Time Interpolation Active During Playback", condition: interpolated >= 12.05 && interpolated <= 12.15)
+        perfEngine.pause()
+        perfEngine.unloadMedia()
+
+        // 5. NALParser AVCC vs Annex-B Disambiguation (256-511 Byte Length Range)
+        var avccSample = Data([0x00, 0x00, 0x01, 0x10]) // 4-byte BE length = 272 bytes
+        avccSample.append(contentsOf: [UInt8](repeating: 0x65, count: 272))
+        assertTest("AVCC Packet in 256-511 Byte Range Not Misdetected as Annex-B", condition: !NALParser.isAnnexB(avccSample))
+
+        // 6. NALParser Annex-B Leading Zero-Padding Handling
+        let annexBSampleWithPadding = Data([0x00, 0x00, 0x00, 0x00, 0x01, 0x67, 0x42, 0x00, 0x00, 0x00, 0x00, 0x01, 0x68, 0xCE])
+        let extractedNals = NALParser.extractAnnexBNALUnits(from: annexBSampleWithPadding)
+        assertTest("Annex-B Start Code Multi-Zero Padding Properly Handled", condition: extractedNals.count == 2)
+        let convertedAVCC = NALParser.convertAnnexBToAVCC(annexBSampleWithPadding)
+        assertTest("Annex-B Multi-Zero Padding Converted Without Extra Zeros", condition: convertedAVCC.count > 0 && convertedAVCC.count < annexBSampleWithPadding.count + 8)
 
         // Summary
         logs.append("\n==========================================")

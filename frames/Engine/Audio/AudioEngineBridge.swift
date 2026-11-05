@@ -31,6 +31,7 @@ nonisolated public final class AudioEngineBridge: @unchecked Sendable {
     private var anchorPts: Double = 0
     private var lastReportedTime: Double = 0
     private var hasAnchored = false
+    private var hasScheduledFirstBuffer = false
     private var minimumSeekPTS: Double = 0.0
     
     // MARK: - Lifecycle
@@ -113,6 +114,8 @@ nonisolated public final class AudioEngineBridge: @unchecked Sendable {
         guard isPlaying else { return }
         playerNode.pause()
         isPlaying = false
+        anchorPts = lastReportedTime
+        hasAnchored = false
     }
     
     public func stop() {
@@ -126,6 +129,7 @@ nonisolated public final class AudioEngineBridge: @unchecked Sendable {
         anchorSampleTime = 0
         lastReportedTime = 0
         hasAnchored = false
+        hasScheduledFirstBuffer = false
         minimumSeekPTS = 0
     }
     
@@ -147,6 +151,7 @@ nonisolated public final class AudioEngineBridge: @unchecked Sendable {
         anchorSampleTime = 0
         lastReportedTime = pts
         hasAnchored = false
+        hasScheduledFirstBuffer = false
         minimumSeekPTS = max(0.0, pts - 0.035)
         
         if isPlaying {
@@ -164,18 +169,16 @@ nonisolated public final class AudioEngineBridge: @unchecked Sendable {
             lock.unlock()
             return
         }
-        if !hasAnchored {
+        if !hasScheduledFirstBuffer {
             anchorPts = pts
-            if isPlaying,
-               let nodeTime = playerNode.lastRenderTime,
-               let playerTime = playerNode.playerTime(forNodeTime: nodeTime) {
-                anchorSampleTime = playerTime.sampleTime
-                hasAnchored = true
-            }
+            lastReportedTime = pts
+            hasScheduledFirstBuffer = true
+            hasAnchored = false
         }
-        lock.unlock()
-        
+        // Keep scheduling serialized with stop()/seek() so stale packets can never
+        // land in the player queue after a track switch or seek.
         playerNode.scheduleBuffer(pcmBuffer, completionHandler: nil)
+        lock.unlock()
     }
     
     // MARK: - Master Clock Synchronization
@@ -201,6 +204,8 @@ nonisolated public final class AudioEngineBridge: @unchecked Sendable {
             return current
         }
         
-        return lastReportedTime
+        // No render clock yet (device switch / unsupported stream). Report invalid
+        // so the pipeline falls back to wall-clock timing instead of freezing.
+        return -1
     }
 }

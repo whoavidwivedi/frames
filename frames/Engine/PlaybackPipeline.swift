@@ -36,13 +36,19 @@ nonisolated private final class FrameQueue: @unchecked Sendable {
         os_unfair_lock_lock(&lock)
         defer { os_unfair_lock_unlock(&lock) }
         guard frame.pts >= minimumAcceptedPTS else { return }
-        if let idx = frames.firstIndex(where: { $0.pts > frame.pts }) {
+
+        // Fast path for monotonic presentation order
+        if let last = frames.last, frame.pts >= last.pts {
+            frames.append(frame)
+        } else if let idx = frames.firstIndex(where: { $0.pts > frame.pts }) {
             frames.insert(frame, at: idx)
         } else {
             frames.append(frame)
         }
-        if frames.count > maxCount + 4 {
-            frames.removeFirst()
+
+        // Asynchronous decoder callbacks can overshoot the feeder's headroom check.
+        if frames.count > maxCount {
+            frames.removeFirst(frames.count - maxCount)
         }
     }
     
@@ -73,11 +79,13 @@ nonisolated private final class FrameQueue: @unchecked Sendable {
         os_unfair_lock_lock(&lock)
         defer { os_unfair_lock_unlock(&lock) }
         
-        while frames.count > 1 && frames[0].pts < masterClock - 0.030 {
+        // Only discard stale frames if they are > 100ms behind masterClock and newer frames are ready
+        while frames.count > 1 && frames[0].pts < masterClock - 0.100 {
             frames.removeFirst()
         }
         guard let candidate = frames.first else { return nil }
-        if candidate.pts <= masterClock + 0.012 {
+        // Deliver frame if due within the display cadence window (20ms tolerance)
+        if candidate.pts <= masterClock + 0.020 {
             frames.removeFirst()
             return (candidate.pixelBuffer, candidate.pts)
         }
@@ -211,24 +219,30 @@ public final class PlaybackPipeline: ObservableObject {
     }
     @Published public private(set) var activeAudioTrackNumber: UInt64?
     @Published public private(set) var activeSubtitleTrackNumber: UInt64?
-    public var onSubtitleCue: (@Sendable (SubtitleCue) -> Void)?
+    public var onSubtitleCue: (@MainActor @Sendable (SubtitleCue) -> Void)?
     
     // Decoded Frame Ring Buffer & Scrub Frame Cache
-    private let frameQueue = FrameQueue(maxCount: 12)
-    private let scrubCache = ScrubFrameCache(maxCapacity: 64)
+    private let frameQueue = FrameQueue(maxCount: 18)
+    private let scrubCache = ScrubFrameCache(maxCapacity: 16)
     private let packetChunkBuffer = PacketChunkBuffer(maxCapacity: 256)
+    private var lastReportedUIClock: Double = -1.0
     
     // Concurrency & Feeder Task
     private let seekToken = SeekToken()
     private var feederTask: Task<Void, Never>?
+    private var audioSwitchTask: Task<Void, Never>?
+    private var pendingAudioTrackNumber: UInt64?
     private var isPlaying = false
     private var playbackStartTime: CFTimeInterval = 0
     private var playbackStartPts: Double = 0
+    private var lastAudioClock: Double = -1
+    private var lastAudioClockDate: CFTimeInterval = 0
+    private var audioClockStalled = false
     
     // Callbacks
-    public var onTimeUpdate: (@Sendable (Double) -> Void)?
-    public var onStateChange: (@Sendable (PlaybackState) -> Void)?
-    public var onPlaybackEnded: (@Sendable () -> Void)?
+    public var onTimeUpdate: (@MainActor @Sendable (Double) -> Void)?
+    public var onStateChange: (@MainActor @Sendable (PlaybackState) -> Void)?
+    public var onPlaybackEnded: (@MainActor @Sendable () -> Void)?
     
     // MARK: - Lifecycle
     
@@ -248,6 +262,7 @@ public final class PlaybackPipeline: ObservableObject {
     @discardableResult
     public func loadSync(url: URL) -> Bool {
         stop()
+        resetClockTracker()
         
         transition(to: .loading)
         self.currentURL = url
@@ -318,20 +333,60 @@ public final class PlaybackPipeline: ObservableObject {
     // MARK: - Track Switching
     public func selectAudioTrack(trackNumber: UInt64) {
         guard let d = demuxer, let track = d.audioTracks.first(where: { $0.trackNumber == trackNumber }) else { return }
-        guard activeAudioTrackNumber != trackNumber else { return }
 
+        // Switching back to the track that is still active cancels any in-flight switch.
+        if activeAudioTrackNumber == trackNumber {
+            pendingAudioTrackNumber = nil
+            audioSwitchTask?.cancel()
+            audioSwitchTask = nil
+            return
+        }
+        guard pendingAudioTrackNumber != trackNumber else { return }
+
+        let previousTrackNumber = activeAudioTrackNumber
         let previousVolume = audioEngine?.currentVolume ?? 1.0
-        let wasPlaying = isPlaying
-        audioEngine?.stop()
+        pendingAudioTrackNumber = trackNumber
 
-        if let newEngine = AudioEngineBridge(track: track) {
+        audioSwitchTask?.cancel()
+        // AVAudioEngine setup/start can block for hundreds of milliseconds. Build the
+        // replacement engine off the main thread and keep the old one playing until ready.
+        audioSwitchTask = Task.detached(priority: .userInitiated) { [weak self] in
+            let newEngine = AudioEngineBridge(track: track)
+            guard !Task.isCancelled else {
+                newEngine?.stop()
+                return
+            }
+            await MainActor.run { [weak self] in
+                guard let self else {
+                    newEngine?.stop()
+                    return
+                }
+                guard self.pendingAudioTrackNumber == trackNumber else {
+                    newEngine?.stop()
+                    return
+                }
+                self.pendingAudioTrackNumber = nil
+                guard let newEngine else {
+                    self.activeAudioTrackNumber = previousTrackNumber
+                    return
+                }
+
             newEngine.setVolume(previousVolume)
+                let resumeTime = self.currentPlaybackTime()
+                let oldEngine = self.audioEngine
             self.audioEngine = newEngine
             self.activeAudioTrackNumber = trackNumber
-            routing.updateAudio(engine: newEngine, trackNumber: trackNumber)
-            newEngine.seek(to: currentTime)
-            if wasPlaying {
+                self.routing.updateAudio(engine: newEngine, trackNumber: trackNumber)
+                self.resetClockTracker()
+                newEngine.seek(to: resumeTime)
+                if self.isPlaying {
                 newEngine.play()
+            }
+                if let oldEngine {
+                    Task.detached(priority: .utility) {
+                        oldEngine.stop()
+                    }
+                }
             }
         }
     }
@@ -363,6 +418,7 @@ public final class PlaybackPipeline: ObservableObject {
         isPlaying = true
         playbackStartTime = CACurrentMediaTime()
         playbackStartPts = currentTime
+        resetClockTracker()
         audioEngine?.play()
         transition(to: .playing)
         
@@ -372,9 +428,9 @@ public final class PlaybackPipeline: ObservableObject {
     public func pause() {
         guard case .playing = state else { return }
         
+        let finalTime = currentPlaybackTime()
         isPlaying = false
-        let elapsed = CACurrentMediaTime() - playbackStartTime
-        currentTime = min(duration > 0 ? duration : Double.infinity, playbackStartPts + elapsed)
+        currentTime = min(duration > 0 ? duration : Double.infinity, finalTime)
         audioEngine?.pause()
         feederTask?.cancel()
         feederTask = nil
@@ -383,8 +439,13 @@ public final class PlaybackPipeline: ObservableObject {
     
     public func stop() {
         isPlaying = false
+        audioSwitchTask?.cancel()
+        audioSwitchTask = nil
+        pendingAudioTrackNumber = nil
         feederTask?.cancel()
         feederTask = nil
+        lastReportedUIClock = -1.0
+        resetClockTracker()
         
         audioEngine?.stop()
         videoDecoder?.invalidate()
@@ -422,6 +483,8 @@ public final class PlaybackPipeline: ObservableObject {
         audioEngine?.seek(to: time)
         
         // $O(\log N)$ binary search seek in Matroska index (prioritizing video keyframe cues)
+        lastReportedUIClock = -1.0
+        resetClockTracker()
         demuxer.seek(to: time)
         playbackStartTime = CACurrentMediaTime()
         playbackStartPts = time
@@ -442,15 +505,14 @@ public final class PlaybackPipeline: ObservableObject {
     public func nextFrameForDisplay() -> CVPixelBuffer? {
         let masterClock: Double
         if isPlaying {
-            let audioClock = audioEngine?.currentMasterTime ?? 0.0
-            if audioClock > 0.05 {
-                masterClock = audioClock
-            } else {
-                let elapsed = (CACurrentMediaTime() - playbackStartTime) * Double(playbackRate)
-                masterClock = playbackStartPts + elapsed
-            }
+            masterClock = currentPlaybackTime()
+
+            // Throttle UI property changes and notifications to ~20Hz (every 50ms) to avoid SwiftUI invalidation floods
+            if abs(masterClock - lastReportedUIClock) >= 0.048 {
+                lastReportedUIClock = masterClock
             currentTime = masterClock
             onTimeUpdate?(masterClock)
+            }
 
             if duration > 0 && masterClock >= duration {
                 isPlaying = false
@@ -471,6 +533,47 @@ public final class PlaybackPipeline: ObservableObject {
         return next.buffer
     }
     
+    // MARK: - Clock Synchronization
+
+    /// Media clock used for frame delivery. The audio hardware clock is authoritative
+    /// while it advances; a stalled clock (failed/unsupported stream switch) falls back
+    /// to monotonic wall time so video and the timeline can never freeze.
+    private func currentPlaybackTime() -> Double {
+        guard isPlaying else { return currentTime }
+
+        let now = CACurrentMediaTime()
+        let wallClock = playbackStartPts + (now - playbackStartTime) * Double(playbackRate)
+        let audioClock = audioEngine?.currentMasterTime ?? -1
+
+        guard audioClock > 0.05 else { return wallClock }
+        // Once the hardware clock stalls it is not trustworthy for this playback session;
+        // stay on wall time until the next seek/switch re-anchors it.
+        if audioClockStalled { return wallClock }
+
+        if audioClock > lastAudioClock + 0.0005 {
+            lastAudioClock = audioClock
+            lastAudioClockDate = now
+            return audioClock
+        }
+        if audioClock < lastAudioClock - 0.5 {
+            // Clock jumped (seek / engine swap): re-anchor to the new value.
+            lastAudioClock = audioClock
+            lastAudioClockDate = now
+            return audioClock
+        }
+        if now - lastAudioClockDate > 0.25 {
+            audioClockStalled = true
+            return wallClock
+        }
+        return audioClock
+    }
+
+    private func resetClockTracker() {
+        lastAudioClock = -1
+        lastAudioClockDate = CACurrentMediaTime()
+        audioClockStalled = false
+    }
+
     // MARK: - Background Feeder Loop
     
     private func startFeederTask(demuxer: MatroskaDemuxer, targetSeekTime: Double? = nil, generation: Int) {
@@ -538,9 +641,9 @@ public final class PlaybackPipeline: ObservableObject {
             
             // Mode B: Continuous Streaming Playback with Chunked Packet Prefetching
             while isCurrentGen() {
-                // Throttle feeding if decoded frame queue has sufficient headroom
+                // Throttle feeding if decoded frame queue has sufficient headroom (20ms sleep reduces CPU wakeups)
                 if q.count >= q.maxCount {
-                    try? await Task.sleep(nanoseconds: 6_000_000) // 6ms sleep
+                    try? await Task.sleep(nanoseconds: 20_000_000) // 20ms sleep
                     continue
                 }
                 
@@ -577,7 +680,11 @@ public final class PlaybackPipeline: ObservableObject {
                         if !clean.isEmpty {
                             let dur = (packet.duration ?? 0) > 0 ? packet.duration! : 3.0
                             let cue = SubtitleCue(startTime: packet.pts, endTime: packet.pts + dur, text: clean)
-                            onSubCue?(cue)
+                            if let onSubCue = onSubCue {
+                                Task { @MainActor in
+                                    onSubCue(cue)
+                                }
+                            }
                         }
                     }
                 }

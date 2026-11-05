@@ -135,7 +135,7 @@ public final class SettingsManager {
     public static let defaultViewModeKey = "frames_settings_default_view_mode_v1"
     public static let autoResumeModeKey = "frames_settings_auto_resume_mode_v1"
     public static let showAddVideoTileKey = "frames_settings_show_add_video_tile_v1"
-    public static let hardwareAccelerationKey = "frames_settings_hardware_acceleration_v1"
+    public nonisolated static let hardwareAccelerationKey = "frames_settings_hardware_acceleration_v1"
     public static let hdrToneMappingKey = "frames_settings_hdr_tone_mapping_v1"
     public static let proMotionSyncKey = "frames_settings_promotion_sync_v1"
     public static let defaultSkipIntervalKey = "frames_settings_default_skip_interval_v1"
