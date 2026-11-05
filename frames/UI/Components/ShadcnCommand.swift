@@ -715,8 +715,7 @@ public struct CommandDialog<Content: View>: View {
                 )
             }
             .onAppear {
-                context.onDismiss = { [weak context] in
-                    _ = context
+                context.onDismiss = {
                     closeDialog()
                 }
                 context.query = ""

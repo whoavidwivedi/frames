@@ -111,9 +111,11 @@ public final class VideoPlayerEngine {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            guard let self = self, let url = self.currentURL, !url.path.isEmpty, self.duration > 0 else { return }
-            let progress = self.hasEnded ? 1.0 : (self.currentTime / self.duration)
-            LibraryManager.shared.recordPlayback(url: url, duration: self.duration, progress: progress)
+            MainActor.assumeIsolated {
+                guard let self = self, let url = self.currentURL, !url.path.isEmpty, self.duration > 0 else { return }
+                let progress = self.hasEnded ? 1.0 : (self.currentTime / self.duration)
+                LibraryManager.shared.recordPlayback(url: url, duration: self.duration, progress: progress)
+            }
         }
     }
 

@@ -152,8 +152,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             object: nil,
             queue: .main
         ) { notification in
-            if let window = notification.object as? NSWindow {
-                window.tabbingMode = .disallowed
+            MainActor.assumeIsolated {
+                if let window = notification.object as? NSWindow {
+                    window.tabbingMode = .disallowed
+                }
             }
         }
 
@@ -162,11 +164,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             object: nil,
             queue: .main
         ) { notification in
-            if let menu = notification.object as? NSMenu {
-                AppDelegate.cleanTabBarMenuItems(from: menu)
-            }
-            if let mainMenu = NSApp.mainMenu {
-                AppDelegate.cleanTabBarMenuItems(from: mainMenu)
+            MainActor.assumeIsolated {
+                if let menu = notification.object as? NSMenu {
+                    AppDelegate.cleanTabBarMenuItems(from: menu)
+                }
+                if let mainMenu = NSApp.mainMenu {
+                    AppDelegate.cleanTabBarMenuItems(from: mainMenu)
+                }
             }
         }
     }

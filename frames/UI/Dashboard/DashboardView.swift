@@ -27,16 +27,15 @@ public struct DashboardView: View {
 
                 // Content Area: Collapsible Sidebar + Main Content Canvas
                 HStack(spacing: 0) {
-                    if library.isSidebarVisible {
-                        DashboardSidebarView(library: library, width: sidebarWidth, onPlayURL: onPlayURL)
-                            .transition(.move(edge: .leading).combined(with: .opacity))
-
-                        Divider()
-                            .overlay(ShadcnTheme.border)
-                            .transition(.opacity)
-                    }
+                    DashboardSidebarView(library: library, width: sidebarWidth, onPlayURL: onPlayURL)
+                        .frame(width: library.isSidebarVisible ? sidebarWidth : 0, alignment: .trailing)
+                        .clipped()
+                        .opacity(library.isSidebarVisible ? 1.0 : 0.0)
+                        .allowsHitTesting(library.isSidebarVisible)
+                        .accessibilityHidden(!library.isSidebarVisible)
 
                     DashboardContentView(library: library, onPlayURL: onPlayURL)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
             .animation(.fluidSpring, value: library.isSidebarVisible)

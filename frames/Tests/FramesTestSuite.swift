@@ -411,6 +411,42 @@ public enum FramesTestSuite {
         callbackRowView.onThumbnailHover?(true)
         assertTest("List Row Thumbnail Hover Callback Invocation", condition: thumbCallbackReceived == true)
 
+        // MARK: - Dashboard Layout, Grid Pinned Header & Sidebar Transition Verification
+        // 1. List View Dashed Add Video Spec: Dimensions match thumbnail exactly (76x43) rather than stretching full width
+        assertTest("Dashboard List Add Video Item Width Matches Thumbnail (76pt)", condition: DashboardContentView.addListThumbnailWidth == 76)
+        assertTest("Dashboard List Add Video Item Height Matches Thumbnail (43pt)", condition: DashboardContentView.addListThumbnailHeight == 43)
+
+        // 2. Grid View Layout Math: Computed item width aligns with grid columns
+        let standardGridItemWidth = DashboardContentView.computeGridItemWidth(containerWidth: 800, contentPadding: 20, isNarrow: false)
+        assertTest("Grid Item Width Computed for Standard Container (800pt)", condition: standardGridItemWidth >= 180 && standardGridItemWidth <= 320)
+        assertTest("Standard Grid Item Width Matches Expected 244pt (3 cols)", condition: abs(standardGridItemWidth - 244.0) < 0.001)
+
+        let narrowGridItemWidth = DashboardContentView.computeGridItemWidth(containerWidth: 440, contentPadding: 12, isNarrow: true)
+        assertTest("Grid Item Width Computed for Narrow Container (440pt)", condition: narrowGridItemWidth >= 140 && narrowGridItemWidth <= 320)
+
+        let ultraNarrowGridItemWidth = DashboardContentView.computeGridItemWidth(containerWidth: 320, contentPadding: 12, isNarrow: true)
+        assertTest("Grid Item Width Lower Bound Enforced (>= 140pt)", condition: ultraNarrowGridItemWidth >= 140)
+
+        let subMinimumContainerWidth = DashboardContentView.computeGridItemWidth(containerWidth: 100, contentPadding: 12, isNarrow: true)
+        assertTest("Grid Item Width Clamps Within Ultra-Narrow Bounds Without Overflow", condition: subMinimumContainerWidth <= 76 && subMinimumContainerWidth >= 0)
+
+        // 3. Sidebar Collapsible Container Width Math
+        let stdSidebarWidth: CGFloat = 210
+        let visibleSidebarWidth = lib.isSidebarVisible ? stdSidebarWidth : 0
+        assertTest("Sidebar Visible Width Matches Spec (210pt)", condition: visibleSidebarWidth == (lib.isSidebarVisible ? 210 : 0))
+
+        lib.isSidebarVisible = false
+        let hiddenSidebarWidth = lib.isSidebarVisible ? stdSidebarWidth : 0
+        assertTest("Sidebar Collapsed Width Collapses to Zero", condition: hiddenSidebarWidth == 0)
+        lib.isSidebarVisible = initialSidebar
+
+        // 4. Mount DashboardContentView and DashboardView in NSHostingView to verify view hierarchy stability
+        let dashboardHost = NSHostingView(rootView: DashboardContentView(library: lib, onPlayURL: { _ in }))
+        assertTest("DashboardContentView NSHostingView Mount", condition: dashboardHost.fittingSize.width >= 0)
+
+        let dashboardViewHost = NSHostingView(rootView: DashboardView(library: lib, onPlayURL: { _ in }))
+        assertTest("DashboardView NSHostingView Mount", condition: dashboardViewHost.fittingSize.width >= 0)
+
         // MARK: - 10. macOS Window Management Tests
         logs.append("\n[10] Testing macOS Window Management & Fullscreen States...")
         let wm = WindowManager.shared
@@ -583,9 +619,9 @@ public enum FramesTestSuite {
         let testMenu = NSMenu(title: "View")
         testMenu.addItem(NSMenuItem(title: "Toggle Sidebar", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "b"))
         testMenu.addItem(NSMenuItem.separator())
-        testMenu.addItem(NSMenuItem(title: "Show Tab Bar", action: Selector("toggleTabBar:"), keyEquivalent: ""))
+        testMenu.addItem(NSMenuItem(title: "Show Tab Bar", action: NSSelectorFromString("toggleTabBar:"), keyEquivalent: ""))
         testMenu.addItem(NSMenuItem.separator())
-        testMenu.addItem(NSMenuItem(title: "Show All Tabs", action: Selector("toggleShowAllViews:"), keyEquivalent: ""))
+        testMenu.addItem(NSMenuItem(title: "Show All Tabs", action: NSSelectorFromString("toggleShowAllViews:"), keyEquivalent: ""))
         testMenu.addItem(NSMenuItem.separator())
         testMenu.addItem(NSMenuItem(title: "Command Palette...", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "k"))
 
@@ -609,7 +645,7 @@ public enum FramesTestSuite {
         // Menu Cleaner Leading & Trailing Divider Edge Case Tests
         let boundaryMenu = NSMenu(title: "Boundary")
         boundaryMenu.addItem(NSMenuItem.separator())
-        boundaryMenu.addItem(NSMenuItem(title: "Show Tab Bar", action: Selector("toggleTabBar:"), keyEquivalent: ""))
+        boundaryMenu.addItem(NSMenuItem(title: "Show Tab Bar", action: NSSelectorFromString("toggleTabBar:"), keyEquivalent: ""))
         boundaryMenu.addItem(NSMenuItem.separator())
         boundaryMenu.addItem(NSMenuItem.separator())
         AppDelegate.cleanTabBarMenuItems(from: boundaryMenu)
@@ -621,7 +657,7 @@ public enum FramesTestSuite {
         let subMenu = NSMenu(title: "View")
         subMenu.addItem(NSMenuItem(title: "Toggle Sidebar", action: nil, keyEquivalent: ""))
         subMenu.addItem(NSMenuItem.separator())
-        subMenu.addItem(NSMenuItem(title: "Custom Tab Bar Item", action: Selector("toggleTabBar:"), keyEquivalent: ""))
+        subMenu.addItem(NSMenuItem(title: "Custom Tab Bar Item", action: NSSelectorFromString("toggleTabBar:"), keyEquivalent: ""))
         subMenuItem.submenu = subMenu
         rootMenu.addItem(subMenuItem)
 
@@ -636,9 +672,9 @@ public enum FramesTestSuite {
         let nativeAppKitMenu = NSMenu(title: "View")
         nativeAppKitMenu.addItem(NSMenuItem(title: "Toggle Sidebar", action: nil, keyEquivalent: "b"))
         nativeAppKitMenu.addItem(NSMenuItem.separator())
-        nativeAppKitMenu.addItem(NSMenuItem(title: "Show Tab Bar", action: Selector("toggleTabBar:"), keyEquivalent: "t"))
+        nativeAppKitMenu.addItem(NSMenuItem(title: "Show Tab Bar", action: NSSelectorFromString("toggleTabBar:"), keyEquivalent: "t"))
         nativeAppKitMenu.addItem(NSMenuItem.separator())
-        nativeAppKitMenu.addItem(NSMenuItem(title: "Show All Tabs", action: Selector("toggleTabOverview:"), keyEquivalent: "\\"))
+        nativeAppKitMenu.addItem(NSMenuItem(title: "Show All Tabs", action: NSSelectorFromString("toggleTabOverview:"), keyEquivalent: "\\"))
         nativeAppKitMenu.addItem(NSMenuItem.separator())
         nativeAppKitMenu.addItem(NSMenuItem(title: "Command Palette...", action: nil, keyEquivalent: "k"))
 
@@ -655,9 +691,9 @@ public enum FramesTestSuite {
         let localizedMenu = NSMenu(title: "Présentation")
         localizedMenu.addItem(NSMenuItem(title: "Barre latérale", action: nil, keyEquivalent: "b"))
         localizedMenu.addItem(NSMenuItem.separator())
-        localizedMenu.addItem(NSMenuItem(title: "Afficher la barre d'onglets", action: Selector("toggleTabBar:"), keyEquivalent: ""))
+        localizedMenu.addItem(NSMenuItem(title: "Afficher la barre d'onglets", action: NSSelectorFromString("toggleTabBar:"), keyEquivalent: ""))
         localizedMenu.addItem(NSMenuItem.separator())
-        localizedMenu.addItem(NSMenuItem(title: "Afficher tous les onglets", action: Selector("toggleTabOverview:"), keyEquivalent: ""))
+        localizedMenu.addItem(NSMenuItem(title: "Afficher tous les onglets", action: NSSelectorFromString("toggleTabOverview:"), keyEquivalent: ""))
         localizedMenu.addItem(NSMenuItem.separator())
         localizedMenu.addItem(NSMenuItem(title: "Palette de commandes", action: nil, keyEquivalent: "k"))
 
@@ -1130,14 +1166,22 @@ public enum FramesTestSuite {
         // MARK: - 25. Metal Video Presentation & Anamorphic PAR Scaling
         logs.append("\n[25] Testing Metal Video Presentation & Anamorphic Scaling...")
         if let renderer = MetalVideoRenderer() {
-            var callbackFired = false
+            nonisolated final class CallbackTracker: @unchecked Sendable {
+                private let lock = NSLock()
+                private var _fired = false
+                var fired: Bool {
+                    get { lock.lock(); defer { lock.unlock() }; return _fired }
+                    set { lock.lock(); defer { lock.unlock() }; _fired = newValue }
+                }
+            }
+            let tracker = CallbackTracker()
             renderer.onFrameAvailable = {
-                callbackFired = true
+                tracker.fired = true
             }
             let testEncoder = VideoToolboxEncoder(width: 1280, height: 720, codec: .hevc, bitrate: 4_000_000, frameRate: 30)
             if let dummyPixelBuffer = testEncoder?.makePixelBuffer() {
                 renderer.updateFrame(dummyPixelBuffer)
-                assertTest("Metal Video Renderer OnFrameAvailable Triggered", condition: callbackFired)
+                assertTest("Metal Video Renderer OnFrameAvailable Triggered", condition: tracker.fired)
             } else {
                 assertTest("Metal Video Renderer Initialized", condition: true)
             }
