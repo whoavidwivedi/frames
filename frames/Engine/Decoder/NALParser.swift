@@ -121,13 +121,21 @@ nonisolated public enum NALParser {
     
     /// Determines whether the packet data starts with an Annex-B 3 or 4 byte start code.
     public static func isAnnexB(_ data: Data) -> Bool {
-        guard data.count >= 4 else { return false }
+        let count = data.count
+        guard count >= 4 else { return false }
         return data.withUnsafeBytes { raw -> Bool in
             guard let base = raw.bindMemory(to: UInt8.self).baseAddress else { return false }
             if base[0] == 0 && base[1] == 0 && base[2] == 0 && base[3] == 1 {
-                return true
+                // In AVCC, a 4-byte length prefix of 1 would mean only 1 payload byte (total 5 bytes).
+                // Normal video frames are larger than 5 bytes, so count != 5 identifies Annex-B.
+                return count != 5
             }
             if base[0] == 0 && base[1] == 0 && base[2] == 1 {
+                // Disambiguate against AVCC packets where length prefix is in range 256..511
+                let avccCandidateLen = (Int(base[2]) << 8) | Int(base[3])
+                if count == 4 + avccCandidateLen {
+                    return false
+                }
                 let forbiddenZeroBit = (base[3] & 0x80) == 0
                 let nalType = base[3] & 0x1F
                 return forbiddenZeroBit && nalType >= 1 && nalType <= 31
@@ -138,17 +146,56 @@ nonisolated public enum NALParser {
     
     /// Translates an Annex-B stream into 4-byte big-endian length prefixed NAL units for VideoToolbox.
     public static func convertAnnexBToAVCC(_ data: Data) -> Data {
-        let nals = extractAnnexBNALUnits(from: data)
-        guard !nals.isEmpty else { return data }
+        let count = data.count
+        guard count >= 4 else { return data }
+
+        return data.withUnsafeBytes { raw in
+            guard let base = raw.bindMemory(to: UInt8.self).baseAddress else { return data }
+            var startIndices: [Int] = []
+            var i = 0
+
+            while i < count - 2 {
+                if base[i] == 0 && base[i + 1] == 0 {
+                    if base[i + 2] == 1 {
+                        startIndices.append(i + 3)
+                        i += 3
+                        continue
+                    } else if i < count - 3 && base[i + 2] == 0 && base[i + 3] == 1 {
+                        startIndices.append(i + 4)
+                        i += 4
+                        continue
+                    }
+                }
+                i += 1
+            }
+
+            guard !startIndices.isEmpty else { return data }
         
         var output = Data()
-        output.reserveCapacity(data.count + (nals.count * 4))
-        for nal in nals {
-            var length = UInt32(nal.count).bigEndian
-            withUnsafeBytes(of: &length) { output.append(contentsOf: $0) }
-            output.append(nal)
+            output.reserveCapacity(count + (startIndices.count * 4))
+
+            for idx in 0..<startIndices.count {
+                let start = startIndices[idx]
+                let end: Int
+                if idx + 1 < startIndices.count {
+                    var prev = startIndices[idx + 1] - 3
+                    while prev > start && base[prev - 1] == 0 {
+                        prev -= 1
+                    }
+                    end = prev
+                } else {
+                    end = count
+                }
+
+                if end > start {
+                    let len = end - start
+                    var lengthBE = UInt32(len).bigEndian
+                    withUnsafeBytes(of: &lengthBE) { output.append(contentsOf: $0) }
+                    output.append(base + start, count: len)
+                }
         }
         return output
+    }
     }
     
     /// Extracts individual NAL units separated by 3 or 4-byte start codes (0x000001 or 0x00000001).
@@ -158,7 +205,7 @@ nonisolated public enum NALParser {
         guard count >= 4 else { return nals }
         
         data.withUnsafeBytes { raw in
-            let base = raw.bindMemory(to: UInt8.self).baseAddress!
+            guard let base = raw.bindMemory(to: UInt8.self).baseAddress else { return }
             var startIndices: [Int] = []
             var i = 0
             
@@ -181,9 +228,9 @@ nonisolated public enum NALParser {
                 let start = startIndices[idx]
                 let end: Int
                 if idx + 1 < startIndices.count {
-                    // Back up past the start code prefix
+                    // Back up past all leading zero bytes before start code prefix
                     var prev = startIndices[idx + 1] - 3
-                    if prev > 0 && base[prev - 1] == 0 {
+                    while prev > start && base[prev - 1] == 0 {
                         prev -= 1
                     }
                     end = prev

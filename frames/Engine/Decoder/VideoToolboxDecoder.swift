@@ -205,14 +205,36 @@ nonisolated public final class VideoToolboxDecoder: @unchecked Sendable {
             kCVPixelBufferOpenGLCompatibilityKey: false
         ]
         
-        let status = VTDecompressionSessionCreate(
+        var decoderSpecification: [CFString: Any] = [
+            kVTVideoDecoderSpecification_EnableHardwareAcceleratedVideoDecoder: true
+        ]
+        let hwPref = UserDefaults.standard.object(forKey: SettingsManager.hardwareAccelerationKey) as? Bool ?? true
+        if hwPref {
+            decoderSpecification[kVTVideoDecoderSpecification_RequireHardwareAcceleratedVideoDecoder] = true
+        }
+
+        var status = VTDecompressionSessionCreate(
             allocator: kCFAllocatorDefault,
             formatDescription: formatDesc,
-            decoderSpecification: nil,
+            decoderSpecification: decoderSpecification as CFDictionary,
             imageBufferAttributes: destinationPixelBufferAttributes as CFDictionary,
             decompressionSessionOut: &session
         )
         
+        // Fallback to enable-only if require returns an error
+        if status != noErr {
+            let fallbackSpec: [CFString: Any] = [
+                kVTVideoDecoderSpecification_EnableHardwareAcceleratedVideoDecoder: true
+            ]
+            status = VTDecompressionSessionCreate(
+                allocator: kCFAllocatorDefault,
+                formatDescription: formatDesc,
+                decoderSpecification: fallbackSpec as CFDictionary,
+                imageBufferAttributes: destinationPixelBufferAttributes as CFDictionary,
+                decompressionSessionOut: &session
+            )
+        }
+
         guard status == noErr, let session = session else {
             return false
         }
@@ -223,11 +245,15 @@ nonisolated public final class VideoToolboxDecoder: @unchecked Sendable {
             key: kVTDecompressionPropertyKey_RealTime,
             value: kCFBooleanTrue
         )
+        // Maximize Apple Silicon ASIC power and thermal efficiency
+        VTSessionSetProperty(
+            session,
+            key: kVTDecompressionPropertyKey_MaximizePowerEfficiency,
+            value: kCFBooleanTrue
+        )
         
         return true
     }
-    
-    // MARK: - Frame Decompression
     
     // MARK: - Frame Decompression
     
@@ -259,7 +285,7 @@ nonisolated public final class VideoToolboxDecoder: @unchecked Sendable {
         
         // Video Translation Layer: Convert Annex-B to AVCC/HVCC length-prefixed format for VideoToolbox
         let payload: Data
-        if (track.isH264 || track.isHEVC) && NALParser.isAnnexB(packet.data) {
+        if track.codecID != "V_MPEG4/ISO/AVC" && track.codecID != "V_MPEGH/ISO/HEVC" && (track.isH264 || track.isHEVC) && NALParser.isAnnexB(packet.data) {
             payload = NALParser.convertAnnexBToAVCC(packet.data)
         } else {
             payload = packet.data

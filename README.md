@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Apple%20Silicon-ARM64-black?style=flat-square&logo=apple" alt="Apple Silicon ARM64">
   <img src="https://img.shields.io/badge/Language-Swift%206-black?style=flat-square&logo=swift" alt="Swift 6">
   <img src="https://img.shields.io/badge/Design-shadcn%20base--luma%20%2F%20neutral-black?style=flat-square" alt="shadcn base-luma / neutral">
-  <img src="https://img.shields.io/badge/Tests-235%20Passed%20(0%20warnings)-black?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-406%20Passed%20(0%20warnings)-black?style=flat-square" alt="Tests">
   <a href="https://github.com/whoavidwivedi/frames/pulls"><img src="https://img.shields.io/badge/PRs-Welcome-black?style=flat-square" alt="PRs Welcome"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/whoavidwivedi/frames?style=flat-square&color=black" alt="License: MIT"></a>
 </p>
@@ -234,7 +234,7 @@ Contributions, feedback, and pull requests are warmly welcomed!
    * Follow `shadcn` base-luma/neutral design tokens (preset `b3lnoM3QO`).
    * Maintain **0 warnings and 0 errors** on Xcode builds.
 3. **Verify Tests**:
-   Ensure all 235 tests pass cleanly before submitting:
+   Ensure all 406 tests pass cleanly before submitting:
    ```bash
    ./Build/Products/Debug/frames.app/Contents/MacOS/frames --run-tests
    ```

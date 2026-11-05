@@ -1,7 +1,7 @@
 import Foundation
-import AVFoundation
+@preconcurrency import AVFoundation
 
-public struct SubtitleCue: Sendable, Identifiable, Equatable {
+nonisolated public struct SubtitleCue: Sendable, Identifiable, Equatable {
     public let id: UUID
     public let startTime: Double
     public let endTime: Double
@@ -15,7 +15,7 @@ public struct SubtitleCue: Sendable, Identifiable, Equatable {
     }
 }
 
-public struct SubtitleTrack: Sendable, Identifiable, Equatable {
+nonisolated public struct SubtitleTrack: Sendable, Identifiable, Equatable {
     public let id: String
     public let title: String
     public let languageCode: String?
