@@ -63,18 +63,21 @@ struct ContentView: View {
                         text: engine.activeSubtitleText,
                         fontSize: engine.subtitleFontSize
                     )
+                    .padding(.bottom, engine.controlsVisible ? 84 : 24)
 
-                    // Top window drag & title bar management strip
-                    VStack {
-                        Color.clear
-                            .frame(height: 38)
-                            .macOSDefaultTitleBar()
-                        Spacer()
+                    // Top window drag & title bar management strip (when controls hidden)
+                    if !engine.controlsVisible {
+                        VStack {
+                            Color.clear
+                                .frame(height: 38)
+                                .macOSDefaultTitleBar()
+                            Spacer()
+                        }
                     }
 
-                    // Top Bar (Title, format, badges, return to dashboard, eject)
+                    // Docked Top Bar (Title, format, badges, return to dashboard)
                     if engine.controlsVisible {
-                        VStack {
+                        VStack(spacing: 0) {
                             TopBarOverlay(engine: engine) {
                                 returnToDashboard()
                             }
@@ -82,24 +85,73 @@ struct ContentView: View {
                         }
                         .transition(
                             .asymmetric(
-                                insertion: .opacity.combined(with: .offset(y: -14)),
-                                removal: .opacity.combined(with: .offset(y: -14))
+                                insertion: .opacity.combined(with: .offset(y: -8)),
+                                removal: .opacity.combined(with: .offset(y: -8))
                             )
                         )
                     }
 
-                    // Floating Liquid Glass HUD
+                    // Docked Bottom Control Bar (Scrubber, Playback, Audio, Subtitles, Rate, PiP, Fullscreen)
                     if engine.controlsVisible {
-                        VStack {
+                        VStack(spacing: 0) {
                             Spacer()
                             LiquidGlassHUD(engine: engine)
                         }
                         .transition(
                             .asymmetric(
-                                insertion: .opacity.combined(with: .offset(y: 16)),
-                                removal: .opacity.combined(with: .offset(y: 16))
+                                insertion: .opacity.combined(with: .offset(y: 8)),
+                                removal: .opacity.combined(with: .offset(y: 8))
                             )
                         )
+                    }
+
+                    // Inspector Popover Panels (Hardware Stats, Subtitles, Audio, Speed Shortcuts)
+                    if let sheet = engine.activeInspectorSheet {
+                        Color.clear
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                withAnimation(.fluidSpring) {
+                                    engine.activeInspectorSheet = nil
+                                }
+                            }
+
+                        VStack {
+                            if sheet == .stats {
+                                HStack {
+                                    Spacer()
+                                    HardwareStatsPanel(engine: engine)
+                                        .padding(.top, engine.controlsVisible ? 58 : 16)
+                                        .padding(.trailing, 16)
+                                }
+                                Spacer()
+                            } else {
+                                Spacer()
+                                HStack {
+                                    Spacer()
+                                    Group {
+                                        switch sheet {
+                                        case .subtitles:
+                                            SubtitleSelectorPanel(engine: engine)
+                                        case .audio:
+                                            AudioSelectorPanel(engine: engine)
+                                        case .speed:
+                                            SpeedSelectorPanel(engine: engine)
+                                        case .stats:
+                                            EmptyView()
+                                        }
+                                    }
+                                    .padding(.bottom, engine.controlsVisible ? 84 : 20)
+                                    .padding(.trailing, 16)
+                                }
+                            }
+                        }
+                        .transition(
+                            .asymmetric(
+                                insertion: .opacity.combined(with: .scale(scale: 0.94)),
+                                removal: .opacity.combined(with: .scale(scale: 0.96))
+                            )
+                        )
+                        .zIndex(60)
                     }
 
                     // Buffering Indicator
@@ -371,7 +423,7 @@ struct ContentView: View {
 
         // Only auto-hide if currently playing, not ended, and no inspector sheet is open
         if engine.isPlaying && !engine.hasEnded && engine.activeInspectorSheet == nil {
-            hideControlsTimer = Timer.scheduledTimer(withTimeInterval: 2.8, repeats: false) { _ in
+            hideControlsTimer = Timer.scheduledTimer(withTimeInterval: 2.5, repeats: false) { _ in
                 Task { @MainActor in
                     if engine.isPlaying && !engine.hasEnded && engine.activeInspectorSheet == nil && !engine.isScrubbing {
                         withAnimation(.fluidSmooth) {

@@ -1523,6 +1523,129 @@ public enum FramesTestSuite {
         try? FileManager.default.removeItem(at: tempDir)
         assertTest("Invalid Bundle Correctly Rejected", condition: invalidBundleRejected)
 
+        // MARK: - 28. Multi-Stream Audio & Subtitle Auto-Detection & Control Bar Tests
+        logs.append("\n[28] Testing Multi-Stream Audio, Subtitle Detection & Docked Controls...")
+
+        // 1. LanguageHelper Tests
+        assertTest("LanguageHelper English ISO-639-2", condition: LanguageHelper.displayName(for: "eng") == "English")
+        assertTest("LanguageHelper Spanish ISO-639-2", condition: LanguageHelper.displayName(for: "spa") == "Spanish")
+        assertTest("LanguageHelper French ISO-639-2", condition: LanguageHelper.displayName(for: "fra") == "French")
+        assertTest("LanguageHelper German ISO-639-2", condition: LanguageHelper.displayName(for: "deu") == "German")
+        assertTest("LanguageHelper Japanese ISO-639-2", condition: LanguageHelper.displayName(for: "jpn") == "Japanese")
+        assertTest("LanguageHelper Chinese ISO-639-2", condition: LanguageHelper.displayName(for: "zho") == "Chinese")
+        assertTest("LanguageHelper Hindi ISO-639-2", condition: LanguageHelper.displayName(for: "hin") == "Hindi")
+        assertTest("LanguageHelper English ISO-639-1", condition: LanguageHelper.displayName(for: "en") == "English")
+        assertTest("LanguageHelper Japanese ISO-639-1", condition: LanguageHelper.displayName(for: "ja") == "Japanese")
+        assertTest("LanguageHelper Spanish ISO-639-1", condition: LanguageHelper.displayName(for: "es") == "Spanish")
+        assertTest("LanguageHelper Undetermined Guard", condition: LanguageHelper.displayName(for: "und") == "Undetermined")
+        assertTest("LanguageHelper Nil Guard", condition: LanguageHelper.displayName(for: nil) == "Unknown")
+
+        // 1b. Track Title Deduplication Tests
+        let dedupeTitle1 = LanguageHelper.formattedTrackTitle(displayName: "English", language: "eng", details: "Stereo")
+        assertTest("FormattedTrackTitle Deduplicates Language Name", condition: dedupeTitle1 == "English (Stereo)")
+
+        let dedupeTitle2 = LanguageHelper.formattedTrackTitle(displayName: "English [SDH]", language: "eng")
+        assertTest("FormattedTrackTitle Subtitle SDH Preserved", condition: dedupeTitle2 == "English [SDH]")
+
+        let dedupeTitle3 = LanguageHelper.formattedTrackTitle(displayName: "Director Commentary", language: "eng", details: "Stereo")
+        assertTest("FormattedTrackTitle Custom Name Appends Language", condition: dedupeTitle3 == "Director Commentary (English) (Stereo)")
+
+        let dedupeTitle4 = LanguageHelper.formattedTrackTitle(displayName: "", language: "jpn")
+        assertTest("FormattedTrackTitle Empty Display Uses Language", condition: dedupeTitle4 == "Japanese")
+
+        // 2. Channel & Codec Helper Tests
+        assertTest("Channel Layout Mono", condition: LanguageHelper.channelDescription(channels: 1) == "Mono")
+        assertTest("Channel Layout Stereo", condition: LanguageHelper.channelDescription(channels: 2) == "Stereo")
+        assertTest("Channel Layout 5.1 Surround", condition: LanguageHelper.channelDescription(channels: 6) == "5.1 Surround")
+        assertTest("Channel Layout 7.1 Surround", condition: LanguageHelper.channelDescription(channels: 8) == "7.1 Surround")
+        assertTest("Audio Codec AAC", condition: LanguageHelper.audioCodecDescription(codecID: "A_AAC") == "AAC")
+        assertTest("Audio Codec AC3", condition: LanguageHelper.audioCodecDescription(codecID: "A_AC3") == "Dolby Digital (AC-3)")
+        assertTest("Audio Codec EAC3", condition: LanguageHelper.audioCodecDescription(codecID: "A_EAC3") == "Dolby Digital Plus (E-AC-3)")
+        assertTest("Audio Codec OPUS", condition: LanguageHelper.audioCodecDescription(codecID: "A_OPUS") == "Opus")
+        assertTest("Audio Codec FLAC", condition: LanguageHelper.audioCodecDescription(codecID: "A_FLAC") == "FLAC Lossless")
+        assertTest("Audio Codec TrueHD", condition: LanguageHelper.audioCodecDescription(codecID: "A_TRUEHD") == "Dolby TrueHD")
+
+        // 3. AudioTrack & SubtitleTrack Model Verification
+        let track1 = AudioTrack(
+            id: "track_1",
+            title: "English (5.1 Surround)",
+            languageCode: "eng",
+            channelLayout: "5.1 Surround",
+            formatDescription: "Dolby Digital (AC-3)",
+            trackNumber: 2
+        )
+        assertTest("AudioTrack TrackNumber Stored", condition: track1.trackNumber == 2)
+        assertTest("AudioTrack Title Formatted", condition: track1.title == "English (5.1 Surround)")
+
+        let subCue1 = SubtitleCue(startTime: 10.0, endTime: 14.5, text: "Look at the stars.")
+        let subTrack1 = SubtitleTrack(
+            id: "sub_1",
+            title: "English",
+            languageCode: "eng",
+            isExternal: false,
+            cues: [subCue1],
+            trackNumber: 3
+        )
+        assertTest("SubtitleTrack TrackNumber Stored", condition: subTrack1.trackNumber == 3)
+        assertTest("SubtitleTrack Off Singleton Initialized", condition: SubtitleTrack.off.id == "off" && SubtitleTrack.off.title == "Off")
+
+        // 4. SubtitleParser Advanced Dialogue & Style Cleaning
+        let rawAssDialogue = "0,1,Default,Speaker,0,0,0,,{\\pos(192,200)\\c&H0000FF&}<i>Look at the stars.</i>\\NThey shine for you."
+        let cleanedAss = SubtitleParser.cleanSubtitleCueText(rawAssDialogue)
+        assertTest("SubtitleParser ASS Override & HTML Cleaning", condition: cleanedAss == "Look at the stars.\nThey shine for you.", "Got: \(cleanedAss)")
+
+        let plainTextWithCommas = "one, two, three, four, five, six, seven, eight, nine, ten"
+        let cleanedPlain = SubtitleParser.cleanSubtitleCueText(plainTextWithCommas)
+        assertTest("SubtitleParser Preserves Plain Commas", condition: cleanedPlain == plainTextWithCommas, "Got: \(cleanedPlain)")
+
+        // 5. VideoPlayerEngine Multi-Stream Audio & Subtitle Switching
+        let multiStreamEngine = VideoPlayerEngine()
+        let track2 = AudioTrack(
+            id: "track_2",
+            title: "Japanese (Stereo)",
+            languageCode: "jpn",
+            channelLayout: "Stereo",
+            formatDescription: "AAC",
+            trackNumber: 4
+        )
+        multiStreamEngine.availableAudioTracks = [track1, track2]
+        multiStreamEngine.selectAudioTrack(track1)
+        assertTest("VideoPlayerEngine Select Audio Track 1", condition: multiStreamEngine.selectedAudioTrack?.id == "track_1")
+        multiStreamEngine.selectAudioTrack(track2)
+        assertTest("VideoPlayerEngine Seamless Switch Audio Track 2", condition: multiStreamEngine.selectedAudioTrack?.id == "track_2")
+
+        multiStreamEngine.availableSubtitleTracks = [SubtitleTrack.off, subTrack1]
+        multiStreamEngine.selectSubtitleTrack(subTrack1)
+        assertTest("VideoPlayerEngine Select Subtitle Track", condition: multiStreamEngine.selectedSubtitleTrack.id == "sub_1")
+
+        multiStreamEngine.currentTime = 12.0
+        multiStreamEngine.updateActiveSubtitle(at: 12.0)
+        assertTest("VideoPlayerEngine Active Subtitle Text Rendered", condition: multiStreamEngine.activeSubtitleText == "Look at the stars.")
+
+        multiStreamEngine.currentTime = 16.0
+        multiStreamEngine.updateActiveSubtitle(at: 16.0)
+        assertTest("VideoPlayerEngine Subtitle Past Timestamp Cleared", condition: multiStreamEngine.activeSubtitleText.isEmpty)
+
+        multiStreamEngine.selectSubtitleTrack(SubtitleTrack.off)
+        assertTest("VideoPlayerEngine Subtitle Off Selection Cleared", condition: multiStreamEngine.selectedSubtitleTrack.id == "off" && multiStreamEngine.activeSubtitleText.isEmpty)
+
+        // 6. Playback Rate & Format Verification
+        assertTest("Rate Format 1.0x", condition: LiquidGlassHUD.formatRate(1.0) == "1.0x")
+        assertTest("Rate Format 1.25x", condition: LiquidGlassHUD.formatRate(1.25) == "1.25x")
+        assertTest("Rate Format 1.5x", condition: LiquidGlassHUD.formatRate(1.5) == "1.5x")
+        assertTest("Rate Format 2.0x", condition: LiquidGlassHUD.formatRate(2.0) == "2.0x")
+
+        let testPipeline = PlaybackPipeline()
+        testPipeline.setPlaybackRate(1.75)
+        assertTest("PlaybackPipeline Playback Rate Set", condition: abs(testPipeline.playbackRate - 1.75) < 0.001)
+
+        testPipeline.selectSubtitleTrack(trackNumber: 7)
+        assertTest("PlaybackPipeline Select Subtitle Track Number", condition: testPipeline.activeSubtitleTrackNumber == 7)
+
+        // 7. WindowManager Picture-in-Picture State Verification
+        let pipWm = WindowManager.shared
+        assertTest("WindowManager PictureInPicture Initial False", condition: !pipWm.isPictureInPicture)
+
         // Summary
         logs.append("\n==========================================")
         logs.append("RESULTS: \(passed) PASSED, \(failed) FAILED")

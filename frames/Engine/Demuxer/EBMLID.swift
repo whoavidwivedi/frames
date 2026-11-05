@@ -45,6 +45,7 @@ nonisolated public enum EBMLID: UInt64, Sendable {
     case defaultDuration = 0x23E383 // Nanoseconds per frame
     case name = 0x536E
     case language = 0x22B59C
+    case languageBCP47 = 0x22B59D
     case codecID = 0x86
     case codecPrivate = 0x63A2
     case codecName = 0x258688

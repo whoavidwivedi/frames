@@ -22,6 +22,7 @@ public struct SubtitleTrack: Sendable, Identifiable, Equatable {
     public let isExternal: Bool
     public var cues: [SubtitleCue]
     public let avOption: AVMediaSelectionOption?
+    public let trackNumber: UInt64?
 
     public init(
         id: String,
@@ -29,7 +30,8 @@ public struct SubtitleTrack: Sendable, Identifiable, Equatable {
         languageCode: String? = nil,
         isExternal: Bool = false,
         cues: [SubtitleCue] = [],
-        avOption: AVMediaSelectionOption? = nil
+        avOption: AVMediaSelectionOption? = nil,
+        trackNumber: UInt64? = nil
     ) {
         self.id = id
         self.title = title
@@ -37,6 +39,7 @@ public struct SubtitleTrack: Sendable, Identifiable, Equatable {
         self.isExternal = isExternal
         self.cues = cues
         self.avOption = avOption
+        self.trackNumber = trackNumber
     }
 
     public static let off = SubtitleTrack(id: "off", title: "Off")

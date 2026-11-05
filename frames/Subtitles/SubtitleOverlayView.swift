@@ -14,22 +14,21 @@ public struct SubtitleOverlayView: View {
             VStack {
                 Spacer()
                 Text(text)
-                    .font(.system(size: fontSize, weight: .medium, design: .default))
-                    .foregroundStyle(ShadcnTheme.foreground)
+                    .font(.system(size: fontSize, weight: .semibold, design: .default))
+                    .foregroundStyle(Color.white)
                     .multilineTextAlignment(.center)
                     .lineSpacing(3)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 7)
                     .background(
                         RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
-                            .fill(ShadcnTheme.background.opacity(0.88))
+                            .fill(Color.black.opacity(0.78))
                             .overlay(
                                 RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
-                                    .strokeBorder(ShadcnTheme.border, lineWidth: 1)
+                                    .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
                             )
                     )
                     .padding(.horizontal, 28)
-                    .padding(.bottom, 72)
                     .transition(.opacity.animation(.fluidQuick))
             }
             .allowsHitTesting(false)

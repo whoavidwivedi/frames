@@ -42,6 +42,8 @@ nonisolated public struct DemuxedTrack: Sendable, Identifiable {
     // Metadata
     public let name: String?
     public let language: String?
+    public let isDefault: Bool
+    public let isForced: Bool
 
     public init(
         trackNumber: UInt64,
@@ -62,7 +64,9 @@ nonisolated public struct DemuxedTrack: Sendable, Identifiable {
         channels: Int = 0,
         bitDepth: Int = 16,
         name: String? = nil,
-        language: String? = nil
+        language: String? = nil,
+        isDefault: Bool = false,
+        isForced: Bool = false
     ) {
         self.trackNumber = trackNumber
         self.trackUID = trackUID
@@ -83,6 +87,8 @@ nonisolated public struct DemuxedTrack: Sendable, Identifiable {
         self.bitDepth = bitDepth
         self.name = name
         self.language = language
+        self.isDefault = isDefault
+        self.isForced = isForced
     }
 
     public var isVideo: Bool { type == .video }

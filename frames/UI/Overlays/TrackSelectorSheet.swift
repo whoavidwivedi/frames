@@ -113,6 +113,7 @@ public struct SubtitleSelectorPanel: View {
         }
         .frame(width: 250)
         .shadcnCard(cornerRadius: ShadcnTheme.radiusLg, padding: 12)
+        .environment(\.colorScheme, .dark)
     }
 
     private func openExternalSubtitlePicker() {
@@ -198,5 +199,6 @@ public struct AudioSelectorPanel: View {
         }
         .frame(width: 230)
         .shadcnCard(cornerRadius: ShadcnTheme.radiusLg, padding: 12)
+        .environment(\.colorScheme, .dark)
     }
 }

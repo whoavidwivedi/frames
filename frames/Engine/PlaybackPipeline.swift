@@ -118,6 +118,59 @@ nonisolated private final class SeekToken: @unchecked Sendable {
     }
 }
 
+// MARK: - Thread-Safe Active Media Routing
+
+nonisolated private final class ActiveMediaRouting: @unchecked Sendable {
+    private var lock = os_unfair_lock()
+    private var _audioEngine: AudioEngineBridge?
+    private var _activeAudioTrackNumber: UInt64?
+    private var _activeSubtitleTrackNumber: UInt64?
+    private var _playbackRate: Float = 1.0
+
+    func updateAudio(engine: AudioEngineBridge?, trackNumber: UInt64?) {
+        os_unfair_lock_lock(&lock)
+        defer { os_unfair_lock_unlock(&lock) }
+        _audioEngine = engine
+        _activeAudioTrackNumber = trackNumber
+    }
+
+    func updateSubtitle(trackNumber: UInt64?) {
+        os_unfair_lock_lock(&lock)
+        defer { os_unfair_lock_unlock(&lock) }
+        _activeSubtitleTrackNumber = trackNumber
+    }
+
+    func setPlaybackRate(_ rate: Float) {
+        os_unfair_lock_lock(&lock)
+        defer { os_unfair_lock_unlock(&lock) }
+        _playbackRate = rate
+    }
+
+    var playbackRate: Float {
+        os_unfair_lock_lock(&lock)
+        defer { os_unfair_lock_unlock(&lock) }
+        return _playbackRate
+    }
+
+    var currentAudioEngine: AudioEngineBridge? {
+        os_unfair_lock_lock(&lock)
+        defer { os_unfair_lock_unlock(&lock) }
+        return _audioEngine
+    }
+
+    var activeAudioTrackNumber: UInt64? {
+        os_unfair_lock_lock(&lock)
+        defer { os_unfair_lock_unlock(&lock) }
+        return _activeAudioTrackNumber
+    }
+
+    var activeSubtitleTrackNumber: UInt64? {
+        os_unfair_lock_lock(&lock)
+        defer { os_unfair_lock_unlock(&lock) }
+        return _activeSubtitleTrackNumber
+    }
+}
+
 // MARK: - Playback Pipeline
 
 @MainActor
@@ -140,12 +193,25 @@ public final class PlaybackPipeline: ObservableObject {
     @Published public private(set) var currentURL: URL?
     @Published public private(set) var duration: Double = 0.0
     @Published public private(set) var currentTime: Double = 0.0
+    @Published public private(set) var playbackRate: Float = 1.0
     
     // Engine Subsystems
-    private var demuxer: MatroskaDemuxer?
+    public private(set) var demuxer: MatroskaDemuxer?
     private var videoDecoder: VideoToolboxDecoder?
     private var audioEngine: AudioEngineBridge?
     public let renderer: MetalVideoRenderer?
+
+    // Multi-Track Audio & Subtitle State
+    private let routing = ActiveMediaRouting()
+    public var demuxedAudioTracks: [DemuxedTrack] {
+        demuxer?.audioTracks ?? []
+    }
+    public var demuxedSubtitleTracks: [DemuxedTrack] {
+        demuxer?.subtitleTracks ?? []
+    }
+    @Published public private(set) var activeAudioTrackNumber: UInt64?
+    @Published public private(set) var activeSubtitleTrackNumber: UInt64?
+    public var onSubtitleCue: (@Sendable (SubtitleCue) -> Void)?
     
     // Decoded Frame Ring Buffer & Scrub Frame Cache
     private let frameQueue = FrameQueue(maxCount: 12)
@@ -208,9 +274,19 @@ public final class PlaybackPipeline: ObservableObject {
             self.videoDecoder = decoder
             
             // 3. Select primary audio track & setup CoreAudio engine
-            if let aTrack = d.audioTracks.first {
-                self.audioEngine = AudioEngineBridge(track: aTrack)
+            let defaultAudio = d.audioTracks.first(where: { $0.isDefault }) ?? d.audioTracks.first
+            if let aTrack = defaultAudio {
+                let bridge = AudioEngineBridge(track: aTrack)
+                self.audioEngine = bridge
+                self.activeAudioTrackNumber = aTrack.trackNumber
+                routing.updateAudio(engine: bridge, trackNumber: aTrack.trackNumber)
+            } else {
+                self.activeAudioTrackNumber = nil
+                routing.updateAudio(engine: nil, trackNumber: nil)
             }
+            self.activeSubtitleTrackNumber = nil
+            routing.updateSubtitle(trackNumber: nil)
+            routing.setPlaybackRate(playbackRate)
             
             transition(to: .paused)
             return true
@@ -218,6 +294,38 @@ public final class PlaybackPipeline: ObservableObject {
             transition(to: .error("Failed to demux container: \(error.localizedDescription)"))
             return false
         }
+    }
+    
+    // MARK: - Track Switching
+    public func selectAudioTrack(trackNumber: UInt64) {
+        guard let d = demuxer, let track = d.audioTracks.first(where: { $0.trackNumber == trackNumber }) else { return }
+        guard activeAudioTrackNumber != trackNumber else { return }
+
+        let previousVolume = audioEngine?.currentVolume ?? 1.0
+        let wasPlaying = isPlaying
+        audioEngine?.stop()
+
+        if let newEngine = AudioEngineBridge(track: track) {
+            newEngine.setVolume(previousVolume)
+            self.audioEngine = newEngine
+            self.activeAudioTrackNumber = trackNumber
+            routing.updateAudio(engine: newEngine, trackNumber: trackNumber)
+            newEngine.seek(to: currentTime)
+            if wasPlaying {
+                newEngine.play()
+            }
+        }
+    }
+
+    public func selectSubtitleTrack(trackNumber: UInt64?) {
+        self.activeSubtitleTrackNumber = trackNumber
+        routing.updateSubtitle(trackNumber: trackNumber)
+    }
+
+    public func setPlaybackRate(_ rate: Float) {
+        let clamped = max(0.25, min(rate, 4.0))
+        self.playbackRate = clamped
+        routing.setPlaybackRate(clamped)
     }
     
     /// Opens and prepares a media file for native zero-copy playback.
@@ -319,7 +427,7 @@ public final class PlaybackPipeline: ObservableObject {
             if audioClock > 0.05 {
                 masterClock = audioClock
             } else {
-                let elapsed = CACurrentMediaTime() - playbackStartTime
+                let elapsed = (CACurrentMediaTime() - playbackStartTime) * Double(playbackRate)
                 masterClock = playbackStartPts + elapsed
             }
             currentTime = masterClock
@@ -351,13 +459,14 @@ public final class PlaybackPipeline: ObservableObject {
         
         let token = self.seekToken
         let decoder = self.videoDecoder
-        let audio = self.audioEngine
+        let routing = self.routing
         let q = self.frameQueue
         let cache = self.scrubCache
         let packetBuffer = self.packetChunkBuffer
         let renderer = self.renderer
         let isSingleSeek = (targetSeekTime != nil)
         let targetPTS = targetSeekTime ?? 0.0
+        let onSubCue = self.onSubtitleCue
         
         feederTask = Task.detached(priority: .userInitiated) { [weak demuxer] in
             guard let demuxer = demuxer else { return }
@@ -432,13 +541,26 @@ public final class PlaybackPipeline: ObservableObject {
                 }
                 
                 // Route packet to hardware video decoder or native audio translation engine
+                let activeAudio = routing.currentAudioEngine
+                let activeAudioNum = routing.activeAudioTrackNumber
+                let activeSubNum = routing.activeSubtitleTrackNumber
+
                 if let dec = decoder, packet.trackNumber == dec.track.trackNumber {
                     if packet.isKeyframe {
                         packetBuffer.recordGOP(keyframePTS: packet.pts, fileOffset: packet.fileOffset)
                     }
                     _ = dec.decode(packet: packet)
-                } else if let a = audio, packet.trackNumber == a.track.trackNumber {
+                } else if let a = activeAudio, packet.trackNumber == activeAudioNum {
                     a.process(packet: packet)
+                } else if let subNum = activeSubNum, packet.trackNumber == subNum {
+                    if let text = String(data: packet.data, encoding: .utf8) {
+                        let clean = SubtitleParser.cleanSubtitleCueText(text)
+                        if !clean.isEmpty {
+                            let dur = (packet.duration ?? 0) > 0 ? packet.duration! : 3.0
+                            let cue = SubtitleCue(startTime: packet.pts, endTime: packet.pts + dur, text: clean)
+                            onSubCue?(cue)
+                        }
+                    }
                 }
             }
         }

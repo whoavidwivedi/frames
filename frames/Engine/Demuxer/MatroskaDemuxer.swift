@@ -279,6 +279,8 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable {
         var defaultDurationNs: UInt64? = nil
         var name: String? = nil
         var language: String? = nil
+        var isDefault: Bool = true
+        var isForced: Bool = false
 
         var pixelWidth = 0
         var pixelHeight = 0
@@ -317,7 +319,21 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable {
             case EBMLID.name.rawValue:
                 name = EBMLVint.parseString(from: raw, offset: cursor, length: elemLen)
             case EBMLID.language.rawValue:
-                language = EBMLVint.parseString(from: raw, offset: cursor, length: elemLen)
+                let lang = EBMLVint.parseString(from: raw, offset: cursor, length: elemLen)
+                if language == nil || language == "und" {
+                    language = lang
+                }
+            case EBMLID.languageBCP47.rawValue:
+                let bcp47 = EBMLVint.parseString(from: raw, offset: cursor, length: elemLen)
+                if let bcp47, !bcp47.isEmpty {
+                    language = bcp47
+                }
+            case EBMLID.flagDefault.rawValue:
+                let flag = EBMLVint.parseUInt(from: raw, offset: cursor, length: elemLen) ?? 1
+                isDefault = (flag != 0)
+            case EBMLID.flagForced.rawValue:
+                let flag = EBMLVint.parseUInt(from: raw, offset: cursor, length: elemLen) ?? 0
+                isForced = (flag != 0)
 
             // Video sub-element
             case EBMLID.video.rawValue:
@@ -359,7 +375,9 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable {
             channels: channels,
             bitDepth: bitDepth,
             name: name,
-            language: language
+            language: language,
+            isDefault: isDefault,
+            isForced: isForced
         )
     }
 
@@ -595,7 +613,7 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable {
         return chunk
     }
 
-    private func parseBlockGroup(data: Data, fileOffset: UInt64) -> [DemuxedPacket] {
+    private func parseBlockGroup(data: Data, fileOffset: UInt64, clusterTimestamp: Int64? = nil) -> [DemuxedPacket] {
         return data.withUnsafeBytes { raw -> [DemuxedPacket] in
             var cursor = 0
             var blockData: Data? = nil
@@ -621,7 +639,7 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable {
 
             guard let bData = blockData else { return [] }
             let isKeyframe = !hasReferenceBlock
-            var pkts = parseBlock(data: bData, isSimpleBlock: false, fileOffset: fileOffset, explicitKeyframe: isKeyframe)
+            var pkts = parseBlock(data: bData, isSimpleBlock: false, fileOffset: fileOffset, explicitKeyframe: isKeyframe, clusterTimestamp: clusterTimestamp)
             if let dur = blockDuration {
                 let durSecs = (Double(dur) * Double(timestampScale)) / 1_000_000_000.0
                 pkts = pkts.map { p in
@@ -641,7 +659,7 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable {
         }
     }
 
-    private func parseBlock(data: Data, isSimpleBlock: Bool, fileOffset: UInt64, explicitKeyframe: Bool? = nil) -> [DemuxedPacket] {
+    private func parseBlock(data: Data, isSimpleBlock: Bool, fileOffset: UInt64, explicitKeyframe: Bool? = nil, clusterTimestamp: Int64? = nil) -> [DemuxedPacket] {
         return data.withUnsafeBytes { raw -> [DemuxedPacket] in
             guard let base = raw.bindMemory(to: UInt8.self).baseAddress else { return [] }
             var cursor = 0
@@ -667,7 +685,8 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable {
             let isDiscardable = (flags & 0x01) != 0
 
             // Absolute PTS in seconds
-            let absTimeTicks = currentClusterTimestamp + Int64(relTime)
+            let clusterTs = clusterTimestamp ?? currentClusterTimestamp
+            let absTimeTicks = clusterTs + Int64(relTime)
             let basePts = (Double(absTimeTicks) * Double(timestampScale)) / 1_000_000_000.0
 
             let lacing = (flags & 0x06) >> 1
@@ -871,6 +890,78 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable {
         self.bufferFileOffset = offset
 
         return newChunk.prefix(length)
+    }
+
+    // MARK: - Subtitle Cue Extraction
+    /// Extracts all subtitle cues for an embedded text-based subtitle track without altering current playback position.
+    public func extractSubtitleCues(for targetTrackNumber: UInt64) -> [SubtitleCue] {
+        guard let subFileHandle = try? FileHandle(forReadingFrom: fileURL) else { return [] }
+        defer { try? subFileHandle.close() }
+
+        var cues: [SubtitleCue] = []
+        var offset = firstClusterOffset ?? segmentDataOffset
+        var clusterTime: Int64 = 0
+        let limit = fileSize
+
+        while offset < limit {
+            guard offset < fileSize else { break }
+            guard let headerData = try? readBytesAt(handle: subFileHandle, offset: offset, length: 16), !headerData.isEmpty else { break }
+            guard let elem = parseElementHeader(data: headerData, baseOffset: offset) else { break }
+
+            if elem.id == .cluster {
+                offset = elem.payloadOffset
+                continue
+            } else if elem.id == .timestamp {
+                if let tsData = try? readBytesAt(handle: subFileHandle, offset: elem.payloadOffset, length: Int(elem.payloadSize)) {
+                    tsData.withUnsafeBytes { raw in
+                        clusterTime = EBMLVint.parseInt(from: raw, offset: 0, length: Int(elem.payloadSize)) ?? 0
+                    }
+                }
+            } else if elem.id == .simpleBlock || elem.id == .block || elem.id == .blockGroup {
+                if let blkData = try? readBytesAt(handle: subFileHandle, offset: elem.payloadOffset, length: Int(elem.payloadSize)) {
+                    let packets = (elem.id == .blockGroup) ?
+                        parseBlockGroup(data: blkData, fileOffset: elem.payloadOffset, clusterTimestamp: clusterTime) :
+                        parseBlock(data: blkData, isSimpleBlock: (elem.id == .simpleBlock), fileOffset: elem.payloadOffset, clusterTimestamp: clusterTime)
+                    for pkt in packets where pkt.trackNumber == targetTrackNumber {
+                        if let text = String(data: pkt.data, encoding: .utf8) {
+                            let clean = SubtitleParser.cleanSubtitleCueText(text)
+                            if !clean.isEmpty {
+                                let dur = (pkt.duration ?? 0) > 0 ? pkt.duration! : 3.0
+                                cues.append(SubtitleCue(startTime: pkt.pts, endTime: pkt.pts + dur, text: clean))
+                            }
+                        }
+                    }
+                }
+            }
+
+            offset = elem.payloadOffset + elem.payloadSize
+        }
+
+        return cues.sorted { $0.startTime < $1.startTime }
+    }
+
+    private func readBytesAt(handle: FileHandle, offset: UInt64, length: Int) throws -> Data {
+        try handle.seek(toOffset: offset)
+        return try handle.read(upToCount: length) ?? Data()
+    }
+
+    private func parseElementHeader(data: Data, baseOffset: UInt64) -> ElementHeader? {
+        data.withUnsafeBytes { rawPtr -> ElementHeader? in
+            guard let idVint = EBMLVint.parseElementID(from: rawPtr, offset: 0) else { return nil }
+            guard let sizeVint = EBMLVint.parseDataSize(from: rawPtr, offset: idVint.length) else { return nil }
+
+            let totalHeaderLen = idVint.length + sizeVint.length
+            let payloadOffset = baseOffset + UInt64(totalHeaderLen)
+            let ebmlID = EBMLID(rawValue: idVint.value) ?? .void
+
+            return ElementHeader(
+                id: ebmlID,
+                rawID: idVint.value,
+                payloadOffset: payloadOffset,
+                payloadSize: sizeVint.isUnknownSize ? (fileSize - payloadOffset) : sizeVint.value,
+                totalHeaderSize: totalHeaderLen
+            )
+        }
     }
 }
 

@@ -39,8 +39,12 @@ public final class VideoPlayerEngine {
     }
     public var playbackRate: Float = 1.0 {
         didSet {
+            let clamped = max(0.25, min(playbackRate, 4.0))
             if isPlaying {
-                player.rate = playbackRate
+                player.rate = clamped
+            }
+            if isNativePipelineActive {
+                nativePipeline.setPlaybackRate(clamped)
             }
         }
     }
@@ -398,6 +402,26 @@ public final class VideoPlayerEngine {
     public func selectSubtitleTrack(_ track: SubtitleTrack) {
         selectedSubtitleTrack = track
 
+        if isNativePipelineActive {
+            if track.id == SubtitleTrack.off.id {
+                nativePipeline.selectSubtitleTrack(trackNumber: nil)
+                activeSubtitleText = ""
+            } else {
+                nativePipeline.selectSubtitleTrack(trackNumber: track.trackNumber)
+                if track.cues.isEmpty, let trackNumber = track.trackNumber, let d = nativePipeline.demuxer {
+                    let extracted = d.extractSubtitleCues(for: trackNumber)
+                    if !extracted.isEmpty {
+                        self.selectedSubtitleTrack.cues = extracted
+                        if let idx = availableSubtitleTracks.firstIndex(where: { $0.id == track.id }) {
+                            availableSubtitleTracks[idx].cues = extracted
+                        }
+                    }
+                }
+                updateActiveSubtitle(at: currentTime)
+            }
+            return
+        }
+
         guard let item = player.currentItem else { return }
 
         Task {
@@ -449,28 +473,48 @@ public final class VideoPlayerEngine {
         }
     }
 
-    private func updateActiveSubtitle(at time: Double) {
-        guard selectedSubtitleTrack.isExternal else {
+    public func updateActiveSubtitle(at time: Double) {
+        guard selectedSubtitleTrack.id != SubtitleTrack.off.id else {
             activeSubtitleText = ""
             return
         }
 
-        let adjustedTime = time - subtitleDelay
-        if let match = selectedSubtitleTrack.cues.first(where: { adjustedTime >= $0.startTime && adjustedTime <= $0.endTime }) {
-            activeSubtitleText = match.text
-        } else {
-            activeSubtitleText = ""
+        if !selectedSubtitleTrack.cues.isEmpty {
+            let adjustedTime = time - subtitleDelay
+            if let match = selectedSubtitleTrack.cues.first(where: { adjustedTime >= $0.startTime && adjustedTime <= $0.endTime }) {
+                activeSubtitleText = match.text
+            } else {
+                activeSubtitleText = ""
+            }
         }
     }
 
     // MARK: - Audio Tracks Management
     public func selectAudioTrack(_ track: AudioTrack) {
         selectedAudioTrack = track
-        guard let item = player.currentItem, let option = track.avOption else { return }
 
-        Task {
-            if let group = try? await item.asset.loadMediaSelectionGroup(for: .audible) {
-                item.select(option, in: group)
+        if isNativePipelineActive {
+            if let trackNumber = track.trackNumber {
+                nativePipeline.selectAudioTrack(trackNumber: trackNumber)
+            }
+            return
+        }
+
+        guard let item = player.currentItem else { return }
+
+        if let option = track.avOption {
+            Task {
+                if let group = try? await item.asset.loadMediaSelectionGroup(for: .audible) {
+                    item.select(option, in: group)
+                }
+            }
+        } else if let trackNumber = track.trackNumber {
+            for itemTrack in item.tracks where itemTrack.assetTrack?.mediaType == .audio {
+                if UInt64(itemTrack.assetTrack?.trackID ?? 0) == trackNumber {
+                    itemTrack.isEnabled = true
+                } else {
+                    itemTrack.isEnabled = false
+                }
             }
         }
     }
@@ -613,6 +657,101 @@ public final class VideoPlayerEngine {
             duration = nativePipeline.duration
             metadata.duration = nativePipeline.duration
             nativePipeline.setVolume(isMuted ? 0.0 : volume)
+            nativePipeline.setPlaybackRate(playbackRate)
+
+            // Extract audio tracks from native demuxer
+            var audios: [AudioTrack] = []
+            for t in self.nativePipeline.demuxedAudioTracks {
+                let langCode = t.language
+                let channelStr = LanguageHelper.channelDescription(channels: t.channels)
+                let codecStr = LanguageHelper.audioCodecDescription(codecID: t.codecID)
+                let title = LanguageHelper.formattedTrackTitle(displayName: t.name, language: langCode, details: channelStr)
+                audios.append(AudioTrack(
+                    id: "mkv_audio_\(t.trackNumber)",
+                    title: title,
+                    languageCode: langCode,
+                    channelLayout: channelStr,
+                    formatDescription: codecStr,
+                    avOption: nil,
+                    trackNumber: t.trackNumber
+                ))
+            }
+            self.availableAudioTracks = audios
+            if let defaultTrack = self.nativePipeline.demuxedAudioTracks.first(where: { $0.isDefault }) ?? self.nativePipeline.demuxedAudioTracks.first {
+                self.selectedAudioTrack = audios.first(where: { $0.trackNumber == defaultTrack.trackNumber }) ?? audios.first
+            } else {
+                self.selectedAudioTrack = audios.first
+            }
+
+            // Extract subtitle tracks from native demuxer
+            var subs: [SubtitleTrack] = [SubtitleTrack.off]
+            for t in self.nativePipeline.demuxedSubtitleTracks {
+                let langCode = t.language
+                let title = LanguageHelper.formattedTrackTitle(displayName: t.name, language: langCode)
+                subs.append(SubtitleTrack(
+                    id: "mkv_sub_\(t.trackNumber)",
+                    title: title,
+                    languageCode: langCode,
+                    isExternal: false,
+                    cues: [],
+                    avOption: nil,
+                    trackNumber: t.trackNumber
+                ))
+            }
+            self.availableSubtitleTracks = subs
+            self.selectedSubtitleTrack = SubtitleTrack.off
+
+            // Inspect video metadata from demuxer
+            if let vTrack = self.nativePipeline.demuxer?.videoTracks.first {
+                self.metadata.naturalSize = CGSize(width: vTrack.displayWidth, height: vTrack.displayHeight)
+                if let fps = vTrack.estimatedFPS {
+                    self.metadata.frameRate = Float(fps)
+                }
+                self.metadata.codec = vTrack.codecID
+                self.metadata.isHDR = vTrack.isHDR
+                if let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize {
+                    self.metadata.fileSize = Int64(size)
+                    if self.duration > 0 {
+                        self.metadata.bitrate = Double(Int64(size) * 8) / self.duration
+                    }
+                }
+            }
+
+            self.nativePipeline.onSubtitleCue = { [weak self] cue in
+                Task { @MainActor [weak self] in
+                    guard let self, self.selectedSubtitleTrack.id != SubtitleTrack.off.id else { return }
+                    if self.selectedSubtitleTrack.trackNumber == self.nativePipeline.activeSubtitleTrackNumber {
+                        if !self.selectedSubtitleTrack.cues.contains(where: { abs($0.startTime - cue.startTime) < 0.1 }) {
+                            self.selectedSubtitleTrack.cues.append(cue)
+                        }
+                        if self.currentTime >= cue.startTime && self.currentTime <= cue.endTime {
+                            self.activeSubtitleText = cue.text
+                        }
+                    }
+                }
+            }
+
+            // Background extraction of embedded subtitle cues
+            if let demuxer = self.nativePipeline.demuxer {
+                Task.detached(priority: .utility) { [weak self, weak demuxer] in
+                    guard let demuxer else { return }
+                    for subTrack in demuxer.subtitleTracks {
+                        let cues = demuxer.extractSubtitleCues(for: subTrack.trackNumber)
+                        guard !cues.isEmpty else { continue }
+                        await MainActor.run { [weak self] in
+                            guard let self, self.loadGeneration == generation else { return }
+                            if let idx = self.availableSubtitleTracks.firstIndex(where: { $0.trackNumber == subTrack.trackNumber }) {
+                                self.availableSubtitleTracks[idx].cues = cues
+                                if self.selectedSubtitleTrack.trackNumber == subTrack.trackNumber {
+                                    self.selectedSubtitleTrack.cues = cues
+                                    self.updateActiveSubtitle(at: self.currentTime)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             nativePipeline.onPlaybackEnded = { [weak self] in
                 Task { @MainActor [weak self] in
                     self?.markPlaybackEnded()
@@ -689,42 +828,120 @@ public final class VideoPlayerEngine {
 
     private func extractTracks(from item: AVPlayerItem, generation: UInt) async {
         // Extract audible (audio) tracks
+        var audios: [AudioTrack] = []
+        var detectedSelectedAudio: AudioTrack? = nil
+
         if let audioGroup = try? await item.asset.loadMediaSelectionGroup(for: .audible) {
-            var audios: [AudioTrack] = []
-            for option in audioGroup.options {
-                let title = option.displayName
-                let lang = option.locale?.localizedString(forIdentifier: option.locale?.identifier ?? "") ?? option.extendedLanguageTag
+            let activeAudibleOption = item.currentMediaSelection.selectedMediaOption(in: audioGroup)
+            for (idx, option) in audioGroup.options.enumerated() {
+                let displayName = option.displayName
+                let lang = option.locale?.language.languageCode?.identifier ?? option.extendedLanguageTag ?? option.locale?.identifier
+                
+                var channelLayout = "Stereo"
+                var formatDesc = "AAC"
+                if let subType = option.mediaSubTypes.first as? NSNumber {
+                    let fourCC = subType.uint32Value.fourCCString
+                    formatDesc = LanguageHelper.audioCodecDescription(codecID: fourCC)
+                }
+
+                let trackTitle = LanguageHelper.formattedTrackTitle(
+                    displayName: displayName,
+                    language: lang,
+                    details: channelLayout
+                )
+
                 let track = AudioTrack(
-                    id: option.displayName + (lang ?? ""),
-                    title: title,
+                    id: "av_audio_opt_\(idx)_\(displayName)_\(lang ?? "")",
+                    title: trackTitle,
                     languageCode: lang,
+                    channelLayout: channelLayout,
+                    formatDescription: formatDesc,
                     avOption: option
                 )
                 audios.append(track)
+                if activeAudibleOption == option {
+                    detectedSelectedAudio = track
+                }
             }
-            guard loadGeneration == generation, player.currentItem === item else { return }
-            self.availableAudioTracks = audios
-            self.selectedAudioTrack = audios.first
         }
 
+        if audios.isEmpty, let tracks = try? await item.asset.loadTracks(withMediaType: .audio) {
+            for (idx, track) in tracks.enumerated() {
+                let lang = (try? await track.load(.extendedLanguageTag)) ?? track.languageCode
+                var channels = 2
+                var formatDesc = "AAC"
+                if let formats = try? await track.load(.formatDescriptions), let desc = formats.first {
+                    let subType = CMFormatDescriptionGetMediaSubType(desc)
+                    formatDesc = LanguageHelper.audioCodecDescription(codecID: subType.fourCCString)
+                    if let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(desc) {
+                        channels = Int(asbd.pointee.mChannelsPerFrame)
+                    }
+                }
+                let channelLayout = LanguageHelper.channelDescription(channels: channels)
+                let trackTitle = LanguageHelper.formattedTrackTitle(
+                    displayName: "Track \(idx + 1)",
+                    language: lang,
+                    details: channelLayout
+                )
+                let audioTrack = AudioTrack(
+                    id: "av_audio_track_\(track.trackID)_\(idx)",
+                    title: trackTitle,
+                    languageCode: lang,
+                    channelLayout: channelLayout,
+                    formatDescription: formatDesc,
+                    avOption: nil,
+                    trackNumber: UInt64(track.trackID)
+                )
+                audios.append(audioTrack)
+            }
+        }
+
+        guard loadGeneration == generation, player.currentItem === item else { return }
+        self.availableAudioTracks = audios
+        self.selectedAudioTrack = detectedSelectedAudio ?? audios.first
+
         // Extract legible (subtitles) tracks
+        var subs: [SubtitleTrack] = [SubtitleTrack.off]
+        var detectedSelectedSub: SubtitleTrack? = nil
+
         if let subtitleGroup = try? await item.asset.loadMediaSelectionGroup(for: .legible) {
-            var subs: [SubtitleTrack] = [SubtitleTrack.off]
-            for option in subtitleGroup.options {
+            let activeLegibleOption = item.currentMediaSelection.selectedMediaOption(in: subtitleGroup)
+            for (idx, option) in subtitleGroup.options.enumerated() {
                 let title = option.displayName
-                let lang = option.locale?.localizedString(forIdentifier: option.locale?.identifier ?? "") ?? option.extendedLanguageTag
+                let lang = option.locale?.language.languageCode?.identifier ?? option.extendedLanguageTag ?? option.locale?.identifier
+                let displayTitle = LanguageHelper.formattedTrackTitle(displayName: title, language: lang)
                 let track = SubtitleTrack(
-                    id: option.displayName + (lang ?? ""),
-                    title: title,
+                    id: "av_sub_opt_\(idx)_\(title)_\(lang ?? "")",
+                    title: displayTitle,
                     languageCode: lang,
                     isExternal: false,
                     avOption: option
                 )
                 subs.append(track)
+                if activeLegibleOption == option {
+                    detectedSelectedSub = track
+                }
             }
-            guard loadGeneration == generation, player.currentItem === item else { return }
-            self.availableSubtitleTracks = subs
         }
+
+        if subs.count <= 1, let tracks = try? await item.asset.loadTracks(withMediaType: .subtitle) {
+            for (idx, track) in tracks.enumerated() {
+                let lang = (try? await track.load(.extendedLanguageTag)) ?? track.languageCode
+                let title = LanguageHelper.formattedTrackTitle(displayName: "Subtitle \(idx + 1)", language: lang)
+                subs.append(SubtitleTrack(
+                    id: "av_sub_track_\(track.trackID)_\(idx)",
+                    title: title,
+                    languageCode: lang,
+                    isExternal: false,
+                    avOption: nil,
+                    trackNumber: UInt64(track.trackID)
+                ))
+            }
+        }
+
+        guard loadGeneration == generation, player.currentItem === item else { return }
+        self.availableSubtitleTracks = subs
+        self.selectedSubtitleTrack = detectedSelectedSub ?? SubtitleTrack.off
     }
 
     private func friendlyCodecName(_ fourCC: String) -> String {

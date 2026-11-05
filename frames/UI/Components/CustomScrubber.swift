@@ -66,16 +66,16 @@ public struct CustomScrubber: View {
                 .overlay(alignment: .topLeading) {
                     if isHovering && !engine.isScrubbing {
                         Text(TimeFormatting.format(seconds: hoverTime))
-                            .font(.system(size: 10, weight: .medium, design: .monospaced))
-                            .foregroundStyle(ShadcnTheme.foreground)
+                            .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(Color.white)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 3)
                             .background(
                                 RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                    .fill(ShadcnTheme.popover)
+                                    .fill(Color(white: 0.12, opacity: 0.95))
                                     .overlay(
                                         RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                            .strokeBorder(ShadcnTheme.border, lineWidth: 1)
+                                            .strokeBorder(Color.white.opacity(0.25), lineWidth: 1)
                                     )
                             )
                             .offset(x: max(8, min(totalWidth - 48, hoverLocationX - 18)), y: -24)
@@ -88,5 +88,6 @@ public struct CustomScrubber: View {
             .frame(height: 24)
         }
         .frame(height: 24)
+        .environment(\.colorScheme, .dark)
     }
 }

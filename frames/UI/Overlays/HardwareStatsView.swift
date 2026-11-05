@@ -48,6 +48,7 @@ public struct HardwareStatsPanel: View {
         }
         .frame(width: 270)
         .shadcnCard(cornerRadius: ShadcnTheme.radiusLg, padding: 12)
+        .environment(\.colorScheme, .dark)
     }
 
     private func row(label: String, value: String) -> some View {

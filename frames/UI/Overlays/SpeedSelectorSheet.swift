@@ -81,5 +81,6 @@ public struct SpeedSelectorPanel: View {
         }
         .frame(width: 220)
         .shadcnCard(cornerRadius: ShadcnTheme.radiusLg, padding: 12)
+        .environment(\.colorScheme, .dark)
     }
 }

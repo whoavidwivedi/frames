@@ -1,6 +1,6 @@
 import Foundation
 
-public enum SubtitleParser {
+nonisolated public enum SubtitleParser {
     public static func parse(content: String) -> [SubtitleCue] {
         var cues: [SubtitleCue] = []
         let normalized = content.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
@@ -62,8 +62,29 @@ public enum SubtitleParser {
         return nil
     }
 
+    public static func cleanSubtitleCueText(_ text: String) -> String {
+        var str = text
+        // If ASS/SSA format (fields separated by commas, e.g. ReadOrder, Layer, Style, Name, MarginL, MarginR, MarginV, Effect, Text)
+        if str.contains(",") {
+            let parts = str.components(separatedBy: ",")
+            if parts.count >= 9 {
+                let first = parts[0].trimmingCharacters(in: .whitespaces)
+                let second = parts[1].trimmingCharacters(in: .whitespaces)
+                if Int(first) != nil && Int(second) != nil {
+                    str = parts[8...].joined(separator: ",")
+                }
+            }
+        }
+        // Remove ASS override tags {\...}
+        str = str.replacingOccurrences(of: "\\{[^\\}]*\\}", with: "", options: .regularExpression)
+        // Remove HTML tags <i>, <b>, <font>, etc.
+        str = str.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+        // Replace literal \N or \n with newlines
+        str = str.replacingOccurrences(of: "\\N", with: "\n")
+        return str.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private static func cleanSubtitleText(_ text: String) -> String {
-        let stripped = text.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
-        return stripped.trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleanSubtitleCueText(text)
     }
 }

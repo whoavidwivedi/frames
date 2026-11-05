@@ -8,6 +8,7 @@ public struct AudioTrack: Sendable, Identifiable, Equatable {
     public let channelLayout: String
     public let formatDescription: String
     public let avOption: AVMediaSelectionOption?
+    public let trackNumber: UInt64?
 
     public init(
         id: String,
@@ -15,7 +16,8 @@ public struct AudioTrack: Sendable, Identifiable, Equatable {
         languageCode: String? = nil,
         channelLayout: String = "Stereo",
         formatDescription: String = "AAC",
-        avOption: AVMediaSelectionOption? = nil
+        avOption: AVMediaSelectionOption? = nil,
+        trackNumber: UInt64? = nil
     ) {
         self.id = id
         self.title = title
@@ -23,5 +25,6 @@ public struct AudioTrack: Sendable, Identifiable, Equatable {
         self.channelLayout = channelLayout
         self.formatDescription = formatDescription
         self.avOption = avOption
+        self.trackNumber = trackNumber
     }
 }

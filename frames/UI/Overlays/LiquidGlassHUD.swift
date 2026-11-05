@@ -1,244 +1,407 @@
 import SwiftUI
+import AppKit
+import UniformTypeIdentifiers
 
 public struct LiquidGlassHUD: View {
     @Bindable var engine: VideoPlayerEngine
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var windowManager = WindowManager.shared
+    @State private var showVolumePopover = false
 
     public init(engine: VideoPlayerEngine) {
         self.engine = engine
     }
 
     public var body: some View {
-        let winWidth = windowManager.currentWindowSize.width > 0 ? windowManager.currentWindowSize.width : 800
-        let hudWidth = min(max(winWidth - 32, 380), 720)
-        let isQuarter = windowManager.isQuarterScreen
-        let isCompact = windowManager.isCompact || isQuarter || hudWidth < 540
-        let showVolume = !isCompact && hudWidth >= 580
-        let showHW = !isCompact && hudWidth >= 520
+        let isNarrow = windowManager.isCompact || windowManager.isQuarterScreen
+        let showVolumeSlider = !isNarrow
 
         VStack(spacing: 8) {
-            // Inspector Popovers (Subtitles, Audio, Speed, Hardware Stats)
-            if let sheet = engine.activeInspectorSheet {
-                HStack {
-                    Spacer()
-                    Group {
-                        switch sheet {
-                        case .subtitles:
-                            SubtitleSelectorPanel(engine: engine)
-                        case .audio:
-                            AudioSelectorPanel(engine: engine)
-                        case .speed:
-                            SpeedSelectorPanel(engine: engine)
-                        case .stats:
-                            HardwareStatsPanel(engine: engine)
-                        }
-                    }
-                    .transition(
-                        .asymmetric(
-                            insertion: .opacity.combined(with: .scale(scale: 0.94, anchor: .bottomTrailing)).combined(with: .offset(y: 8)),
-                            removal: .opacity.combined(with: .scale(scale: 0.96, anchor: .bottomTrailing)).combined(with: .offset(y: 4))
-                        )
-                    )
-                }
-                .padding(.trailing, 20)
-                .padding(.bottom, 2)
-            }
+            // Full-Width Precision Scrubber with Hover Tooltip
+            CustomScrubber(engine: engine)
+                .frame(height: 24)
+                .padding(.horizontal, 16)
+                .pointingHand()
 
-            // Minimalist Control Bar (shadcn mira / neutral)
-            VStack(spacing: 8) {
-                // Hairline Scrubber (Fixed 24pt height to prevent any vertical jump on click)
-                CustomScrubber(engine: engine)
-                    .frame(height: 24)
-                    .pointingHand()
-
-                // Controls Row
-                HStack(spacing: isCompact ? 5 : 8) {
+            // Primary Playback Controls Dock
+            HStack(spacing: isNarrow ? 8 : 12) {
+                // MARK: - Left Controls Cluster
+                HStack(spacing: 6) {
                     // Play / Pause / Replay
-                    ShadcnButton(
-                        icon: engine.isPlaying ? "pause.fill" : (engine.hasEnded ? "arrow.counterclockwise" : "play.fill"),
-                        variant: .ghost,
-                        size: .icon,
-                        accessibilityLabel: engine.isPlaying ? "Pause" : (engine.hasEnded ? "Replay" : "Play")
-                    ) {
+                    Button {
                         engine.togglePlayPause()
+                    } label: {
+                        Image(systemName: engine.isPlaying ? "pause.fill" : (engine.hasEnded ? "arrow.counterclockwise" : "play.fill"))
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(Color.white)
+                            .frame(width: 32, height: 32)
+                            .background(
+                                Circle()
+                                    .fill(Color.white.opacity(0.18))
+                            )
+                            .overlay(
+                                Circle()
+                                    .strokeBorder(Color.white.opacity(0.22), lineWidth: 1)
+                            )
                     }
+                    .buttonStyle(.plain)
+                    .pointingHand()
+                    .help(engine.isPlaying ? "Pause (Space)" : (engine.hasEnded ? "Replay (Space)" : "Play (Space)"))
 
-                    // Jump -10s
-                    ShadcnButton(
-                        icon: "gobackward.10",
-                        variant: .ghost,
-                        size: .iconSm,
-                        accessibilityLabel: "Skip back 10 seconds"
-                    ) {
+                    // Skip -10s
+                    dockedButton(icon: "gobackward.10", help: "Skip back 10s (← or J)") {
                         engine.skip(seconds: -10)
                     }
 
-                    // Jump +10s
-                    ShadcnButton(
-                        icon: "goforward.10",
-                        variant: .ghost,
-                        size: .iconSm,
-                        accessibilityLabel: "Skip forward 10 seconds"
-                    ) {
+                    // Skip +10s
+                    dockedButton(icon: "goforward.10", help: "Skip forward 10s (→ or L)") {
                         engine.skip(seconds: 10)
                     }
 
-                    // Volume
+                    // Volume Mute Button + Interactive Slider / Popover
                     HStack(spacing: 4) {
-                        ShadcnButton(
-                            icon: engine.isMuted ? "speaker.slash.fill" : (engine.volume < 0.5 ? "speaker.wave.1.fill" : "speaker.wave.2.fill"),
-                            variant: .ghost,
-                            size: .iconSm,
-                            accessibilityLabel: engine.isMuted ? "Unmute" : "Mute"
-                        ) {
-                            engine.toggleMute()
+                        Button {
+                            if isNarrow {
+                                showVolumePopover.toggle()
+                            } else {
+                                engine.toggleMute()
+                            }
+                        } label: {
+                            Image(systemName: engine.isMuted ? "speaker.slash.fill" : (engine.volume < 0.5 ? "speaker.wave.1.fill" : "speaker.wave.2.fill"))
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(Color.white)
+                                .frame(width: 28, height: 28)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .fill(engine.isMuted ? Color.red.opacity(0.25) : Color.white.opacity(0.12))
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .pointingHand()
+                        .help(isNarrow ? "Volume Slider" : (engine.isMuted ? "Unmute (M)" : "Mute (M)"))
+                        .popover(isPresented: $showVolumePopover) {
+                            VStack(spacing: 8) {
+                                HStack {
+                                    Text("Volume")
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundStyle(Color.white)
+                                    Spacer()
+                                    Text("\(Int(engine.volume * 100))%")
+                                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                                        .foregroundStyle(Color.white.opacity(0.7))
+                                }
+                                Slider(
+                                    value: Binding(
+                                        get: { Double(engine.volume) },
+                                        set: {
+                                            engine.volume = Float($0)
+                                            if engine.isMuted && $0 > 0 { engine.isMuted = false }
+                                        }
+                                    ),
+                                    in: 0...1
+                                )
+                                .frame(width: 120)
+                                .tint(Color.white)
+
+                                Button(engine.isMuted ? "Unmute" : "Mute") {
+                                    engine.toggleMute()
+                                }
+                                .font(.system(size: 11))
+                                .foregroundStyle(Color.white.opacity(0.9))
+                                .buttonStyle(.plain)
+                            }
+                            .padding(10)
+                            .background(Color(white: 0.12))
+                            .environment(\.colorScheme, .dark)
                         }
 
-                        if showVolume {
+                        if showVolumeSlider {
                             Slider(
                                 value: Binding(
                                     get: { Double(engine.volume) },
-                                    set: { engine.volume = Float($0) }
+                                    set: {
+                                        engine.volume = Float($0)
+                                        if engine.isMuted && $0 > 0 {
+                                            engine.isMuted = false
+                                        }
+                                    }
                                 ),
                                 in: 0...1
                             )
-                            .frame(width: 56)
+                            .frame(width: 58)
                             .tint(Color.white)
                             .pointingHand()
-                            .transition(.opacity.combined(with: .scale(scale: 0.9)))
                         }
                     }
 
-                    // Timestamps (Tabular Numbers)
-                    HStack(spacing: 3) {
+                    // Tabular Precision Time Display
+                    HStack(spacing: 4) {
                         Text(TimeFormatting.format(seconds: engine.currentTime))
-                            .foregroundStyle(ShadcnTheme.foreground)
+                            .foregroundStyle(Color.white)
                         Text("/")
-                            .foregroundStyle(ShadcnTheme.foregroundMuted)
+                            .foregroundStyle(Color.white.opacity(0.45))
                         Text(TimeFormatting.format(seconds: engine.duration))
-                            .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                            .foregroundStyle(Color.white.opacity(0.75))
                     }
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
                     .padding(.leading, 4)
+                }
 
-                    Spacer()
+                Spacer(minLength: 8)
 
-                    // Right Side: Options & Menus
-                    HStack(spacing: isCompact ? 4 : 6) {
-                        // Subtitles
-                        ShadcnButton(
-                            icon: "captions.bubble",
-                            variant: .outline,
-                            size: .iconSm,
-                            isSelected: engine.activeInspectorSheet == .subtitles,
-                            accessibilityLabel: engine.selectedSubtitleTrack.id == "off" ? "Subtitle tracks" : "Subtitle track: \(engine.selectedSubtitleTrack.title)"
-                        ) {
-                            toggleSheet(.subtitles)
-                        }
-
-                        // Audio
-                        ShadcnButton(
-                            icon: "waveform",
-                            variant: .outline,
-                            size: .iconSm,
-                            isSelected: engine.activeInspectorSheet == .audio,
-                            accessibilityLabel: engine.selectedAudioTrack.map { "Audio track: \($0.title)" } ?? "Audio tracks"
-                        ) {
-                            toggleSheet(.audio)
-                        }
-
-                        // Speed
-                        ShadcnButton(
-                            String(format: "%.2f×", engine.playbackRate),
-                            variant: .outline,
-                            size: .sm,
-                            isSelected: engine.activeInspectorSheet == .speed,
-                            accessibilityLabel: "Playback speed \(String(format: "%.2f", engine.playbackRate)) times"
-                        ) {
-                            toggleSheet(.speed)
-                        }
-
-                        // HW Info (Apple Silicon) - hide if narrow
-                        if showHW {
-                            ShadcnButton(
-                                icon: "cpu",
-                                variant: .ghost,
-                                size: .iconSm,
-                                isSelected: engine.activeInspectorSheet == .stats,
-                                accessibilityLabel: "Playback statistics"
-                            ) {
-                                toggleSheet(.stats)
+                // MARK: - Right Controls Cluster
+                HStack(spacing: 6) {
+                    // Audio Streams Menu Picker
+                    Menu {
+                        Section("Audio Streams") {
+                            if engine.availableAudioTracks.isEmpty {
+                                Button {} label: {
+                                    Label("Default Audio", systemImage: "checkmark")
+                                }
+                            } else {
+                                ForEach(engine.availableAudioTracks) { track in
+                                    Button {
+                                        engine.selectAudioTrack(track)
+                                    } label: {
+                                        if engine.selectedAudioTrack?.id == track.id {
+                                            Label(track.title, systemImage: "checkmark")
+                                        } else {
+                                            Text(track.title)
+                                        }
+                                    }
+                                }
                             }
-                            .transition(.opacity.combined(with: .scale(scale: 0.9)))
                         }
-
-                        // Native Full Screen Toggle
-                        let isNativeFs = windowManager.isNativeFullscreen
-                        ShadcnButton(
-                            icon: isNativeFs ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right",
-                            variant: .ghost,
-                            size: .iconSm,
-                            isSelected: isNativeFs,
-                            accessibilityLabel: isNativeFs ? "Exit Full Screen" : "Enter Full Screen"
-                        ) {
-                            withAnimation(.fluidSpring) {
-                                engine.activeInspectorSheet = nil
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "speaker.wave.2.bubble")
+                                .font(.system(size: 12, weight: .semibold))
+                            if !isNarrow {
+                                Text(audioButtonLabel)
+                                    .font(.system(size: 11, weight: .medium))
+                                    .lineLimit(1)
+                                    .frame(maxWidth: 100)
+                                    .truncationMode(.tail)
                             }
-                            windowManager.toggleNativeFullscreen()
                         }
+                        .foregroundStyle(Color.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(Color.white.opacity(0.14))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .strokeBorder(Color.white.opacity(0.20), lineWidth: 1)
+                        )
+                    }
+                    .menuStyle(.borderlessButton)
+                    .pointingHand()
+                    .help("Select Audio Track")
+
+                    // Subtitles Menu Picker
+                    Menu {
+                        Section("Subtitles") {
+                            Button {
+                                engine.selectSubtitleTrack(SubtitleTrack.off)
+                            } label: {
+                                if engine.selectedSubtitleTrack.id == SubtitleTrack.off.id {
+                                    Label("Off", systemImage: "checkmark")
+                                } else {
+                                    Text("Off")
+                                }
+                            }
+
+                            Divider()
+
+                            ForEach(engine.availableSubtitleTracks.filter { $0.id != SubtitleTrack.off.id }) { track in
+                                Button {
+                                    engine.selectSubtitleTrack(track)
+                                } label: {
+                                    if engine.selectedSubtitleTrack.id == track.id {
+                                        Label(track.title, systemImage: "checkmark")
+                                    } else {
+                                        Text(track.title)
+                                    }
+                                }
+                            }
+
+                            Divider()
+
+                            Button {
+                                openExternalSubtitlePicker()
+                            } label: {
+                                Label("Add Subtitle File (.srt, .vtt)...", systemImage: "plus")
+                            }
+
+                            if engine.selectedSubtitleTrack.id != SubtitleTrack.off.id {
+                                Menu("Subtitle Delay (\(String(format: "%+.1fs", engine.subtitleDelay)))") {
+                                    Button("-1.0s") { engine.subtitleDelay -= 1.0 }
+                                    Button("-0.5s") { engine.subtitleDelay -= 0.5 }
+                                    Button("0.0s (Reset)") { engine.subtitleDelay = 0.0 }
+                                    Button("+0.5s") { engine.subtitleDelay += 0.5 }
+                                    Button("+1.0s") { engine.subtitleDelay += 1.0 }
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: engine.selectedSubtitleTrack.id == SubtitleTrack.off.id ? "captions.bubble" : "captions.bubble.fill")
+                                .font(.system(size: 12, weight: .semibold))
+                            if !isNarrow {
+                                Text(engine.selectedSubtitleTrack.id == SubtitleTrack.off.id ? "Subtitles" : engine.selectedSubtitleTrack.title)
+                                    .font(.system(size: 11, weight: .medium))
+                                    .lineLimit(1)
+                                    .frame(maxWidth: 110)
+                                    .truncationMode(.tail)
+                            }
+                        }
+                        .foregroundStyle(Color.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(engine.selectedSubtitleTrack.id == SubtitleTrack.off.id ? Color.white.opacity(0.14) : Color.white.opacity(0.26))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .strokeBorder(Color.white.opacity(0.20), lineWidth: 1)
+                        )
+                    }
+                    .menuStyle(.borderlessButton)
+                    .pointingHand()
+                    .help("Select Subtitles")
+
+                    // Playback Rate Menu Picker
+                    Menu {
+                        Section("Playback Speed") {
+                            ForEach([0.5, 0.75, 1.0, 1.25, 1.5, 2.0] as [Float], id: \.self) { rate in
+                                Button {
+                                    engine.playbackRate = rate
+                                } label: {
+                                    if abs(engine.playbackRate - rate) < 0.01 {
+                                        Label(Self.formatRate(rate), systemImage: "checkmark")
+                                    } else {
+                                        Text(Self.formatRate(rate))
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        Text(Self.formatRate(engine.playbackRate))
+                            .font(.system(size: 11, weight: .bold, design: .monospaced))
+                            .foregroundStyle(Color.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .fill(Color.white.opacity(0.14))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .strokeBorder(Color.white.opacity(0.20), lineWidth: 1)
+                            )
+                    }
+                    .menuStyle(.borderlessButton)
+                    .pointingHand()
+                    .help("Playback Speed")
+
+                    // Picture-in-Picture Toggle
+                    dockedButton(
+                        icon: windowManager.isPictureInPicture ? "pip.exit" : "pip.enter",
+                        help: windowManager.isPictureInPicture ? "Exit Picture in Picture" : "Enter Picture in Picture"
+                    ) {
+                        windowManager.togglePictureInPicture()
+                    }
+
+                    // Native Fullscreen Toggle
+                    dockedButton(
+                        icon: windowManager.isNativeFullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right",
+                        help: windowManager.isNativeFullscreen ? "Exit Fullscreen (Esc)" : "Enter Fullscreen (F)"
+                    ) {
+                        windowManager.toggleNativeFullscreen()
                     }
                 }
             }
-            .padding(.horizontal, isCompact ? 12 : 16)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: ShadcnTheme.radiusXl, style: .continuous)
+            .padding(.horizontal, 16)
+        }
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity)
+        .background(
+            ZStack {
+                Rectangle()
                     .fill(.ultraThinMaterial)
-            )
-            .background(
-                RoundedRectangle(cornerRadius: ShadcnTheme.radiusXl, style: .continuous)
-                    .fill(ShadcnTheme.card.opacity(0.70))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: ShadcnTheme.radiusXl, style: .continuous)
-                    .strokeBorder(ShadcnTheme.border, lineWidth: 1)
-            )
-            .shadow(
-                color: Color(nsColor: NSColor(name: nil) { appearance in
-                    appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-                        ? NSColor(white: 0, alpha: 0.35)
-                        : NSColor(white: 0, alpha: 0.08)
-                }),
-                radius: 14,
-                y: 6
-            )
-            .frame(maxWidth: 720)
-        }
-        .padding(.horizontal, isCompact ? 10 : 20)
-        .padding(.bottom, 16)
-        .animation(.fluidSpring, value: showVolume)
-        .animation(.fluidSpring, value: showHW)
-        .animation(.fluidSpring, value: isCompact)
-        .animation(.fluidSpring, value: hudWidth)
-        .animation(.fluidSpring, value: engine.activeInspectorSheet != nil)
-        .animation(.fluidWindow, value: windowManager.currentLayoutState)
-    }
-
-    private func toggleSheet(_ sheet: VideoPlayerEngine.InspectorSheet) {
-        withAnimation(.fluidSpring) {
-            if engine.activeInspectorSheet == sheet {
-                engine.activeInspectorSheet = nil
-            } else {
-                engine.activeInspectorSheet = sheet
+                    .environment(\.colorScheme, .dark)
+                Rectangle()
+                    .fill(Color(white: 0.08, opacity: 0.88))
             }
+        )
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(Color.white.opacity(0.12))
+                .frame(height: 1)
+        }
+        .environment(\.colorScheme, .dark)
+    }
+
+    public static func formatRate(_ rate: Float) -> String {
+        if abs(rate.truncatingRemainder(dividingBy: 0.5)) < 0.001 || abs(rate.truncatingRemainder(dividingBy: 1.0)) < 0.001 {
+            return String(format: "%.1fx", rate)
+        } else {
+            return String(format: "%.2fx", rate)
         }
     }
 
-    private func toggleFullscreen() {
-        if let window = NSApp.keyWindow ?? NSApp.mainWindow {
-            window.toggleFullScreen(nil)
-            engine.isFullscreen = window.styleMask.contains(.fullScreen)
+    private var audioButtonLabel: String {
+        if let track = engine.selectedAudioTrack {
+            if let lang = track.languageCode, !lang.isEmpty {
+                let d = LanguageHelper.displayName(for: lang)
+                if d != "Undetermined" && d != "Unknown" {
+                    return d
+                }
+            }
+            return track.title
+        }
+        return "Audio"
+    }
+
+    private func dockedButton(icon: String, help: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(Color.white)
+                .frame(width: 28, height: 28)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.white.opacity(0.12))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+        .pointingHand()
+        .help(help)
+    }
+
+    private func openExternalSubtitlePicker() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [
+            UTType(filenameExtension: "srt") ?? .item,
+            UTType(filenameExtension: "vtt") ?? .item
+        ]
+        panel.message = "Choose an SRT or WebVTT subtitle file"
+
+        if panel.runModal() == .OK, let url = panel.url {
+            engine.loadExternalSubtitleFile(from: url)
         }
     }
 }

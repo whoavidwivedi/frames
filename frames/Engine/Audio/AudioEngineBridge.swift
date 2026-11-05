@@ -132,6 +132,10 @@ nonisolated public final class AudioEngineBridge: @unchecked Sendable {
     public func setVolume(_ volume: Float) {
         playerNode.volume = max(0.0, min(volume, 1.0))
     }
+
+    public var currentVolume: Float {
+        return playerNode.volume
+    }
     
     public func seek(to pts: Double) {
         lock.lock()
