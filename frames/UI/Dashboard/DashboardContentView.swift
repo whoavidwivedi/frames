@@ -37,11 +37,6 @@ public struct DashboardContentView: View {
                 GridItem(.adaptive(minimum: isNarrow ? 140 : 180, maximum: 320), spacing: isNarrow ? 10 : 14)
             ]
             let contentPadding: CGFloat = isNarrow ? 12 : 20
-            let gridItemWidth = Self.computeGridItemWidth(
-                containerWidth: geo.size.width,
-                contentPadding: contentPadding,
-                isNarrow: isNarrow
-            )
 
             Group {
                 if library.filteredVideos.isEmpty {
@@ -49,47 +44,34 @@ public struct DashboardContentView: View {
                         .transition(.opacity.combined(with: .scale(scale: 0.98)))
                 } else {
                     if library.viewMode == .grid {
-                        VStack(alignment: .leading, spacing: 0) {
-                            // Top section: Pinned non-scrollable dashed Add Video tile (videos start on new line below)
-                            if shouldShowAddCard {
-                                HStack(spacing: 0) {
+                        ScrollView(.vertical, showsIndicators: true) {
+                            LazyVGrid(columns: columns, alignment: .leading, spacing: isNarrow ? 12 : 18) {
+                                // Add Video tile sits naturally as first cell alongside regular videos
+                                if shouldShowAddCard {
                                     addVideoGridTile
-                                        .frame(width: gridItemWidth)
-                                    Spacer(minLength: 0)
                                 }
-                                .padding(.horizontal, contentPadding)
-                                .padding(.top, contentPadding)
-                                .padding(.bottom, isNarrow ? 6 : 8)
-                                .animation(.fluidSpring, value: gridItemWidth)
-                            }
 
-                            ScrollView(.vertical, showsIndicators: true) {
-                                LazyVGrid(columns: columns, alignment: .leading, spacing: isNarrow ? 12 : 18) {
-                                    ForEach(library.filteredVideos) { video in
-                                        VideoGridCardView(
-                                            video: video,
-                                            isHovered: hoveredVideoId == video.id,
-                                            onHover: { h in
-                                                withAnimation(.fluidQuick) {
-                                                    hoveredVideoId = h ? video.id : nil
-                                                }
-                                            },
-                                            library: library,
-                                            onPlayURL: onPlayURL
-                                        )
-                                    }
+                                ForEach(library.filteredVideos) { video in
+                                    VideoGridCardView(
+                                        video: video,
+                                        isHovered: hoveredVideoId == video.id,
+                                        onHover: { h in
+                                            withAnimation(.fluidQuick) {
+                                                hoveredVideoId = h ? video.id : nil
+                                            }
+                                        },
+                                        library: library,
+                                        onPlayURL: onPlayURL
+                                    )
                                 }
-                                .padding(.horizontal, contentPadding)
-                                .padding(.top, shouldShowAddCard ? (isNarrow ? 6 : 10) : contentPadding)
-                                .padding(.bottom, contentPadding)
-                                .animation(.fluidSpring, value: gridItemWidth)
                             }
+                            .padding(contentPadding)
                         }
                         .transition(.opacity.combined(with: .scale(scale: 0.98)))
                     } else {
                         ScrollView(.vertical, showsIndicators: true) {
                             LazyVStack(spacing: 8) {
-                                // Top section: Dashed Add Video item matching thumbnail size
+                                // Top section: Dashed Add Video item matching video row dimensions
                                 if shouldShowAddCard {
                                     addVideoListRow
                                 }
@@ -110,7 +92,6 @@ public struct DashboardContentView: View {
                                 }
                             }
                             .padding(contentPadding)
-                            .animation(.fluidSpring, value: geo.size.width)
                         }
                         .transition(.opacity.combined(with: .scale(scale: 0.98)))
                     }
@@ -118,6 +99,7 @@ public struct DashboardContentView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(ShadcnTheme.background)
+            .clipped()
             .animation(.fluidSpring, value: library.viewMode)
             .animation(.fluidSpring, value: isNarrow)
             .animation(.fluidSpring, value: library.selectedCategory)
@@ -125,13 +107,18 @@ public struct DashboardContentView: View {
         }
     }
 
-    private var shouldShowAddCard: Bool {
-        library.searchQuery.isEmpty && (library.selectedCategory == .allVideos || isFolderCategory)
+    public static func shouldShowAddCard(searchQuery: String, category: SidebarCategory) -> Bool {
+        guard searchQuery.isEmpty else { return false }
+        switch category {
+        case .allVideos, .folder:
+            return true
+        case .recent, .favorites:
+            return false
+        }
     }
 
-    private var isFolderCategory: Bool {
-        if case .folder = library.selectedCategory { return true }
-        return false
+    private var shouldShowAddCard: Bool {
+        Self.shouldShowAddCard(searchQuery: library.searchQuery, category: library.selectedCategory)
     }
 
     // MARK: - Add Video Dashed-Border Grid Tile (Shown exactly like other video tiles at the top)
@@ -144,19 +131,21 @@ public struct DashboardContentView: View {
                 ZStack {
                     RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
                         .fill(isHoveringAddTile ? ShadcnTheme.cardHover : ShadcnTheme.card.opacity(0.35))
-                        .aspectRatio(16/9, contentMode: .fill)
-
-                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
-                        .strokeBorder(
-                            isHoveringAddTile ? ShadcnTheme.borderActive : ShadcnTheme.border,
-                            style: StrokeStyle(lineWidth: 1.5, dash: [6, 5])
-                        )
 
                     Image(systemName: "plus")
                         .font(.system(size: 24, weight: .light))
                         .foregroundStyle(isHoveringAddTile ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
                 }
+                .aspectRatio(16/9, contentMode: .fill)
+                .frame(maxWidth: .infinity)
                 .clipShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
+                        .strokeBorder(
+                            isHoveringAddTile ? ShadcnTheme.borderActive : ShadcnTheme.border,
+                            style: StrokeStyle(lineWidth: 1.5, dash: [6, 5])
+                        )
+                )
 
                 // Title & Subtitle matching other video cards
                 VStack(alignment: .leading, spacing: 3) {
@@ -172,6 +161,7 @@ public struct DashboardContentView: View {
                 }
                 .padding(.horizontal, 2)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -183,46 +173,98 @@ public struct DashboardContentView: View {
                 isHoveringAddTile = h
             }
         }
+        .contextMenu {
+            Button("Add Video Files...") {
+                library.selectFilesToPlay { url in
+                    onPlayURL(url)
+                }
+            }
+            Button("Add Folder to Library...") {
+                library.selectAndAddFolder()
+            }
+        }
     }
 
-    // MARK: - Add Video Dashed-Border List Item (Thumbnail sized, matching video list thumbnails)
+    // MARK: - Add Video Dashed-Border List Item (Compact single row matching VideoListRowView)
     private var addVideoListRow: some View {
-        HStack {
-            Button {
-                library.selectAndAddVideos()
-            } label: {
+        Button {
+            library.selectAndAddVideos()
+        } label: {
+            HStack(spacing: 12) {
+                // Mini 16:9 thumbnail preview with dashed border
                 ZStack {
                     RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                         .fill(isHoveringAddRow ? ShadcnTheme.cardHover : ShadcnTheme.card.opacity(0.45))
-                        .frame(width: VideoListRowView.thumbnailWidth, height: VideoListRowView.thumbnailHeight)
-
-                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                        .strokeBorder(
-                            isHoveringAddRow ? ShadcnTheme.borderActive : ShadcnTheme.border,
-                            style: StrokeStyle(lineWidth: 1.5, dash: [4, 4])
-                        )
 
                     Image(systemName: "plus")
                         .font(.system(size: 14, weight: .light))
                         .foregroundStyle(isHoveringAddRow ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
                 }
-                .contentShape(Rectangle())
+                .frame(width: VideoListRowView.thumbnailWidth, height: VideoListRowView.thumbnailHeight)
+                .clipShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                        .strokeBorder(
+                            isHoveringAddRow ? ShadcnTheme.borderActive : ShadcnTheme.border,
+                            style: StrokeStyle(lineWidth: 1.5, dash: [4, 4])
+                        )
+                )
+
+                // Title & Subtitle matching VideoListRowView layout & typography
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Add Video")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(isHoveringAddRow ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
+                        .lineLimit(1)
+
+                    Text("Import video files or folders to library")
+                        .font(.system(size: 11))
+                        .foregroundStyle(ShadcnTheme.foregroundMuted)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 8)
+
+                Image(systemName: "plus.circle")
+                    .font(.system(size: 13))
+                    .foregroundStyle(isHoveringAddRow ? ShadcnTheme.foreground : ShadcnTheme.foregroundMuted)
+                    .padding(.trailing, 4)
             }
-            .buttonStyle(.plain)
-            .contentShape(Rectangle())
-            .pointingHand()
-            .help("Add video files or folder to library")
-            .accessibilityLabel("Add video files or folder")
-            .onHover { h in
-                withAnimation(.fluidQuick) {
-                    isHoveringAddRow = h
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                    .fill(isHoveringAddRow ? ShadcnTheme.cardHover : ShadcnTheme.card.opacity(0.35))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                    .strokeBorder(
+                        isHoveringAddRow ? ShadcnTheme.borderActive : ShadcnTheme.border,
+                        style: StrokeStyle(lineWidth: 1, dash: [5, 4])
+                    )
+            )
+            .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
+        .pointingHand()
+        .help("Add video files or folder to library")
+        .accessibilityLabel("Add video files or folder")
+        .onHover { h in
+            withAnimation(.fluidQuick) {
+                isHoveringAddRow = h
+            }
+        }
+        .contextMenu {
+            Button("Add Video Files...") {
+                library.selectFilesToPlay { url in
+                    onPlayURL(url)
                 }
             }
-
-            Spacer()
+            Button("Add Folder to Library...") {
+                library.selectAndAddFolder()
+            }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
     }
 
     // MARK: - Responsive Empty States

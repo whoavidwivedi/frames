@@ -22,8 +22,9 @@ public struct DashboardView: View {
                 // Unified Top Navigation Bar (Antigravity Style: Traffic Lights + Sidebar Toggle + Back + Forward + Search + Divider + Title + Actions)
                 DashboardTopBarView(library: library, onPlayURL: onPlayURL)
 
-                Divider()
-                    .overlay(ShadcnTheme.border)
+                Rectangle()
+                    .fill(ShadcnTheme.border)
+                    .frame(height: 1)
 
                 // Content Area: Collapsible Sidebar + Main Content Canvas
                 HStack(spacing: 0) {
@@ -33,12 +34,16 @@ public struct DashboardView: View {
                         .opacity(library.isSidebarVisible ? 1.0 : 0.0)
                         .allowsHitTesting(library.isSidebarVisible)
                         .accessibilityHidden(!library.isSidebarVisible)
+                        .zIndex(1)
 
                     DashboardContentView(library: library, onPlayURL: onPlayURL)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .clipped()
+                        .zIndex(0)
                 }
             }
             .animation(.fluidSpring, value: library.isSidebarVisible)
+            .animation(.fluidSpring, value: sidebarWidth)
             .animation(.fluidWindow, value: windowManager.currentLayoutState)
         }
         .frame(minWidth: 460, minHeight: 320)
@@ -61,6 +66,7 @@ public struct DashboardView: View {
                         )
                 }
             }
+            .allowsHitTesting(false)
         )
         .onDrop(of: [.fileURL], isTargeted: $isTargetedForDrop) { providers in
             guard let provider = providers.first else { return false }

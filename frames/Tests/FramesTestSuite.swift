@@ -411,7 +411,7 @@ public enum FramesTestSuite {
         callbackRowView.onThumbnailHover?(true)
         assertTest("List Row Thumbnail Hover Callback Invocation", condition: thumbCallbackReceived == true)
 
-        // MARK: - Dashboard Layout, Grid Pinned Header & Sidebar Transition Verification
+        // MARK: - Dashboard Layout, Grid & List Add Video Integration & Sidebar Boundary Verification
         // 1. List View Dashed Add Video Spec: Dimensions match thumbnail exactly (76x43) rather than stretching full width
         assertTest("Dashboard List Add Video Item Width Matches Thumbnail (76pt)", condition: DashboardContentView.addListThumbnailWidth == 76)
         assertTest("Dashboard List Add Video Item Height Matches Thumbnail (43pt)", condition: DashboardContentView.addListThumbnailHeight == 43)
@@ -440,9 +440,27 @@ public enum FramesTestSuite {
         assertTest("Sidebar Collapsed Width Collapses to Zero", condition: hiddenSidebarWidth == 0)
         lib.isSidebarVisible = initialSidebar
 
-        // 4. Mount DashboardContentView and DashboardView in NSHostingView to verify view hierarchy stability
-        let dashboardHost = NSHostingView(rootView: DashboardContentView(library: lib, onPlayURL: { _ in }))
-        assertTest("DashboardContentView NSHostingView Mount", condition: dashboardHost.fittingSize.width >= 0)
+        // 4. Dashboard Add Video Visibility Logic by Category & Search State
+        assertTest("Add Video Tile Shown in All Videos", condition: DashboardContentView.shouldShowAddCard(searchQuery: "", category: .allVideos) == true)
+        let dummyFolderId = UUID()
+        assertTest("Add Video Tile Shown in Folder Category", condition: DashboardContentView.shouldShowAddCard(searchQuery: "", category: .folder(id: dummyFolderId)) == true)
+        assertTest("Add Video Tile Hidden in Favorites", condition: DashboardContentView.shouldShowAddCard(searchQuery: "", category: .favorites) == false)
+        assertTest("Add Video Tile Hidden in Recent", condition: DashboardContentView.shouldShowAddCard(searchQuery: "", category: .recent) == false)
+        assertTest("Add Video Tile Hidden During Active Search", condition: DashboardContentView.shouldShowAddCard(searchQuery: "query", category: .allVideos) == false)
+
+        // 5. Mount DashboardContentView (Grid & List), DashboardSidebarView, and DashboardView in NSHostingView to verify view hierarchy stability
+        let initialViewMode = lib.viewMode
+        lib.viewMode = .grid
+        let dashboardGridHost = NSHostingView(rootView: DashboardContentView(library: lib, onPlayURL: { _ in }))
+        assertTest("DashboardContentView Grid Mode NSHostingView Mount", condition: dashboardGridHost.fittingSize.width >= 0)
+
+        lib.viewMode = .list
+        let dashboardListHost = NSHostingView(rootView: DashboardContentView(library: lib, onPlayURL: { _ in }))
+        assertTest("DashboardContentView List Mode NSHostingView Mount", condition: dashboardListHost.fittingSize.width >= 0)
+        lib.viewMode = initialViewMode
+
+        let sidebarViewHost = NSHostingView(rootView: DashboardSidebarView(library: lib, width: 210, onPlayURL: { _ in }))
+        assertTest("DashboardSidebarView NSHostingView Mount", condition: sidebarViewHost.fittingSize.width >= 0)
 
         let dashboardViewHost = NSHostingView(rootView: DashboardView(library: lib, onPlayURL: { _ in }))
         assertTest("DashboardView NSHostingView Mount", condition: dashboardViewHost.fittingSize.width >= 0)

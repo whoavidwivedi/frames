@@ -61,7 +61,6 @@ public struct DashboardSidebarView: View {
                             style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])
                         )
                 )
-                .scaleEffect(isHoveringAdd ? 1.01 : 1.0)
                 .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous))
             }
             .menuStyle(.borderlessButton)
@@ -208,6 +207,7 @@ public struct DashboardSidebarView: View {
                 .foregroundStyle(ShadcnTheme.border),
             alignment: .trailing
         )
+        .clipped()
         .animation(.fluidSpring, value: width)
         .animation(.fluidWindow, value: windowManager.currentLayoutState)
     }
