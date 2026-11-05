@@ -15,6 +15,8 @@ struct ContentView: View {
     @State private var showSplash: Bool = true
     @State private var pendingResumePrompt: ResumePromptData? = nil
     @State private var updateManager = UpdateManager.shared
+    @State private var settings = SettingsManager.shared
+    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         ZStack {
@@ -60,8 +62,7 @@ struct ContentView: View {
 
                     // Subtitle Display
                     SubtitleOverlayView(
-                        text: engine.activeSubtitleText,
-                        fontSize: engine.subtitleFontSize
+                        text: engine.activeSubtitleText
                     )
                     .padding(.bottom, engine.controlsVisible ? 84 : 24)
 
@@ -319,6 +320,9 @@ struct ContentView: View {
             }
         }
         .onAppear {
+            SettingsManager.shared.openSettingsAction = {
+                openSettings()
+            }
             keyboardHandler = KeyboardHandler(engine: engine)
             engine.onPlaybackEnded = {
                 Task { @MainActor in
@@ -354,14 +358,27 @@ struct ContentView: View {
         }
         .task {
             // Delayed background check so startup is instant and non-blocking
-            try? await Task.sleep(nanoseconds: 2_500_000_000)
-            updateManager.checkForUpdates(manual: false)
+            if SettingsManager.shared.automaticallyCheckForUpdates {
+                try? await Task.sleep(nanoseconds: 2_500_000_000)
+                updateManager.checkForUpdates(manual: false)
+            }
         }
         .preferredColorScheme(themeManager.mode.colorScheme)
     }
 
     private func requestPlayVideo(url: URL) {
+        let resumeMode = SettingsManager.shared.autoResumeMode
+        if resumeMode == .startBeginning {
+            playVideo(url: url, seekTo: 0.0)
+            return
+        }
+
         if let resume = library.savedResumeTime(for: url) {
+            if resumeMode == .alwaysResume {
+                playVideo(url: url, seekTo: resume.seconds)
+                return
+            }
+
             let item = library.videos.first(where: { $0.url == url })
             let dur = item?.duration ?? 0.0
             withAnimation(.fluidSpring) {

@@ -107,7 +107,8 @@ public struct DashboardContentView: View {
         }
     }
 
-    public static func shouldShowAddCard(searchQuery: String, category: SidebarCategory) -> Bool {
+    public static func shouldShowAddCard(searchQuery: String, category: SidebarCategory, showTile: Bool = true) -> Bool {
+        guard showTile else { return false }
         guard searchQuery.isEmpty else { return false }
         switch category {
         case .allVideos, .folder:
@@ -118,7 +119,11 @@ public struct DashboardContentView: View {
     }
 
     private var shouldShowAddCard: Bool {
-        Self.shouldShowAddCard(searchQuery: library.searchQuery, category: library.selectedCategory)
+        Self.shouldShowAddCard(
+            searchQuery: library.searchQuery,
+            category: library.selectedCategory,
+            showTile: SettingsManager.shared.showAddVideoTile
+        )
     }
 
     // MARK: - Add Video Dashed-Border Grid Tile (Shown exactly like other video tiles at the top)

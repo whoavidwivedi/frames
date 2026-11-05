@@ -31,6 +31,13 @@ struct framesApp: App {
                 }
             }
 
+            SwiftUI.CommandGroup(replacing: .appSettings) {
+                Button("Settings...") {
+                    SettingsManager.shared.openSettings()
+                }
+                .keyboardShortcut(",", modifiers: .command)
+            }
+
             SwiftUI.CommandGroup(replacing: .newItem) {
                 Button("Open File...") {
                     openFileDialog()
@@ -99,6 +106,10 @@ struct framesApp: App {
                     }
                 }
             }
+        }
+
+        Settings {
+            SettingsView()
         }
     }
 

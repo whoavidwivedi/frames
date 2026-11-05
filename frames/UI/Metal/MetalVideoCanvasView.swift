@@ -51,9 +51,15 @@ public final class NativeMetalView: NSView {
         let layer = CAMetalLayer()
         layer.device = renderer.device
         layer.pixelFormat = .rgba16Float
-        // Wide color gamut & HDR extended linear P3 space
-        layer.colorspace = CGColorSpace(name: CGColorSpace.extendedLinearDisplayP3)
-        layer.wantsExtendedDynamicRangeContent = true
+        // Dynamic Range & Color Space configuration matching SettingsManager
+        let hdrMode = SettingsManager.shared.hdrToneMapping
+        if hdrMode == .sdrOnly {
+            layer.colorspace = CGColorSpace(name: CGColorSpace.sRGB)
+            layer.wantsExtendedDynamicRangeContent = false
+        } else {
+            layer.colorspace = CGColorSpace(name: CGColorSpace.extendedLinearDisplayP3)
+            layer.wantsExtendedDynamicRangeContent = true
+        }
         layer.presentsWithTransaction = false
         layer.framebufferOnly = true
         
@@ -92,8 +98,30 @@ public final class NativeMetalView: NSView {
     private func startDisplayLink() {
         guard displayLink == nil else { return }
         let link = self.displayLink(target: self, selector: #selector(displayLinkDidFire(_:)))
+        if SettingsManager.shared.proMotionSyncEnabled {
+            link.preferredFrameRateRange = CAFrameRateRange(minimum: 60, maximum: 120, preferred: 120)
+        } else {
+            link.preferredFrameRateRange = CAFrameRateRange(minimum: 60, maximum: 60, preferred: 60)
+        }
         link.add(to: .main, forMode: .common)
         self.displayLink = link
+    }
+    
+    public func applySettings() {
+        if let layer = metalLayer {
+            let hdrMode = SettingsManager.shared.hdrToneMapping
+            if hdrMode == .sdrOnly {
+                layer.colorspace = CGColorSpace(name: CGColorSpace.sRGB)
+                layer.wantsExtendedDynamicRangeContent = false
+            } else {
+                layer.colorspace = CGColorSpace(name: CGColorSpace.extendedLinearDisplayP3)
+                layer.wantsExtendedDynamicRangeContent = true
+            }
+        }
+        if displayLink != nil {
+            stopDisplayLink()
+            startDisplayLink()
+        }
     }
     
     private func stopDisplayLink() {

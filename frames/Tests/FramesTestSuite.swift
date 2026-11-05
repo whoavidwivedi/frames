@@ -1646,6 +1646,166 @@ public enum FramesTestSuite {
         let pipWm = WindowManager.shared
         assertTest("WindowManager PictureInPicture Initial False", condition: !pipWm.isPictureInPicture)
 
+        // MARK: - 29. Settings Architecture, Manager & Persistence
+        logs.append("\n[29] Testing Settings Architecture, Manager & Persistence...")
+
+        let sm = SettingsManager.shared
+        sm.resetToDefaults()
+
+        // 1. Default Values Verification
+        assertTest("Settings Default View Mode Is Grid", condition: sm.defaultViewMode == .grid)
+        assertTest("Settings Default Auto-Resume Mode Is Ask", condition: sm.autoResumeMode == .ask)
+        assertTest("Settings Default Show Add Video Tile", condition: sm.showAddVideoTile == true)
+        assertTest("Settings Default VideoToolbox HW Acceleration Enabled", condition: sm.hardwareAccelerationEnabled == true)
+        assertTest("Settings Default HDR Tone Mapping Is Auto", condition: sm.hdrToneMapping == .auto)
+        assertTest("Settings Default ProMotion 120Hz Sync Enabled", condition: sm.proMotionSyncEnabled == true)
+        assertTest("Settings Default Skip Interval Is 5s", condition: sm.defaultSkipInterval == 5)
+        assertTest("Settings Default Spatial Audio Enabled", condition: sm.spatialAudioEnabled == true)
+        assertTest("Settings Default Audio Language Is System", condition: sm.defaultAudioLanguage == "System")
+        assertTest("Settings Default Volume Normalization Disabled", condition: sm.volumeNormalizationEnabled == false)
+        assertTest("Settings Default Subtitle Font Size 20pt", condition: abs(sm.subtitleFontSize - 20.0) < 0.001)
+        assertTest("Settings Default Subtitle Text Color Hex White", condition: sm.subtitleTextColorHex == "#FFFFFF")
+        assertTest("Settings Default Subtitle Scrim Opacity 0.65", condition: abs(sm.subtitleBackgroundScrimOpacity - 0.65) < 0.001)
+        assertTest("Settings Default Live Captions Disabled", condition: sm.liveCaptionsEnabled == false)
+        assertTest("Settings Default Live Captions Engine Apple Neural Engine", condition: sm.liveCaptionsEngine == .appleNeuralEngine)
+        assertTest("Settings Default Battery Saver Guard Enabled", condition: sm.batterySaverGuardEnabled == true)
+        assertTest("Settings Default Auto Check For Updates Enabled", condition: sm.automaticallyCheckForUpdates == true)
+
+        // 2. Setting Modification & UserDefaults Persistence Roundtrip
+        sm.defaultViewMode = .list
+        assertTest("Settings ViewMode Mutation Persists", condition: UserDefaults.standard.string(forKey: SettingsManager.defaultViewModeKey) == "List")
+
+        sm.autoResumeMode = .alwaysResume
+        assertTest("Settings AutoResumeMode Mutation Persists", condition: UserDefaults.standard.string(forKey: SettingsManager.autoResumeModeKey) == "alwaysResume")
+
+        sm.showAddVideoTile = false
+        assertTest("Settings ShowAddVideoTile Mutation Persists", condition: UserDefaults.standard.bool(forKey: SettingsManager.showAddVideoTileKey) == false)
+
+        sm.hardwareAccelerationEnabled = false
+        assertTest("Settings HW Acceleration Mutation Persists", condition: UserDefaults.standard.bool(forKey: SettingsManager.hardwareAccelerationKey) == false)
+
+        sm.hdrToneMapping = .hdrPassthrough
+        assertTest("Settings HDR Tone Mapping Mutation Persists", condition: UserDefaults.standard.string(forKey: SettingsManager.hdrToneMappingKey) == "hdrPassthrough")
+
+        sm.proMotionSyncEnabled = false
+        assertTest("Settings ProMotion Sync Mutation Persists", condition: UserDefaults.standard.bool(forKey: SettingsManager.proMotionSyncKey) == false)
+
+        sm.defaultSkipInterval = 15
+        assertTest("Settings Skip Interval Mutation Persists", condition: UserDefaults.standard.integer(forKey: SettingsManager.defaultSkipIntervalKey) == 15)
+
+        sm.spatialAudioEnabled = false
+        assertTest("Settings Spatial Audio Mutation Persists", condition: UserDefaults.standard.bool(forKey: SettingsManager.spatialAudioKey) == false)
+
+        sm.defaultAudioLanguage = "Japanese"
+        assertTest("Settings Default Audio Language Mutation Persists", condition: UserDefaults.standard.string(forKey: SettingsManager.defaultAudioLanguageKey) == "Japanese")
+
+        sm.volumeNormalizationEnabled = true
+        assertTest("Settings Volume Normalization Mutation Persists", condition: UserDefaults.standard.bool(forKey: SettingsManager.volumeNormalizationKey) == true)
+
+        sm.subtitleFontSize = 28.0
+        assertTest("Settings Subtitle Font Size Mutation Persists", condition: abs(UserDefaults.standard.double(forKey: SettingsManager.subtitleFontSizeKey) - 28.0) < 0.001)
+
+        sm.subtitleTextColorHex = "#FFD700"
+        assertTest("Settings Subtitle Color Hex Mutation Persists", condition: UserDefaults.standard.string(forKey: SettingsManager.subtitleTextColorHexKey) == "#FFD700")
+
+        sm.subtitleBackgroundScrimOpacity = 0.85
+        assertTest("Settings Subtitle Scrim Opacity Mutation Persists", condition: abs(UserDefaults.standard.double(forKey: SettingsManager.subtitleScrimOpacityKey) - 0.85) < 0.001)
+
+        sm.liveCaptionsEnabled = true
+        assertTest("Settings Live Captions Mutation Persists", condition: UserDefaults.standard.bool(forKey: SettingsManager.liveCaptionsEnabledKey) == true)
+
+        sm.liveCaptionsEngine = .whisperCoreML
+        assertTest("Settings Live Captions Engine Mutation Persists", condition: UserDefaults.standard.string(forKey: SettingsManager.liveCaptionsEngineKey) == "whisperCoreML")
+
+        sm.batterySaverGuardEnabled = false
+        assertTest("Settings Battery Saver Guard Mutation Persists", condition: UserDefaults.standard.bool(forKey: SettingsManager.batterySaverGuardKey) == false)
+
+        sm.automaticallyCheckForUpdates = false
+        assertTest("Settings Auto Check Updates Mutation Persists", condition: UserDefaults.standard.bool(forKey: SettingsManager.autoCheckUpdatesKey) == false)
+
+        // 3. Reset To Defaults Verification
+        sm.resetToDefaults()
+        assertTest("Settings Reset Restores ViewMode", condition: sm.defaultViewMode == .grid)
+        assertTest("Settings Reset Restores AutoResumeMode", condition: sm.autoResumeMode == .ask)
+        assertTest("Settings Reset Restores ShowAddVideoTile", condition: sm.showAddVideoTile == true)
+        assertTest("Settings Reset Restores HW Acceleration", condition: sm.hardwareAccelerationEnabled == true)
+        assertTest("Settings Reset Restores Skip Interval", condition: sm.defaultSkipInterval == 5)
+        assertTest("Settings Reset Restores Subtitle Font Size", condition: abs(sm.subtitleFontSize - 20.0) < 0.001)
+        assertTest("Settings Reset Restores Auto Check Updates", condition: sm.automaticallyCheckForUpdates == true)
+
+        // 4. SettingsTab & Specification Enums
+        assertTest("SettingsTab Count Matches 5 Tabs", condition: SettingsTab.allCases.count == 5)
+        assertTest("SettingsTab Identifiers Exist", condition: SettingsTab.general.id == "general" && SettingsTab.playback.id == "playback" && SettingsTab.audio.id == "audio" && SettingsTab.subtitles.id == "subtitles" && SettingsTab.about.id == "about")
+        assertTest("AutoResumeMode Count Matches 3", condition: AutoResumeMode.allCases.count == 3)
+        assertTest("HDRToneMappingMode Count Matches 3", condition: HDRToneMappingMode.allCases.count == 3)
+        assertTest("LiveCaptionsEngine Count Matches 2", condition: LiveCaptionsEngine.allCases.count == 2)
+
+        // 5. Color Hex Parsing & Serialization Helper
+        let validHexColor = Color(hex: "#FF5500")
+        assertTest("Color Hex Parser Valid Hex", condition: validHexColor != nil)
+        let noHashColor = Color(hex: "00AAFF")
+        assertTest("Color Hex Parser No-Hash Hex", condition: noHashColor != nil)
+        let invalidHexColor = Color(hex: "invalid-hex-string")
+        assertTest("Color Hex Parser Invalid Hex Guard", condition: invalidHexColor == nil)
+        assertTest("Color To Hex Roundtrip", condition: validHexColor?.toHex() == "#FF5500")
+        assertTest("Color To Hex White", condition: Color.white.toHex() == "#FFFFFF")
+
+        // 6. Battery Saver Guard & Power Query
+        _ = sm.isBatteryBelowTwentyPercent
+        assertTest("Battery Saver Guard Query Operable", condition: sm.shouldPauseLiveCaptionsForBattery == sm.isBatteryBelowTwentyPercent)
+        sm.batterySaverGuardEnabled = false
+        assertTest("Battery Saver Guard Disabled Suppression", condition: sm.shouldPauseLiveCaptionsForBattery == false)
+        sm.batterySaverGuardEnabled = true
+
+        // 7. Preferred Audio Track Matching
+        let dummyEngine = VideoPlayerEngine()
+        let trackEn = AudioTrack(id: "1", title: "English Stereo", languageCode: "eng", channelLayout: "Stereo", formatDescription: "AAC", avOption: nil, trackNumber: 1)
+        let trackJp = AudioTrack(id: "2", title: "Japanese 5.1", languageCode: "jpn", channelLayout: "5.1", formatDescription: "AC3", avOption: nil, trackNumber: 2)
+        sm.defaultAudioLanguage = "Japanese"
+        let matchedJp = dummyEngine.findPreferredAudioTrack(in: [trackEn, trackJp])
+        assertTest("Preferred Audio Track Matches Japanese", condition: matchedJp?.id == "2")
+        sm.defaultAudioLanguage = "English"
+        let matchedEn = dummyEngine.findPreferredAudioTrack(in: [trackEn, trackJp])
+        assertTest("Preferred Audio Track Matches English", condition: matchedEn?.id == "1")
+        sm.defaultAudioLanguage = "System"
+
+        // 8. SubtitleOverlayView Dynamic Settings Reactivity
+        sm.subtitleFontSize = 26.0
+        let overlay = SubtitleOverlayView(text: "Hello World")
+        assertTest("SubtitleOverlayView Uses Settings Font Size", condition: abs(overlay.fontSize - 26.0) < 0.001)
+        let overrideOverlay = SubtitleOverlayView(text: "Hello World", fontSize: 32.0)
+        assertTest("SubtitleOverlayView Honors Override Font Size", condition: abs(overrideOverlay.fontSize - 32.0) < 0.001)
+        sm.subtitleFontSize = 20.0
+
+        // 9. Add Video Tile Settings Toggle Logic
+        assertTest("Add Video Tile Shown When Setting Enabled", condition: DashboardContentView.shouldShowAddCard(searchQuery: "", category: .allVideos, showTile: true) == true)
+        assertTest("Add Video Tile Suppressed When Setting Disabled", condition: DashboardContentView.shouldShowAddCard(searchQuery: "", category: .allVideos, showTile: false) == false)
+        assertTest("Add Video Tile Suppressed In Folder When Setting Disabled", condition: DashboardContentView.shouldShowAddCard(searchQuery: "", category: .folder(id: UUID()), showTile: false) == false)
+
+        // 10. Watch History Reset
+        let testLib = LibraryManager.shared
+        let dummyURL = URL(fileURLWithPath: "/tmp/frames_test_history.mp4")
+        testLib.recordPlayback(url: dummyURL, duration: 120.0, progress: 0.5)
+        assertTest("Playback Recorded In Library Before Reset", condition: testLib.videos.contains { $0.url == dummyURL })
+        sm.clearWatchHistory()
+        let matchingDummy = testLib.videos.first { $0.url == dummyURL }
+        assertTest("Clear Watch History Resets Video Progress", condition: matchingDummy?.progress == 0.0)
+        assertTest("Clear Watch History Clears Video LastPlayedDate", condition: matchingDummy?.lastPlayedDate == nil)
+
+        // 11. View Hierarchy & Hosting Mount Stability
+        let settingsHost = NSHostingView(rootView: SettingsView())
+        assertTest("SettingsView NSHostingView Mount Operable", condition: settingsHost.fittingSize.width >= 0)
+        let generalTabHost = NSHostingView(rootView: GeneralSettingsTab())
+        assertTest("GeneralSettingsTab Mount Operable", condition: generalTabHost.fittingSize.width >= 0)
+        let playbackTabHost = NSHostingView(rootView: PlaybackSettingsTab())
+        assertTest("PlaybackSettingsTab Mount Operable", condition: playbackTabHost.fittingSize.width >= 0)
+        let audioTabHost = NSHostingView(rootView: AudioSettingsTab())
+        assertTest("AudioSettingsTab Mount Operable", condition: audioTabHost.fittingSize.width >= 0)
+        let subtitlesTabHost = NSHostingView(rootView: SubtitlesSettingsTab())
+        assertTest("SubtitlesSettingsTab Mount Operable", condition: subtitlesTabHost.fittingSize.width >= 0)
+        let aboutTabHost = NSHostingView(rootView: AboutSettingsTab())
+        assertTest("AboutSettingsTab Mount Operable", condition: aboutTabHost.fittingSize.width >= 0)
+
         // Summary
         logs.append("\n==========================================")
         logs.append("RESULTS: \(passed) PASSED, \(failed) FAILED")

@@ -60,24 +60,25 @@ public struct FramesCommandPalette: View {
                             engine.toggleMute()
                         }
 
+                        let skipInterval = SettingsManager.shared.defaultSkipInterval
                         CommandItem(
-                            "Skip Forward 5s",
-                            id: "playback-skip-forward-5",
-                            icon: "goforward.5",
+                            "Skip Forward \(skipInterval)s",
+                            id: "playback-skip-forward-\(skipInterval)",
+                            icon: "goforward.\(skipInterval)",
                             shortcut: "→",
                             keywords: ["forward", "seek", "skip", "fast"]
                         ) {
-                            engine.skip(seconds: 5)
+                            engine.skip(seconds: Double(skipInterval))
                         }
 
                         CommandItem(
-                            "Skip Backward 5s",
-                            id: "playback-skip-backward-5",
-                            icon: "gobackward.5",
+                            "Skip Backward \(skipInterval)s",
+                            id: "playback-skip-backward-\(skipInterval)",
+                            icon: "gobackward.\(skipInterval)",
                             shortcut: "←",
                             keywords: ["rewind", "seek", "skip", "back"]
                         ) {
-                            engine.skip(seconds: -5)
+                            engine.skip(seconds: -Double(skipInterval))
                         }
 
                         CommandItem(
@@ -341,6 +342,17 @@ public struct FramesCommandPalette: View {
 
                 // MARK: - 5. Settings & Appearance Context
                 CommandGroup(heading: "Settings & Appearance") {
+                    CommandItem(
+                        "Open Settings...",
+                        id: "open-settings",
+                        subtitle: "Preferences & System Configuration",
+                        icon: "gearshape",
+                        shortcut: "⌘,",
+                        keywords: ["settings", "preferences", "config", "options", "setup", "controls"]
+                    ) {
+                        SettingsManager.shared.openSettings()
+                    }
+
                     CommandItem(
                         "Dark Mode",
                         id: "theme-dark",

@@ -59,7 +59,11 @@ public final class VideoPlayerEngine {
     public var selectedSubtitleTrack: SubtitleTrack = SubtitleTrack.off
     public var activeSubtitleText: String = ""
     public var subtitleDelay: Double = 0.0 // in seconds
-    public var subtitleFontSize: CGFloat = 22.0
+    public var subtitleFontSize: CGFloat = CGFloat(SettingsManager.shared.subtitleFontSize) {
+        didSet {
+            SettingsManager.shared.subtitleFontSize = Double(subtitleFontSize)
+        }
+    }
 
     // MARK: - UI Interaction State
     public var isScrubbing: Bool = false
@@ -109,6 +113,7 @@ public final class VideoPlayerEngine {
     }
 
     public init() {
+        self.subtitleFontSize = CGFloat(SettingsManager.shared.subtitleFontSize)
         setupTimeObserver()
         NotificationCenter.default.addObserver(
             forName: NSApplication.willTerminateNotification,
@@ -216,6 +221,7 @@ public final class VideoPlayerEngine {
 
         // Apple Silicon low-latency audio/video configuration
         playerItem.audioTimePitchAlgorithm = .timeDomain
+        playerItem.isAudioSpatializationAllowed = SettingsManager.shared.spatialAudioEnabled
 
         observePlayerItem(playerItem)
         player.replaceCurrentItem(with: playerItem)
@@ -519,6 +525,30 @@ public final class VideoPlayerEngine {
         }
     }
 
+    /// Selects the preferred audio track matching SettingsManager.shared.defaultAudioLanguage
+    public func findPreferredAudioTrack(in tracks: [AudioTrack]) -> AudioTrack? {
+        guard !tracks.isEmpty else { return nil }
+        let pref = SettingsManager.shared.defaultAudioLanguage
+        if pref == "System" {
+            let sysLang = Locale.current.language.languageCode?.identifier ?? "en"
+            let sysName = LanguageHelper.displayName(for: sysLang).lowercased()
+            return tracks.first { track in
+                let langName = LanguageHelper.displayName(for: track.languageCode).lowercased()
+                return langName == sysName || track.languageCode?.lowercased() == sysLang
+            }
+        } else if pref == "Original" {
+            return tracks.first
+        } else {
+            let prefLower = pref.lowercased()
+            return tracks.first { track in
+                let langName = LanguageHelper.displayName(for: track.languageCode).lowercased()
+                return langName == prefLower ||
+                       (track.languageCode?.lowercased() == prefLower) ||
+                       track.title.lowercased().contains(prefLower)
+            }
+        }
+    }
+
     // MARK: - Internal Observers & Engine Logic
     private var lastRecordedProgressTime: CFAbsoluteTime = 0
 
@@ -677,7 +707,12 @@ public final class VideoPlayerEngine {
                 ))
             }
             self.availableAudioTracks = audios
-            if let defaultTrack = self.nativePipeline.demuxedAudioTracks.first(where: { $0.isDefault }) ?? self.nativePipeline.demuxedAudioTracks.first {
+            if let preferred = self.findPreferredAudioTrack(in: audios) {
+                self.selectedAudioTrack = preferred
+                if let tNum = preferred.trackNumber {
+                    self.nativePipeline.selectAudioTrack(trackNumber: tNum)
+                }
+            } else if let defaultTrack = self.nativePipeline.demuxedAudioTracks.first(where: { $0.isDefault }) ?? self.nativePipeline.demuxedAudioTracks.first {
                 self.selectedAudioTrack = audios.first(where: { $0.trackNumber == defaultTrack.trackNumber }) ?? audios.first
             } else {
                 self.selectedAudioTrack = audios.first
@@ -898,7 +933,12 @@ public final class VideoPlayerEngine {
 
         guard loadGeneration == generation, player.currentItem === item else { return }
         self.availableAudioTracks = audios
-        self.selectedAudioTrack = detectedSelectedAudio ?? audios.first
+        if let preferred = self.findPreferredAudioTrack(in: audios) {
+            self.selectedAudioTrack = preferred
+            self.selectAudioTrack(preferred)
+        } else {
+            self.selectedAudioTrack = detectedSelectedAudio ?? audios.first
+        }
 
         // Extract legible (subtitles) tracks
         var subs: [SubtitleTrack] = [SubtitleTrack.off]

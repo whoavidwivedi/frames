@@ -30,7 +30,7 @@ public struct HardwareStatsPanel: View {
                 row(label: "Chip", value: metrics.chipName)
                 row(label: "Architecture", value: "\(metrics.activeCores) cores (ARM64)")
                 row(label: "Memory Footprint", value: String(format: "%.1f MB", metrics.memoryFootprintMB))
-                row(label: "Decoder Engine", value: "VideoToolbox (HW)")
+                row(label: "Decoder Engine", value: SettingsManager.shared.hardwareAccelerationEnabled ? "VideoToolbox (HW)" : "Software (CPU)")
             }
 
             Rectangle()

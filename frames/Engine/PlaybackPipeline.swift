@@ -274,7 +274,26 @@ public final class PlaybackPipeline: ObservableObject {
             self.videoDecoder = decoder
             
             // 3. Select primary audio track & setup CoreAudio engine
-            let defaultAudio = d.audioTracks.first(where: { $0.isDefault }) ?? d.audioTracks.first
+            let pref = SettingsManager.shared.defaultAudioLanguage
+            let preferredAudio: DemuxedTrack? = {
+                if pref == "System" {
+                    let sysLang = Locale.current.language.languageCode?.identifier ?? "en"
+                    let sysName = LanguageHelper.displayName(for: sysLang).lowercased()
+                    return d.audioTracks.first {
+                        let name = LanguageHelper.displayName(for: $0.language).lowercased()
+                        return name == sysName || $0.language?.lowercased() == sysLang
+                    }
+                } else if pref == "Original" {
+                    return d.audioTracks.first(where: { $0.isDefault }) ?? d.audioTracks.first
+                } else {
+                    let prefLower = pref.lowercased()
+                    return d.audioTracks.first {
+                        let name = LanguageHelper.displayName(for: $0.language).lowercased()
+                        return name == prefLower || $0.language?.lowercased() == prefLower || ($0.name?.lowercased().contains(prefLower) ?? false)
+                    }
+                }
+            }()
+            let defaultAudio = preferredAudio ?? (d.audioTracks.first(where: { $0.isDefault }) ?? d.audioTracks.first)
             if let aTrack = defaultAudio {
                 let bridge = AudioEngineBridge(track: aTrack)
                 self.audioEngine = bridge

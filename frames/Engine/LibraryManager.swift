@@ -129,6 +129,7 @@ public final class LibraryManager {
     private var activeScanCount = 0
 
     public init() {
+        self.viewMode = SettingsManager.shared.defaultViewMode
         loadPersistedState()
     }
 
@@ -340,6 +341,20 @@ public final class LibraryManager {
         if var entry = persistedProgress[url.path] {
             entry["progress"] = 0.0
             persistedProgress[url.path] = entry
+        }
+        savePersistedState()
+    }
+
+    /// Clears watch history and resets recent videos
+    public func clearRecentAndHistory() {
+        for i in 0..<videos.count {
+            videos[i].lastPlayedDate = nil
+            videos[i].progress = 0.0
+        }
+        persistedProgress.removeAll()
+        UserDefaults.standard.removeObject(forKey: progressKey)
+        if selectedCategory == .recent {
+            selectedCategory = .allVideos
         }
         savePersistedState()
     }

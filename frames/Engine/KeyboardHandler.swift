@@ -29,6 +29,13 @@ public final class KeyboardHandler {
                     return nil
                 }
 
+                if event.modifierFlags.contains(.command) && !event.modifierFlags.contains(.control) && !event.modifierFlags.contains(.option) && event.keyCode == 43 {
+                    Task { @MainActor in
+                        SettingsManager.shared.openSettings()
+                    }
+                    return nil
+                }
+
                 if event.keyCode == 53 {
                     Task { @MainActor in
                         NSApp.keyWindow?.makeFirstResponder(nil)
@@ -120,6 +127,14 @@ public final class KeyboardHandler {
                 return nil
             }
 
+            // Settings: Command + , (⌘,)
+            if isCommand && !isControl && !isOption && keyCode == 43 {
+                Task { @MainActor in
+                    SettingsManager.shared.openSettings()
+                }
+                return nil
+            }
+
             // If any other Command or Control combination is pressed, let macOS handle it natively (e.g. ⌘Q, ⌘H, ⌥⌘H, ⌘O, ⌘`)
             if isCommand || isControl {
                 return event
@@ -137,12 +152,14 @@ public final class KeyboardHandler {
                 return nil
 
             case 123: // Left Arrow
-                let delta = isShift ? -30.0 : -5.0
+                let interval = Double(SettingsManager.shared.defaultSkipInterval)
+                let delta = isShift ? -30.0 : -interval
                 Task { @MainActor in engine.skip(seconds: delta) }
                 return nil
 
             case 124: // Right Arrow
-                let delta = isShift ? 30.0 : 5.0
+                let interval = Double(SettingsManager.shared.defaultSkipInterval)
+                let delta = isShift ? 30.0 : interval
                 Task { @MainActor in engine.skip(seconds: delta) }
                 return nil
 
