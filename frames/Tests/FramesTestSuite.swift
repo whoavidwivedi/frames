@@ -4,6 +4,7 @@ import SwiftUI
 import AVFoundation
 import AVFAudio
 
+@MainActor
 public enum FramesTestSuite {
     public static func runAllTests() -> (passed: Int, failed: Int, logs: [String]) {
         var passed = 0
