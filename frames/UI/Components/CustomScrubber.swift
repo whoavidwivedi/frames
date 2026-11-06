@@ -7,6 +7,7 @@ public struct CustomScrubber: View {
     @State private var isHovering: Bool = false
     @State private var hoverLocationX: CGFloat = 0
     @State private var hoverTime: Double = 0
+    @State private var wasPlayingBeforeScrub: Bool = false
 
     public init(engine: VideoPlayerEngine) {
         self.engine = engine
@@ -42,8 +43,17 @@ public struct CustomScrubber: View {
                     in: 0...1,
                     onEditingChanged: { editing in
                         engine.isScrubbing = editing
-                        if !editing {
-                            engine.seek(to: scrubProgress * duration, exact: true)
+                        if editing {
+                            wasPlayingBeforeScrub = engine.isPlaying
+                            if engine.isPlaying {
+                                engine.pause()
+                            }
+                        } else {
+                            // The scrub gesture already positioned playback; only resume.
+                            engine.endScrubbing()
+                            if wasPlayingBeforeScrub {
+                                engine.play()
+                            }
                         }
                     }
                 )
@@ -80,7 +90,10 @@ public struct CustomScrubber: View {
                             )
                             .offset(x: max(8, min(totalWidth - 48, hoverLocationX - 18)), y: -24)
                             .allowsHitTesting(false)
-                            .transition(.opacity.combined(with: .scale(scale: 0.92)))
+                            .transition(.asymmetric(
+                                insertion: .move(edge: .bottom).combined(with: .opacity),
+                                removal: .opacity
+                            ))
                     }
                 }
                 .animation(.fluidQuick, value: isHovering)

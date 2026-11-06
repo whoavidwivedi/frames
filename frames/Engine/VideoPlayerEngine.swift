@@ -336,6 +336,15 @@ public final class VideoPlayerEngine {
         return currentTime
     }
 
+    /// Ends a scrub gesture. The native pipeline resumes from the already
+    /// displayed frame instead of seeking twice (which caused a visible restart).
+    public func endScrubbing() {
+        isScrubbing = false
+        if isNativePipelineActive {
+            nativePipeline.endScrubbing()
+        }
+    }
+
     public func seek(to seconds: Double, exact: Bool = false) {
         hasEnded = false
         let clamped = max(0.0, min(seconds, duration > 0 ? duration : seconds))

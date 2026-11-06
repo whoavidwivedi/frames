@@ -1002,6 +1002,20 @@ public enum FramesTestSuite {
                 }
                 assertTest("Live Pipeline Precision Scrub Delivery", condition: deliveryFlag.value)
 
+                // Releasing the scrubber must continue from the displayed frame without a second seek
+                pipeline.endScrubbing()
+                pipeline.play()
+                var resumedFrameDelivered = false
+                let resumeDeadline = Date().addingTimeInterval(2.0)
+                while !resumedFrameDelivered && Date() < resumeDeadline {
+                    RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
+                    if pipeline.nextFrameForDisplay() != nil {
+                        resumedFrameDelivered = true
+                    }
+                }
+                assertTest("Live Pipeline Seamless Scrub Release Handoff", condition: resumedFrameDelivered)
+                pipeline.pause()
+
                 // Audio seek pre-roll drop guard verification
                 if let aTrack = demuxer.audioTracks.first, let aBridge = AudioEngineBridge(track: aTrack) {
                     aBridge.seek(to: 30.0)

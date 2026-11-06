@@ -46,9 +46,10 @@ nonisolated private final class FrameQueue: @unchecked Sendable {
             frames.append(frame)
         }
 
-        // Asynchronous decoder callbacks can overshoot the feeder's headroom check.
-        if frames.count > maxCount {
-            frames.removeFirst(frames.count - maxCount)
+        // Discard from tail only if significantly beyond capacity to preserve upcoming display frames
+        let hardLimit = maxCount + 16
+        if frames.count > hardLimit {
+            frames.removeLast(frames.count - hardLimit)
         }
     }
     
@@ -223,13 +224,18 @@ public final class PlaybackPipeline: ObservableObject {
     
     // Decoded Frame Ring Buffer & Scrub Frame Cache
     private let frameQueue = FrameQueue(maxCount: 18)
-    private let scrubCache = ScrubFrameCache(maxCapacity: 16)
+    private let scrubCache = ScrubFrameCache(maxCapacity: 96)
     private let packetChunkBuffer = PacketChunkBuffer(maxCapacity: 256)
     private var lastReportedUIClock: Double = -1.0
     
     // Concurrency & Feeder Task
     private let seekToken = SeekToken()
     private var feederTask: Task<Void, Never>?
+    private var scrubTask: Task<Void, Never>?
+    private var pendingScrubTarget: Double?
+    private var isScrubbingActive: Bool = false
+    private var scrubGeneration = 0
+    private var scrubResumeOnExit = false
     private var audioSwitchTask: Task<Void, Never>?
     private var pendingAudioTrackNumber: UInt64?
     private var isPlaying = false
@@ -252,6 +258,7 @@ public final class PlaybackPipeline: ObservableObject {
     
     deinit {
         feederTask?.cancel()
+        scrubTask?.cancel()
         audioEngine?.stop()
         videoDecoder?.invalidate()
     }
@@ -371,17 +378,17 @@ public final class PlaybackPipeline: ObservableObject {
                     return
                 }
 
-            newEngine.setVolume(previousVolume)
+                newEngine.setVolume(previousVolume)
                 let resumeTime = self.currentPlaybackTime()
                 let oldEngine = self.audioEngine
-            self.audioEngine = newEngine
-            self.activeAudioTrackNumber = trackNumber
+                self.audioEngine = newEngine
+                self.activeAudioTrackNumber = trackNumber
                 self.routing.updateAudio(engine: newEngine, trackNumber: trackNumber)
                 self.resetClockTracker()
                 newEngine.seek(to: resumeTime)
                 if self.isPlaying {
-                newEngine.play()
-            }
+                    newEngine.play()
+                }
                 if let oldEngine {
                     Task.detached(priority: .utility) {
                         oldEngine.stop()
@@ -415,6 +422,13 @@ public final class PlaybackPipeline: ObservableObject {
         
         let gen = seekToken.next()
         
+        isScrubbingActive = false
+        pendingScrubTarget = nil
+        // A scrub worker may still own the demuxer for a few milliseconds. Let it
+        // finish and hand off to the feeder instead of racing it.
+        let scrubInFlight = scrubTask != nil
+        scrubResumeOnExit = scrubInFlight
+        
         isPlaying = true
         playbackStartTime = CACurrentMediaTime()
         playbackStartPts = currentTime
@@ -422,7 +436,9 @@ public final class PlaybackPipeline: ObservableObject {
         audioEngine?.play()
         transition(to: .playing)
         
-        startFeederTask(demuxer: demuxer, targetSeekTime: nil, generation: gen)
+        if !scrubInFlight {
+            startFeederTask(demuxer: demuxer, targetSeekTime: nil, generation: gen)
+        }
     }
     
     public func pause() {
@@ -430,6 +446,11 @@ public final class PlaybackPipeline: ObservableObject {
         
         let finalTime = currentPlaybackTime()
         isPlaying = false
+        isScrubbingActive = false
+        pendingScrubTarget = nil
+        scrubResumeOnExit = false
+        scrubTask?.cancel()
+        scrubTask = nil
         currentTime = min(duration > 0 ? duration : Double.infinity, finalTime)
         audioEngine?.pause()
         feederTask?.cancel()
@@ -439,6 +460,11 @@ public final class PlaybackPipeline: ObservableObject {
     
     public func stop() {
         isPlaying = false
+        isScrubbingActive = false
+        pendingScrubTarget = nil
+        scrubResumeOnExit = false
+        scrubTask?.cancel()
+        scrubTask = nil
         audioSwitchTask?.cancel()
         audioSwitchTask = nil
         pendingAudioTrackNumber = nil
@@ -466,14 +492,32 @@ public final class PlaybackPipeline: ObservableObject {
         
         let gen = seekToken.next()
         
-        // 1. Instant scrub cache check: if frame was recently decoded, display immediately
-        if isScrubbing, let cached = scrubCache.getFrame(forTargetPTS: time, tolerance: 0.12) {
+        if isScrubbing {
+            isScrubbingActive = true
+            scrubResumeOnExit = false
+            pendingScrubTarget = time
             currentTime = time
             onTimeUpdate?(time)
-            renderer?.updateFrame(cached.buffer)
-            if !isPlaying { return }
+
+            // 1. Instant scrub cache check: if frame was recently decoded, display immediately
+            if let cached = scrubCache.getFrame(forTargetPTS: time, tolerance: 0.50) ?? scrubCache.nearestFrame(to: time) {
+                renderer?.updateFrame(cached.buffer)
+            }
+
+            // 2. Continuous dedicated scrubbing loop (coalesces high-frequency slider drag events)
+            if scrubTask == nil {
+                startScrubTask(demuxer: demuxer)
+            }
+            return
         }
-        
+
+        // Discrete timeline click or explicit seek
+        isScrubbingActive = false
+        pendingScrubTarget = nil
+        scrubResumeOnExit = false
+        scrubTask?.cancel()
+        scrubTask = nil
+
         feederTask?.cancel()
         feederTask = nil
         
@@ -482,7 +526,7 @@ public final class PlaybackPipeline: ObservableObject {
         videoDecoder?.flush()
         audioEngine?.seek(to: time)
         
-        // $O(\log N)$ binary search seek in Matroska index (prioritizing video keyframe cues)
+        // O(log N) binary search seek in Matroska index (prioritizing video keyframe cues)
         lastReportedUIClock = -1.0
         resetClockTracker()
         demuxer.seek(to: time)
@@ -490,9 +534,137 @@ public final class PlaybackPipeline: ObservableObject {
         playbackStartPts = time
         currentTime = time
         onTimeUpdate?(time)
+
+        if let cached = scrubCache.getFrame(forTargetPTS: time, tolerance: 0.35) {
+            renderer?.updateFrame(cached.buffer)
+        }
         
         // Immediately restart feeder loop (continuous if playing, precision GOP preroll if paused/scrubbing)
         startFeederTask(demuxer: demuxer, targetSeekTime: isPlaying ? nil : time, generation: gen)
+    }
+
+    /// Ends a scrub gesture without seeking a second time. The scrub worker is
+    /// already positioned at the displayed frame; playback hands off from there.
+    public func endScrubbing() {
+        guard isScrubbingActive || scrubTask != nil else { return }
+        isScrubbingActive = false
+        pendingScrubTarget = nil
+        scrubResumeOnExit = true
+
+        // Audio was paused before the gesture started; line it up with the frame on screen.
+        audioEngine?.seek(to: currentTime)
+        resetClockTracker()
+        playbackStartTime = CACurrentMediaTime()
+        playbackStartPts = currentTime
+
+        if scrubTask == nil {
+            scrubResumeOnExit = false
+        }
+    }
+
+    private func scrubTaskDidExit(generation: Int) {
+        guard generation == scrubGeneration else { return }
+        scrubTask = nil
+        guard scrubResumeOnExit else { return }
+        scrubResumeOnExit = false
+        guard isPlaying, let demuxer = demuxer else { return }
+        frameQueue.reset(forSeek: currentTime)
+        startFeederTask(demuxer: demuxer, targetSeekTime: nil, generation: seekToken.next())
+    }
+
+    // MARK: - Dedicated Scrubbing Worker (Ultra-Smooth Apple Silicon Native Scrub)
+
+    private func startScrubTask(demuxer: MatroskaDemuxer) {
+        scrubTask?.cancel()
+        scrubGeneration &+= 1
+        let generation = scrubGeneration
+        
+        let decoder = self.videoDecoder
+        let cache = self.scrubCache
+        let renderer = self.renderer
+        
+        scrubTask = Task.detached(priority: .userInitiated) { [weak self, weak demuxer] in
+            guard let demuxer else { return }
+            
+            while !Task.isCancelled {
+                let target = await MainActor.run { () -> Double? in
+                    guard let self, self.isScrubbingActive else { return nil }
+                    let t = self.pendingScrubTarget
+                    self.pendingScrubTarget = nil
+                    return t
+                }
+                
+                guard let targetPTS = target else {
+                    let stillActive = await MainActor.run { self?.isScrubbingActive ?? false }
+                    if !stillActive { break }
+                    try? await Task.sleep(nanoseconds: 8_000_000) // 8ms poll for next scrub movement
+                    continue
+                }
+                
+                // Jump directly to the nearest keyframe cluster in O(log N) time
+                demuxer.seek(to: targetPTS)
+                
+                guard let dec = decoder else { continue }
+                
+                var packetsRead = 0
+                var foundKeyframe = false
+                var keyframePTS: Double = targetPTS
+                
+                // Read until first keyframe in cluster
+                while packetsRead < 45 && !Task.isCancelled {
+                    guard let packet = try? demuxer.nextPacket() else { break }
+                    packetsRead += 1
+                    
+                    if packet.trackNumber == dec.track.trackNumber {
+                        if packet.isKeyframe {
+                            keyframePTS = packet.pts
+                            _ = dec.decode(packet: packet, doNotOutput: false)
+                            foundKeyframe = true
+                            break
+                        }
+                    }
+                }
+                
+                guard foundKeyframe, !Task.isCancelled else { continue }
+                dec.waitForFrames()
+                
+                // Deliver keyframe to Metal 3 canvas immediately (120fps direct presentation)
+                if let matched = cache.getFrame(forTargetPTS: keyframePTS, tolerance: 1.0) ?? cache.nearestFrame(to: targetPTS) {
+                    await MainActor.run {
+                        renderer?.updateFrame(matched.buffer)
+                    }
+                }
+                
+                // If cursor paused briefly on this position, progressively refine up to targetPTS (max 12 frames)
+                let hasNewTarget = await MainActor.run { self?.pendingScrubTarget != nil || !(self?.isScrubbingActive ?? false) }
+                if !hasNewTarget && targetPTS > keyframePTS + 0.04 {
+                    var refinedPackets = 0
+                    while refinedPackets < 15 && !Task.isCancelled {
+                        let hasInterrupted = await MainActor.run {
+                            self?.pendingScrubTarget != nil || !(self?.isScrubbingActive ?? false)
+                        }
+                        if hasInterrupted { break }
+                        guard let packet = try? demuxer.nextPacket() else { break }
+                        refinedPackets += 1
+                        if packet.trackNumber == dec.track.trackNumber {
+                            _ = dec.decode(packet: packet, doNotOutput: false)
+                            if packet.pts >= targetPTS + 0.08 { break }
+                        }
+                    }
+                    dec.waitForFrames()
+                    if let exactMatched = cache.getFrame(forTargetPTS: targetPTS, tolerance: 0.35) {
+                        await MainActor.run {
+                            renderer?.updateFrame(exactMatched.buffer)
+                        }
+                    }
+                }
+                
+                await Task.yield()
+            }
+            await MainActor.run { [weak self] in
+                self?.scrubTaskDidExit(generation: generation)
+            }
+        }
     }
     
     public func setVolume(_ volume: Float) {
@@ -510,8 +682,8 @@ public final class PlaybackPipeline: ObservableObject {
             // Throttle UI property changes and notifications to ~20Hz (every 50ms) to avoid SwiftUI invalidation floods
             if abs(masterClock - lastReportedUIClock) >= 0.048 {
                 lastReportedUIClock = masterClock
-            currentTime = masterClock
-            onTimeUpdate?(masterClock)
+                currentTime = masterClock
+                onTimeUpdate?(masterClock)
             }
 
             if duration > 0 && masterClock >= duration {
@@ -521,29 +693,32 @@ public final class PlaybackPipeline: ObservableObject {
                 feederTask = nil
                 transition(to: .paused)
                 onPlaybackEnded?()
+                return nil
             }
         } else {
             masterClock = currentTime
         }
         
-        guard let next = frameQueue.dequeueNext(forMasterClock: masterClock) else {
+        guard let (frame, _) = frameQueue.dequeueNext(forMasterClock: masterClock) else {
             return nil
         }
         
-        return next.buffer
+        return frame
     }
-    
-    // MARK: - Clock Synchronization
 
-    /// Media clock used for frame delivery. The audio hardware clock is authoritative
-    /// while it advances; a stalled clock (failed/unsupported stream switch) falls back
-    /// to monotonic wall time so video and the timeline can never freeze.
+    private func resetClockTracker() {
+        lastAudioClock = -1
+        lastAudioClockDate = 0
+        audioClockStalled = false
+    }
+
+    /// Master clock synchronization: Audio Hardware DAC clock takes precedence, with high-precision monotonic clock fallback.
     private func currentPlaybackTime() -> Double {
         guard isPlaying else { return currentTime }
 
         let now = CACurrentMediaTime()
         let wallClock = playbackStartPts + (now - playbackStartTime) * Double(playbackRate)
-        let audioClock = audioEngine?.currentMasterTime ?? -1
+        let audioClock = routing.currentAudioEngine?.currentMasterTime ?? -1
 
         guard audioClock > 0.05 else { return wallClock }
         // Once the hardware clock stalls it is not trustworthy for this playback session;
@@ -567,14 +742,8 @@ public final class PlaybackPipeline: ObservableObject {
         }
         return audioClock
     }
-
-    private func resetClockTracker() {
-        lastAudioClock = -1
-        lastAudioClockDate = CACurrentMediaTime()
-        audioClockStalled = false
-    }
-
-    // MARK: - Background Feeder Loop
+    
+    // MARK: - Dedicated Feeder Task
     
     private func startFeederTask(demuxer: MatroskaDemuxer, targetSeekTime: Double? = nil, generation: Int) {
         feederTask?.cancel()
@@ -602,21 +771,27 @@ public final class PlaybackPipeline: ObservableObject {
                 var packetsRead = 0
                 let maxPackets = 450
                 var targetFrameFound = false
+                var videoKeyframesDecoded = 0
                 
                 while isCurrentGen() && !targetFrameFound && packetsRead < maxPackets {
                     guard let packet = try? demuxer.nextPacket() else { break }
                     packetsRead += 1
                     
                     if let dec = decoder, packet.trackNumber == dec.track.trackNumber {
+                        if packet.isKeyframe {
+                            videoKeyframesDecoded += 1
+                            packetBuffer.recordGOP(keyframePTS: packet.pts, fileOffset: packet.fileOffset)
+                            if videoKeyframesDecoded > 1 {
+                                targetFrameFound = true
+                                break
+                            }
+                        }
+
                         // Decode frame normally so VideoToolbox ASIC populates reference frames and decoded image
                         _ = dec.decode(packet: packet, doNotOutput: false)
                         
-                        if packet.isKeyframe {
-                            packetBuffer.recordGOP(keyframePTS: packet.pts, fileOffset: packet.fileOffset)
-                        }
-                        
                         // Continue decoding until we pass the target PTS with sufficient margin to resolve any B-frame forward references
-                        if packet.pts >= targetPTS + 0.12 || (packet.isKeyframe && packetsRead > 1) {
+                        if packet.pts >= targetPTS + 0.12 {
                             targetFrameFound = true
                         }
                     }
@@ -627,41 +802,52 @@ public final class PlaybackPipeline: ObservableObject {
                 
                 // Select frame closest to targetPTS from scrub cache or frameQueue
                 if let matched = cache.getFrame(forTargetPTS: targetPTS, tolerance: 0.35) {
-                    renderer?.updateFrame(matched.buffer)
+                    await MainActor.run {
+                        renderer?.updateFrame(matched.buffer)
+                    }
                 } else if let candidate = q.frameClosest(to: targetPTS) {
                     cache.insert(buffer: candidate.buffer, pts: candidate.pts)
-                    renderer?.updateFrame(candidate.buffer)
+                    await MainActor.run {
+                        renderer?.updateFrame(candidate.buffer)
+                    }
                 } else if let nearest = cache.nearestFrame(to: targetPTS) {
-                    renderer?.updateFrame(nearest.buffer)
+                    await MainActor.run {
+                        renderer?.updateFrame(nearest.buffer)
+                    }
                 } else if let first = q.firstFrame() {
-                    renderer?.updateFrame(first)
+                    await MainActor.run {
+                        renderer?.updateFrame(first)
+                    }
                 }
                 return
             }
             
             // Mode B: Continuous Streaming Playback with Chunked Packet Prefetching
             while isCurrentGen() {
-                // Throttle feeding if decoded frame queue has sufficient headroom (20ms sleep reduces CPU wakeups)
-                if q.count >= q.maxCount {
-                    try? await Task.sleep(nanoseconds: 20_000_000) // 20ms sleep
+                let videoBuffered = q.count >= q.maxCount
+                let audioHasHeadroom = routing.currentAudioEngine?.hasBufferHeadroom ?? true
+                let audioBuffered = !audioHasHeadroom
+
+                // Throttle feeding if decoded frame queue and audio buffer have sufficient headroom
+                if videoBuffered && audioBuffered {
+                    try? await Task.sleep(nanoseconds: 15_000_000) // 15ms sleep
                     continue
                 }
-                
-                // Prefetch packet chunk if buffer needs replenishment
-                if packetBuffer.hasHeadroom {
-                    if let chunk = try? demuxer.nextPacketChunk(maxPackets: 24), !chunk.isEmpty {
-                        for p in chunk where p.isKeyframe && p.trackNumber == decoder?.track.trackNumber {
-                            packetBuffer.recordGOP(keyframePTS: p.pts, fileOffset: p.fileOffset)
-                        }
-                        packetBuffer.enqueue(packets: chunk)
-                    }
+
+                // If video queue is full, throttle down slightly to allow audio replenishment without CPU spin
+                if videoBuffered {
+                    try? await Task.sleep(nanoseconds: 5_000_000) // 5ms sleep
                 }
-                
-                // Dequeue next packet from chunk buffer or directly from demuxer
-                guard let packet = packetBuffer.dequeue() ?? (try? demuxer.nextPacket()) else {
-                    break
+
+                guard isCurrentGen() else { break }
+
+                // Fetch next demuxed packet from container
+                guard let packet = try? demuxer.nextPacket() else {
+                    // Container end-of-file reached
+                    try? await Task.sleep(nanoseconds: 30_000_000)
+                    continue
                 }
-                
+
                 // Route packet to hardware video decoder or native audio translation engine
                 let activeAudio = routing.currentAudioEngine
                 let activeAudioNum = routing.activeAudioTrackNumber
