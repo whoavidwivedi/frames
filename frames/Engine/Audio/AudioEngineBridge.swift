@@ -61,11 +61,7 @@ nonisolated public final class AudioEngineBridge: @unchecked Sendable {
     
     private func setupAudioEngine() {
         audioEngine.attach(playerNode)
-        if #available(macOS 27.0, *) {
-            try? audioEngine.connectNode(playerNode, to: audioEngine.mainMixerNode, format: outputFormat)
-        } else {
-            audioEngine.connect(playerNode, to: audioEngine.mainMixerNode, format: outputFormat)
-        }
+        audioEngine.connect(playerNode, to: audioEngine.mainMixerNode, format: outputFormat)
         playerNode.volume = 1.0
         audioEngine.mainMixerNode.outputVolume = 1.0
         
@@ -86,11 +82,7 @@ nonisolated public final class AudioEngineBridge: @unchecked Sendable {
     }
     
     private func startPlayerNode() {
-        if #available(macOS 27.0, *) {
-            try? playerNode.playAudio()
-        } else {
-            playerNode.play()
-        }
+        playerNode.play()
     }
     
     // MARK: - Playback Controls
