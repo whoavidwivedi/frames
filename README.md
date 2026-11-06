@@ -15,7 +15,7 @@
   <img src="https://img.shields.io/badge/Apple%20Silicon-ARM64-black?style=flat-square&logo=apple" alt="Apple Silicon ARM64">
   <img src="https://img.shields.io/badge/Language-Swift%206-black?style=flat-square&logo=swift" alt="Swift 6">
   <img src="https://img.shields.io/badge/Design-shadcn%20base--luma%20%2F%20neutral-black?style=flat-square" alt="shadcn base-luma / neutral">
-  <img src="https://img.shields.io/badge/Tests-426%20Passed%20(0%20warnings)-black?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-436%20Passed%20(0%20warnings)-black?style=flat-square" alt="Tests">
   <a href="https://github.com/whoavidwivedi/frames/pulls"><img src="https://img.shields.io/badge/PRs-Welcome-black?style=flat-square" alt="PRs Welcome"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/whoavidwivedi/frames?style=flat-square&color=black" alt="License: MIT"></a>
 </p>
@@ -157,9 +157,9 @@ build/DerivedData/Build/Products/Debug/frames.app/Contents/MacOS/frames --run-te
   ✔ PASS: WebVTT Timing
   ✔ PASS: WebVTT Text
 
-... (31 comprehensive test suites) ...
+... (34 comprehensive test suites) ...
 
-[30] Testing Timestamp Jump Parser & Expression Engine...
+[33] Testing Timestamp Jump Parser & Expression Engine...
   ✔ PASS: TimeJumpParser MM:SS Parse (1:23 -> 83s)
   ✔ PASS: TimeJumpParser HH:MM:SS Parse (01:23:45 -> 5025s)
   ✔ PASS: TimeJumpParser Leading Colon (:45 -> 45s)
@@ -173,13 +173,13 @@ build/DerivedData/Build/Products/Debug/frames.app/Contents/MacOS/frames --run-te
   ✔ PASS: TimeJumpParser Invalid Input Rejected
   ✔ PASS: TimeJumpParser Empty Input Rejected
 
-[31] Testing High-Resolution Frame Capture Engine...
+[34] Testing High-Resolution Frame Capture Engine...
   ✔ PASS: FrameCaptureEngine Directory Creation
   ✔ PASS: FrameCaptureEngine Standard Filename Format
   ✔ PASS: FrameCaptureEngine File Persistence & Metadata
 
 ==========================================
-RESULTS: 426 PASSED, 0 FAILED
+RESULTS: 436 PASSED, 0 FAILED
 ==========================================
 ```
 

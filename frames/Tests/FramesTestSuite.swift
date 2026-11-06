@@ -96,8 +96,8 @@ public enum FramesTestSuite {
         assertTest("Display Refresh Rate Valid", condition: metrics.displayRefreshRate >= 50, "Display rate: \(metrics.displayRefreshRate) Hz")
         assertTest("Low Memory Footprint (< 200MB)", condition: metrics.memoryFootprintMB > 0 && metrics.memoryFootprintMB < 200, "Current RAM: \(metrics.memoryFootprintMB) MB")
 
-        // MARK: - 5. Monotonic Interpolation Math Tests
-        logs.append("\n[5] Testing Monotonic Time Interpolation...")
+        // MARK: - 6. Monotonic Interpolation Math Tests
+        logs.append("\n[6] Testing Monotonic Time Interpolation...")
         let startDate = Date()
         var prevTime: Double = 0.0
         var isStrictlyMonotonic = true
@@ -112,8 +112,8 @@ public enum FramesTestSuite {
         }
         assertTest("Time Interpolation Monotonicity (120fps Zero Jitter)", condition: isStrictlyMonotonic)
 
-        // MARK: - 6. Design System Tokens & Scrubber Math
-        logs.append("\n[6] Testing Shadcn base-luma/neutral Design Tokens & Scrubber Math...")
+        // MARK: - 7. Design System Tokens & Scrubber Math
+        logs.append("\n[7] Testing Shadcn base-luma/neutral Design Tokens & Scrubber Math...")
         assertTest("Shadcn Radius Scale (Sm=6, Md=8, Lg=10, Xl=14, 4xl=26)", condition:
             ShadcnTheme.radiusSm == 6 &&
             ShadcnTheme.radiusMd == 8 &&
@@ -155,8 +155,8 @@ public enum FramesTestSuite {
         let clampedSeekOverflow = min(max(0.0, 150.0), 120.0)
         assertTest("Scrubber Seek Overflow Clamp", condition: clampedSeekOverflow == 120.0)
 
-        // MARK: - 7. Subtitle Stress & Performance Benchmark
-        logs.append("\n[7] Testing Subtitle Parser Performance Benchmark (1,000 cues)...")
+        // MARK: - 8. Subtitle Stress & Performance Benchmark
+        logs.append("\n[8] Testing Subtitle Parser Performance Benchmark (1,000 cues)...")
         var largeSrt = ""
         for i in 1...1000 {
             let startSec = Double(i * 3)
@@ -184,8 +184,8 @@ public enum FramesTestSuite {
         let activeCue = parsedLargeCues.first(where: { testTargetTime >= $0.startTime && testTargetTime <= $0.endTime })
         assertTest("Active Cue Lookup at Time T", condition: activeCue != nil && activeCue?.text == "Performance test cue line #100")
 
-        // MARK: - 8. System Architecture & Memory Verification
-        logs.append("\n[8] Testing Apple Silicon Architecture & Unified Memory...")
+        // MARK: - 9. System Architecture & Memory Verification
+        logs.append("\n[9] Testing Apple Silicon Architecture & Unified Memory...")
         var sysInfo = utsname()
         uname(&sysInfo)
         let machineMirror = Mirror(reflecting: sysInfo.machine)
@@ -196,8 +196,8 @@ public enum FramesTestSuite {
         assertTest("ARM64 Architecture Verified", condition: machineIdentifier.contains("arm64"), "Machine: \(machineIdentifier)")
         assertTest("Memory Footprint Under 150MB", condition: metrics.memoryFootprintMB < 150.0, "\(String(format: "%.1f", metrics.memoryFootprintMB)) MB")
 
-        // MARK: - 9. Library & Dashboard Manager Tests
-        logs.append("\n[9] Testing Library & Dashboard Manager...")
+        // MARK: - 10. Library & Dashboard Manager Tests
+        logs.append("\n[10] Testing Library & Dashboard Manager...")
         let lib = LibraryManager()
         let testURL1 = URL(fileURLWithPath: "/tmp/sample_interstellar_4k.mp4")
         let testURL2 = URL(fileURLWithPath: "/tmp/sample_cyberpunk_teaser.mov")
@@ -466,8 +466,8 @@ public enum FramesTestSuite {
         let dashboardViewHost = NSHostingView(rootView: DashboardView(library: lib, onPlayURL: { _ in }))
         assertTest("DashboardView NSHostingView Mount", condition: dashboardViewHost.fittingSize.width >= 0)
 
-        // MARK: - 10. macOS Window Management Tests
-        logs.append("\n[10] Testing macOS Window Management & Fullscreen States...")
+        // MARK: - 11. macOS Window Management Tests
+        logs.append("\n[11] Testing macOS Window Management & Fullscreen States...")
         let wm = WindowManager.shared
         assertTest("WindowManager Instance Verified", condition: wm.isAnyFullscreen == (wm.isNativeFullscreen || wm.isWindowedFullscreen))
         assertTest("Default Fullscreen State Consistent", condition: wm.isAnyFullscreen == false || wm.isAnyFullscreen == true)
@@ -737,8 +737,8 @@ public enum FramesTestSuite {
         assertTest("Overlay Curve Initialized", condition: true)
         assertTest("Window Transition Curve Initialized", condition: true)
 
-        // MARK: - 11. Pure Native EBML & Matroska VINT Parser Tests
-        logs.append("\n[11] Testing EBML VINT & Matroska Parser...")
+        // MARK: - 12. Pure Native EBML & Matroska VINT Parser Tests
+        logs.append("\n[12] Testing EBML VINT & Matroska Parser...")
         let vint1: [UInt8] = [0x81]
         vint1.withUnsafeBytes { raw in
             if let id = EBMLVint.parseElementID(from: raw, offset: 0) {
@@ -768,8 +768,8 @@ public enum FramesTestSuite {
             assertTest("EBML Float32 (1.0)", condition: val == 1.0)
         }
 
-        // MARK: - 12. NAL Unit & Codec Parameter Tests
-        logs.append("\n[12] Testing NAL Parser & Codec Parameters...")
+        // MARK: - 13. NAL Unit & Codec Parameter Tests
+        logs.append("\n[13] Testing NAL Parser & Codec Parameters...")
         let annexBData = Data([
             0x00, 0x00, 0x00, 0x01, 0x67, 0x42, 0x00, 0x1F,
             0x00, 0x00, 0x01, 0x68, 0xCE, 0x3C, 0x80
@@ -800,8 +800,8 @@ public enum FramesTestSuite {
             assertTest("avcC Parsing", condition: false, "Failed to parse synthetic avcC")
         }
 
-        // MARK: - 13. Metal 3 Zero-Copy Hardware Presentation Tests
-        logs.append("\n[13] Testing Metal 3 Presentation Pipeline...")
+        // MARK: - 14. Metal 3 Zero-Copy Hardware Presentation Tests
+        logs.append("\n[14] Testing Metal 3 Presentation Pipeline...")
         if let renderer = MetalVideoRenderer() {
             assertTest("Metal Device Active", condition: !renderer.device.name.isEmpty)
             assertTest("Metal Command Queue Created", condition: renderer.commandQueue.device === renderer.device)
@@ -809,14 +809,14 @@ public enum FramesTestSuite {
             assertTest("Metal Renderer Allocation", condition: false, "Failed to create MetalVideoRenderer")
         }
 
-        // MARK: - 14. Native Playback Pipeline Tests
-        logs.append("\n[14] Testing Native Playback Pipeline Orchestrator...")
+        // MARK: - 15. Native Playback Pipeline Tests
+        logs.append("\n[15] Testing Native Playback Pipeline Orchestrator...")
         let pipeline = PlaybackPipeline()
         assertTest("Initial Pipeline State is Idle", condition: pipeline.state == .idle)
         assertTest("Initial Current Time is Zero", condition: pipeline.currentTime == 0.0)
 
-        // MARK: - 15. Native Audio Translation Engine Tests
-        logs.append("\n[15] Testing Native Audio Translation Engine...")
+        // MARK: - 16. Native Audio Translation Engine Tests
+        logs.append("\n[16] Testing Native Audio Translation Engine...")
         let dummyTrackEAC3 = DemuxedTrack(
             trackNumber: 2,
             trackUID: 2,
@@ -879,8 +879,8 @@ public enum FramesTestSuite {
             assertTest("PCM Decoder Initialization", condition: false)
         }
 
-        // MARK: - 16. Video Translation Layer & Repackaging Tests
-        logs.append("\n[16] Testing Video Translation Layer...")
+        // MARK: - 17. Video Translation Layer & Repackaging Tests
+        logs.append("\n[17] Testing Video Translation Layer...")
         let sampleAnnexB = Data([
             0x00, 0x00, 0x00, 0x01, 0x65, 0x88, 0x84,
             0x00, 0x00, 0x01, 0x68, 0xCE
@@ -897,8 +897,8 @@ public enum FramesTestSuite {
         let nonAnnexB = Data([0x00, 0x00, 0x04, 0x1A, 0x65])
         assertTest("Non Annex-B Negative Guard", condition: !NALParser.isAnnexB(nonAnnexB))
 
-        // MARK: - 17. Real-World Live MKV Hardware Decoding Integration
-        logs.append("\n[17] Testing Live Real-World MKV Hardware Decoding...")
+        // MARK: - 18. Real-World Live MKV Hardware Decoding Integration
+        logs.append("\n[18] Testing Live Real-World MKV Hardware Decoding...")
         if let sampleMKVPath = ProcessInfo.processInfo.environment["FRAMES_TEST_MKV"],
            FileManager.default.fileExists(atPath: sampleMKVPath) {
             let mkvURL = URL(fileURLWithPath: sampleMKVPath)
@@ -956,8 +956,8 @@ public enum FramesTestSuite {
                     assertTest("Live Native Audio Translation (Dolby E-AC3 -> Stereo PCM)", condition: audioPacketsDecoded >= 10, "Decoded: \(audioPacketsDecoded) audio packets (\(decodedAudioFrames) PCM frames)")
                 }
 
-                // MARK: - 18. Instantaneous Timeline Scrubbing & Thread-Safety Verification
-                logs.append("\n[18] Testing Instantaneous Timeline Scrubbing & Thread Safety...")
+                // MARK: - 19. Instantaneous Timeline Scrubbing & Thread-Safety Verification
+                logs.append("\n[19] Testing Instantaneous Timeline Scrubbing & Thread Safety...")
                 let seekStartTime = CACurrentMediaTime()
                 demuxer.seek(to: 120.0)
                 let seekLatency = (CACurrentMediaTime() - seekStartTime) * 1000.0
@@ -1073,8 +1073,8 @@ public enum FramesTestSuite {
             logs.append("  • SKIP: Set FRAMES_TEST_MKV to run the optional live MKV integration test.")
         }
 
-        // MARK: - 19. Apple Silicon Hardware Video Encoder Tests
-        logs.append("\n[19] Testing Apple Silicon Hardware Video Encoder...")
+        // MARK: - 20. Apple Silicon Hardware Video Encoder Tests
+        logs.append("\n[20] Testing Apple Silicon Hardware Video Encoder...")
         if let hevcEncoder = VideoToolboxEncoder(width: 1280, height: 720, codec: .hevc, bitrate: 4_000_000, frameRate: 30) {
             assertTest("Hardware HEVC Encoder Initialized", condition: true)
             if let pb = hevcEncoder.makePixelBuffer() {
@@ -1094,8 +1094,8 @@ public enum FramesTestSuite {
             assertTest("Hardware H.264 Encoder Initialized", condition: true)
         }
 
-        // MARK: - 20. Packet Chunk Buffer & GOP Prefetching Tests
-        logs.append("\n[20] Testing PacketChunkBuffer & GOP Prefetching...")
+        // MARK: - 21. Packet Chunk Buffer & GOP Prefetching Tests
+        logs.append("\n[21] Testing PacketChunkBuffer & GOP Prefetching...")
         let chunkBuffer = PacketChunkBuffer(maxCapacity: 10)
         assertTest("Initial Chunk Buffer Empty", condition: chunkBuffer.isEmpty && chunkBuffer.hasHeadroom)
 
@@ -1119,8 +1119,8 @@ public enum FramesTestSuite {
         chunkBuffer.removeAll()
         assertTest("Packet Buffer Remove All", condition: chunkBuffer.isEmpty)
 
-        // MARK: - 21. Scrub Frame Cache & Precision Seeking Tests
-        logs.append("\n[21] Testing ScrubFrameCache & Precision Seeking...")
+        // MARK: - 22. Scrub Frame Cache & Precision Seeking Tests
+        logs.append("\n[22] Testing ScrubFrameCache & Precision Seeking...")
         let scrubCache = ScrubFrameCache(maxCapacity: 5)
         assertTest("Scrub Cache Initial Count Zero", condition: scrubCache.count == 0)
 
@@ -1142,8 +1142,8 @@ public enum FramesTestSuite {
             assertTest("Scrub Cache Distance Guard", condition: missFar == nil)
         }
 
-        // MARK: - 22. Metal 3 Aspect Ratio Scaling & Letterboxing Tests
-        logs.append("\n[22] Testing Metal 3 Aspect Ratio Scaling & Letterboxing...")
+        // MARK: - 23. Metal 3 Aspect Ratio Scaling & Letterboxing Tests
+        logs.append("\n[23] Testing Metal 3 Aspect Ratio Scaling & Letterboxing...")
         let videoW_A: Float = 1920
         let videoH_A: Float = 1080
         let layerW_A: Float = 1920
@@ -1165,8 +1165,8 @@ public enum FramesTestSuite {
         let testUniforms = VideoShaderUniforms(aspectScale: simd_float2(scaleX_B, 1.0))
         assertTest("VideoShaderUniforms Aspect Scale Initialized", condition: testUniforms.aspectScale.x == scaleX_B && testUniforms.aspectScale.y == 1.0)
 
-        // MARK: - 23. Matroska Demuxer Cluster Resync Scanner Tests
-        logs.append("\n[23] Testing Matroska Demuxer Cluster Resync Scanner...")
+        // MARK: - 24. Matroska Demuxer Cluster Resync Scanner Tests
+        logs.append("\n[24] Testing Matroska Demuxer Cluster Resync Scanner...")
         let syntheticClusterSignature: [UInt8] = [
             0x00, 0x12, 0x34, 0x56,
             0x1F, 0x43, 0xB6, 0x75,
@@ -1184,8 +1184,8 @@ public enum FramesTestSuite {
         }
         assertTest("Cluster Signature Pattern Detection", condition: foundOffset == 4)
 
-        // MARK: - 24. Apple Silicon Hardware ProRes Decoder
-        logs.append("\n[24] Testing Apple Silicon Hardware ProRes Decoder...")
+        // MARK: - 25. Apple Silicon Hardware ProRes Decoder
+        logs.append("\n[25] Testing Apple Silicon Hardware ProRes Decoder...")
         let proResTrack = DemuxedTrack(
             trackNumber: 99,
             type: .video,
@@ -1196,8 +1196,8 @@ public enum FramesTestSuite {
         let proResDecoder = VideoToolboxDecoder(track: proResTrack)
         assertTest("ProRes Hardware Decoder Initialized", condition: proResDecoder != nil)
 
-        // MARK: - 25. Metal Video Presentation & Anamorphic PAR Scaling
-        logs.append("\n[25] Testing Metal Video Presentation & Anamorphic Scaling...")
+        // MARK: - 26. Metal Video Presentation & Anamorphic PAR Scaling
+        logs.append("\n[26] Testing Metal Video Presentation & Anamorphic Scaling...")
         if let renderer = MetalVideoRenderer() {
             nonisolated final class CallbackTracker: @unchecked Sendable {
                 private let lock = NSLock()
@@ -1220,8 +1220,8 @@ public enum FramesTestSuite {
             }
         }
 
-        // MARK: - 26. Shadcn Command Architecture & Context Awareness Tests
-        logs.append("\n[26] Testing Shadcn Command Architecture & Context Awareness...")
+        // MARK: - 27. Shadcn Command Architecture & Context Awareness Tests
+        logs.append("\n[27] Testing Shadcn Command Architecture & Context Awareness...")
 
         // 1. CommandItem Primitives
         var testItemFired = false
@@ -1405,8 +1405,8 @@ public enum FramesTestSuite {
         let sepB = CommandSeparator(id: "sep-1")
         assertTest("CommandSeparator Equatable", condition: sepA == sepB)
 
-        // MARK: - 27. OTA Update Engine & Semantic Versioning
-        logs.append("\n[27] Testing OTA Update Engine & Semantic Versioning...")
+        // MARK: - 28. OTA Update Engine & Semantic Versioning
+        logs.append("\n[28] Testing OTA Update Engine & Semantic Versioning...")
 
         // 1. SemVer Parsing
         let v100 = SemanticVersion(string: "1.0.0")
@@ -1538,8 +1538,8 @@ public enum FramesTestSuite {
         try? FileManager.default.removeItem(at: tempDir)
         assertTest("Invalid Bundle Correctly Rejected", condition: invalidBundleRejected)
 
-        // MARK: - 28. Multi-Stream Audio & Subtitle Auto-Detection & Control Bar Tests
-        logs.append("\n[28] Testing Multi-Stream Audio, Subtitle Detection & Docked Controls...")
+        // MARK: - 29. Multi-Stream Audio & Subtitle Auto-Detection & Control Bar Tests
+        logs.append("\n[29] Testing Multi-Stream Audio, Subtitle Detection & Docked Controls...")
 
         // 1. LanguageHelper Tests
         assertTest("LanguageHelper English ISO-639-2", condition: LanguageHelper.displayName(for: "eng") == "English")
@@ -1678,8 +1678,8 @@ public enum FramesTestSuite {
         let pipWm = WindowManager.shared
         assertTest("WindowManager PictureInPicture Initial False", condition: !pipWm.isPictureInPicture)
 
-        // MARK: - 29. Settings Architecture, Manager & Persistence
-        logs.append("\n[29] Testing Settings Architecture, Manager & Persistence...")
+        // MARK: - 30. Settings Architecture, Manager & Persistence
+        logs.append("\n[30] Testing Settings Architecture, Manager & Persistence...")
 
         let sm = SettingsManager.shared
         sm.resetToDefaults()
@@ -1838,8 +1838,8 @@ public enum FramesTestSuite {
         let aboutTabHost = NSHostingView(rootView: AboutSettingsTab())
         assertTest("AboutSettingsTab Mount Operable", condition: aboutTabHost.fittingSize.width >= 0)
 
-        // MARK: - 30. Playback Performance, Battery Saver & Low-Overhead Presentation Tests
-        logs.append("\n[30] Testing Battery Optimization, Frame Queue Cadence & Presentation Performance...")
+        // MARK: - 31. Playback Performance, Battery Saver & Low-Overhead Presentation Tests
+        logs.append("\n[31] Testing Battery Optimization, Frame Queue Cadence & Presentation Performance...")
 
         // 1. MetalVideoRenderer setBufferForDisplay vs updateFrame
         nonisolated final class CallbackFlag: @unchecked Sendable {
@@ -1943,22 +1943,53 @@ public enum FramesTestSuite {
         assertTest("Annex-B Start Code Multi-Zero Padding Properly Handled", condition: extractedNals.count == 2)
         let convertedAVCC = NALParser.convertAnnexBToAVCC(annexBSampleWithPadding)
         assertTest("Annex-B Multi-Zero Padding Converted Without Extra Zeros", condition: convertedAVCC.count > 0 && convertedAVCC.count < annexBSampleWithPadding.count + 8)
-        // MARK: - 29. Repository Quality & CI Pipeline Assets
-        logs.append("\n[29] Testing Repository Quality & CI Pipeline Assets...")
-        let projectRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        // MARK: - 32. Repository Quality & CI Pipeline Assets
+        logs.append("\n[32] Testing Repository Quality & CI Pipeline Assets...")
+        var projectRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        if !FileManager.default.fileExists(atPath: projectRoot.appendingPathComponent(".github").path) {
+            var searchURL = Bundle.main.bundleURL
+            for _ in 0..<6 {
+                searchURL = searchURL.deletingLastPathComponent()
+                if FileManager.default.fileExists(atPath: searchURL.appendingPathComponent(".github").path) {
+                    projectRoot = searchURL
+                    break
+                }
+            }
+        }
         let ciWorkflow = projectRoot.appendingPathComponent(".github/workflows/ci.yml")
         let releaseWorkflow = projectRoot.appendingPathComponent(".github/workflows/release.yml")
         let prTemplate = projectRoot.appendingPathComponent(".github/PULL_REQUEST_TEMPLATE.md")
         let contributing = projectRoot.appendingPathComponent("CONTRIBUTING.md")
         let releaseScript = projectRoot.appendingPathComponent("scripts/release.sh")
+        let readme = projectRoot.appendingPathComponent("README.md")
+        let license = projectRoot.appendingPathComponent("LICENSE")
+        let security = projectRoot.appendingPathComponent("SECURITY.md")
+        let codeOfConduct = projectRoot.appendingPathComponent("CODE_OF_CONDUCT.md")
+        let gitattributes = projectRoot.appendingPathComponent(".gitattributes")
+        let issueConfig = projectRoot.appendingPathComponent(".github/ISSUE_TEMPLATE/config.yml")
+        let bugReport = projectRoot.appendingPathComponent(".github/ISSUE_TEMPLATE/bug-report.yml")
+        let featureRequest = projectRoot.appendingPathComponent(".github/ISSUE_TEMPLATE/feature-request.yml")
+        let iconAsset = projectRoot.appendingPathComponent("assets/frames-icon-hd.png")
+        let splashAsset = projectRoot.appendingPathComponent("assets/frames-splash.gif")
 
         assertTest("CI Workflow Defined (.github/workflows/ci.yml)", condition: FileManager.default.fileExists(atPath: ciWorkflow.path))
         assertTest("Release Workflow Defined (.github/workflows/release.yml)", condition: FileManager.default.fileExists(atPath: releaseWorkflow.path))
         assertTest("Pull Request Template Present", condition: FileManager.default.fileExists(atPath: prTemplate.path))
         assertTest("Contributing Guidelines Present", condition: FileManager.default.fileExists(atPath: contributing.path))
         assertTest("Release Pipeline Script Present", condition: FileManager.default.fileExists(atPath: releaseScript.path))
-        // [30] Testing Timestamp Jump Parser & Expression Engine
-        logs.append("\n[30] Testing Timestamp Jump Parser & Expression Engine...")
+        assertTest("Readme Documentation Present (README.md)", condition: FileManager.default.fileExists(atPath: readme.path))
+        assertTest("License Present (LICENSE)", condition: FileManager.default.fileExists(atPath: license.path))
+        assertTest("Security Policy Present (SECURITY.md)", condition: FileManager.default.fileExists(atPath: security.path))
+        assertTest("Code of Conduct Present (CODE_OF_CONDUCT.md)", condition: FileManager.default.fileExists(atPath: codeOfConduct.path))
+        assertTest("Git Attributes Defined (.gitattributes)", condition: FileManager.default.fileExists(atPath: gitattributes.path))
+        assertTest("Issue Template Configuration Present (.github/ISSUE_TEMPLATE/config.yml)", condition: FileManager.default.fileExists(atPath: issueConfig.path))
+        assertTest("Bug Report Form Present (.github/ISSUE_TEMPLATE/bug-report.yml)", condition: FileManager.default.fileExists(atPath: bugReport.path))
+        assertTest("Feature Request Form Present (.github/ISSUE_TEMPLATE/feature-request.yml)", condition: FileManager.default.fileExists(atPath: featureRequest.path))
+        assertTest("Application High-Res Icon Asset Present (assets/frames-icon-hd.png)", condition: FileManager.default.fileExists(atPath: iconAsset.path))
+        assertTest("Splash Animation Asset Present (assets/frames-splash.gif)", condition: FileManager.default.fileExists(atPath: splashAsset.path))
+
+        // MARK: - 33. Timestamp Jump Parser & Expression Engine Tests
+        logs.append("\n[33] Testing Timestamp Jump Parser & Expression Engine...")
         let jumpMMSS = TimeJumpParser.parse(query: "1:23")
         assertTest("TimeJumpParser MM:SS Parse (1:23 -> 83s)", condition: jumpMMSS != nil && abs(jumpMMSS!.targetSeconds - 83.0) < 0.001)
 
@@ -1995,8 +2026,8 @@ public enum FramesTestSuite {
         let jumpEmpty = TimeJumpParser.parse(query: "   ")
         assertTest("TimeJumpParser Empty Input Rejected", condition: jumpEmpty == nil)
 
-        // [31] Testing High-Resolution Frame Capture Engine
-        logs.append("\n[31] Testing High-Resolution Frame Capture Engine...")
+        // MARK: - 34. High-Resolution Frame Capture Engine Tests
+        logs.append("\n[34] Testing High-Resolution Frame Capture Engine...")
         let tempCaptureDir = FileManager.default.temporaryDirectory.appendingPathComponent("FramesCaptureTest_\(UUID().uuidString)")
         let captureEngine = FrameCaptureEngine(customFolder: tempCaptureDir)
 

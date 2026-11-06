@@ -25,7 +25,7 @@
 ### Automated Test Suite Execution
 - [ ] Ran local test suite: `frames --run-tests`
 - [ ] Total passed: `_____ PASSED, 0 FAILED`
-- [ ] All 27+ test categories green
+- [ ] All 34 test categories green (436+ automated tests)
 
 ### Manual Verification Checklist
 - [ ] Window dragging / double-click interactions tested
