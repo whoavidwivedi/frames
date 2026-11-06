@@ -13,6 +13,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 DIST_DIR="${PROJECT_ROOT}/dist"
 PROJECT_FILE="${PROJECT_ROOT}/frames.xcodeproj/project.xcproj"
+PBXPROJ_FILE="${PROJECT_ROOT}/frames.xcodeproj/project.pbxproj"
 
 export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
 
@@ -189,6 +190,11 @@ sed -i '' -E "s/\"MARKETING_VERSION\": \"[^\"]+\"/\"MARKETING_VERSION\": \"${VER
 CURRENT_BUILD=$(grep '"CURRENT_PROJECT_VERSION":' "${PROJECT_FILE}" | head -n 1 | sed -E 's/.*"CURRENT_PROJECT_VERSION": "([^"]+)".*/\1/')
 NEW_BUILD=$((CURRENT_BUILD + 1))
 sed -i '' -E "s/\"CURRENT_PROJECT_VERSION\": \"[0-9]+\"/\"CURRENT_PROJECT_VERSION\": \"${NEW_BUILD}\"/g" "${PROJECT_FILE}"
+
+if [[ -f "${PBXPROJ_FILE}" ]]; then
+    sed -i '' -E "s/MARKETING_VERSION = [^;]+;/MARKETING_VERSION = ${VERSION};/g" "${PBXPROJ_FILE}"
+    sed -i '' -E "s/CURRENT_PROJECT_VERSION = [^;]+;/CURRENT_PROJECT_VERSION = ${NEW_BUILD};/g" "${PBXPROJ_FILE}"
+fi
 echo "  MARKETING_VERSION: ${VERSION}"
 echo "  CURRENT_PROJECT_VERSION: ${NEW_BUILD}"
 
@@ -249,6 +255,7 @@ fi
 
 echo "==> [6/7] Committing version bump and creating git tag ${TAG}..."
 git add "${PROJECT_FILE}"
+[[ -f "${PBXPROJ_FILE}" ]] && git add "${PBXPROJ_FILE}"
 
 # Only commit if changes exist
 if ! git diff --cached --quiet; then
