@@ -55,12 +55,27 @@ nonisolated public final class NativeAudioDecoder: @unchecked Sendable {
         self.channels = track.channels > 0 ? track.channels : 2
         self.bitDepth = track.bitDepth > 0 ? track.bitDepth : 16
         
-        // Output format: standard stereo 32-bit Float Linear PCM at track's native sample rate
-        guard let avFormat = AVAudioFormat(
-            standardFormatWithSampleRate: self.sampleRate,
-            channels: 2
-        ) else { return nil }
-        self.outputFormat = avFormat
+        // Output format: standard multi/stereo 32-bit Float Linear PCM matching track channels
+        let sRate = self.sampleRate
+        let channelCount = AVAudioChannelCount(max(1, min(self.channels, 8)))
+        let avFormat: AVAudioFormat?
+        if channelCount <= 2 {
+            avFormat = AVAudioFormat(standardFormatWithSampleRate: sRate, channels: channelCount)
+        } else {
+            let layoutTag: AudioChannelLayoutTag
+            switch channelCount {
+            case 6: layoutTag = kAudioChannelLayoutTag_MPEG_5_1_D
+            case 8: layoutTag = kAudioChannelLayoutTag_MPEG_7_1_B
+            default: layoutTag = kAudioChannelLayoutTag_Stereo
+            }
+            if let layout = AVAudioChannelLayout(layoutTag: layoutTag) {
+                avFormat = AVAudioFormat(standardFormatWithSampleRate: sRate, channelLayout: layout)
+            } else {
+                avFormat = AVAudioFormat(standardFormatWithSampleRate: sRate, channels: 2)
+            }
+        }
+        guard let format = avFormat else { return nil }
+        self.outputFormat = format
         
         let codec = track.codecID.uppercased()
         if codec.hasPrefix("A_PCM") {
@@ -111,12 +126,12 @@ nonisolated public final class NativeAudioDecoder: @unchecked Sendable {
             mBytesPerPacket: 0,
             mFramesPerPacket: framesPerPacket,
             mBytesPerFrame: 0,
-            mChannelsPerFrame: UInt32(self.channels),
+            mChannelsPerFrame: format.channelCount,
             mBitsPerChannel: 0,
             mReserved: 0
         )
         
-        var asbdOut = avFormat.streamDescription.pointee
+        var asbdOut = format.streamDescription.pointee
         var conv: AudioConverterRef?
         let status = AudioConverterNew(&asbdIn, &asbdOut, &conv)
         guard status == noErr, let c = conv else {
@@ -182,7 +197,7 @@ nonisolated public final class NativeAudioDecoder: @unchecked Sendable {
         feeder.channels = UInt32(self.channels)
         feeder.packetDescPtr.pointee = AudioStreamPacketDescription(
             mStartOffset: 0,
-            mVariableFramesInPacket: framesExpected,
+            mVariableFramesInPacket: 0,
             mDataByteSize: UInt32(packet.data.count)
         )
         feeder.hasSupplied = false
@@ -261,10 +276,10 @@ nonisolated public final class NativeAudioDecoder: @unchecked Sendable {
         }
         pcmBuffer.frameLength = frameCount
         
-        guard let leftChannel = pcmBuffer.floatChannelData?[0],
-              let rightChannel = pcmBuffer.floatChannelData?[1] else {
+        guard let channelData = pcmBuffer.floatChannelData else {
             return nil
         }
+        let outChannels = Int(outputFormat.channelCount)
         
         data.withUnsafeBytes { raw in
             guard let base = raw.baseAddress else { return }
@@ -272,36 +287,33 @@ nonisolated public final class NativeAudioDecoder: @unchecked Sendable {
             if isFloatPCM && bytesPerSample == 4 {
                 let floatPtr = base.bindMemory(to: Float.self, capacity: Int(frameCount) * channels)
                 for f in 0..<Int(frameCount) {
-                    leftChannel[f] = floatPtr[f * channels]
-                    rightChannel[f] = channels > 1 ? floatPtr[f * channels + 1] : floatPtr[f * channels]
+                    for ch in 0..<outChannels {
+                        let srcCh = min(ch, channels - 1)
+                        channelData[ch][f] = floatPtr[f * channels + srcCh]
+                    }
                 }
             } else if bytesPerSample == 2 {
                 // 16-bit Signed Integer PCM
                 let int16Ptr = base.bindMemory(to: Int16.self, capacity: Int(frameCount) * channels)
                 let scale: Float = 1.0 / 32768.0
                 for f in 0..<Int(frameCount) {
-                    leftChannel[f] = Float(int16Ptr[f * channels]) * scale
-                    rightChannel[f] = channels > 1 ? Float(int16Ptr[f * channels + 1]) * scale : Float(int16Ptr[f * channels]) * scale
+                    for ch in 0..<outChannels {
+                        let srcCh = min(ch, channels - 1)
+                        channelData[ch][f] = Float(int16Ptr[f * channels + srcCh]) * scale
+                    }
                 }
             } else if bytesPerSample == 3 {
                 // 24-bit Signed Integer PCM
                 let bytePtr = base.bindMemory(to: UInt8.self, capacity: data.count)
                 let scale: Float = 1.0 / 8388608.0
                 for f in 0..<Int(frameCount) {
-                    let offsetL = f * channels * 3
-                    let valL = Int32(Int8(bitPattern: bytePtr[offsetL + 2])) << 16 |
-                               Int32(bytePtr[offsetL + 1]) << 8 |
-                               Int32(bytePtr[offsetL])
-                    leftChannel[f] = Float(valL) * scale
-                    
-                    if channels > 1 {
-                        let offsetR = (f * channels + 1) * 3
-                        let valR = Int32(Int8(bitPattern: bytePtr[offsetR + 2])) << 16 |
-                                   Int32(bytePtr[offsetR + 1]) << 8 |
-                                   Int32(bytePtr[offsetR])
-                        rightChannel[f] = Float(valR) * scale
-                    } else {
-                        rightChannel[f] = leftChannel[f]
+                    for ch in 0..<outChannels {
+                        let srcCh = min(ch, channels - 1)
+                        let offset = (f * channels + srcCh) * 3
+                        let val = Int32(Int8(bitPattern: bytePtr[offset + 2])) << 16 |
+                                  Int32(bytePtr[offset + 1]) << 8 |
+                                  Int32(bytePtr[offset])
+                        channelData[ch][f] = Float(val) * scale
                     }
                 }
             }

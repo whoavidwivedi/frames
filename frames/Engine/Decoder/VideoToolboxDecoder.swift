@@ -61,15 +61,10 @@ nonisolated public final class VideoToolboxDecoder: @unchecked Sendable {
             self.isAnnexBStream = true
         }
         
-        // Build format description from track codec and private data
-        guard let desc = Self.createFormatDescription(for: track) else {
-            return nil
-        }
-        self.formatDescription = desc
-        
-        // Initialize the hardware decompression session
-        guard setupDecompressionSession(with: desc) else {
-            return nil
+        // Build format description from track codec and private data if available upfront
+        if let desc = Self.createFormatDescription(for: track) {
+            self.formatDescription = desc
+            _ = setupDecompressionSession(with: desc)
         }
     }
     
@@ -285,7 +280,7 @@ nonisolated public final class VideoToolboxDecoder: @unchecked Sendable {
         
         // Video Translation Layer: Convert Annex-B to AVCC/HVCC length-prefixed format for VideoToolbox
         let payload: Data
-        if track.codecID != "V_MPEG4/ISO/AVC" && track.codecID != "V_MPEGH/ISO/HEVC" && (track.isH264 || track.isHEVC) && NALParser.isAnnexB(packet.data) {
+        if (track.isH264 || track.isHEVC) && NALParser.isAnnexB(packet.data) {
             payload = NALParser.convertAnnexBToAVCC(packet.data)
         } else {
             payload = packet.data

@@ -113,10 +113,18 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable {
             offset = elem.payloadOffset + elem.payloadSize
         }
 
+        // If cues haven't been discovered yet, scan file tail (where muxers place Cues)
+        if cuePoints.isEmpty {
+            scanForCuesAtTail()
+        }
+
         // Sort cue points for O(log N) binary search seeks
         cuePoints.sort()
 
         // Set playback start to first cluster
+        if firstClusterOffset == nil {
+            firstClusterOffset = resyncToCluster(from: segmentDataOffset)
+        }
         self.currentOffset = firstClusterOffset ?? segmentDataOffset
     }
 
@@ -235,10 +243,28 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable {
             cursor += elemLen
         }
 
-        // If Seek points to Cues or Tracks, we can parse them on demand
+        // 1. Secondary SeekHead (e.g. pointing to Cues at the end of the file)
+        if seekID == EBMLID.seekHead.rawValue {
+            let shOffset = segmentDataOffset + seekPos
+            if let elem = readElement(at: shOffset), elem.id == .seekHead {
+                if let payload = try? readBytes(offset: elem.payloadOffset, length: Int(elem.payloadSize)) {
+                    parseSeekHead(data: payload)
+                }
+            } else if let elem = readElement(at: seekPos), elem.id == .seekHead {
+                if let payload = try? readBytes(offset: elem.payloadOffset, length: Int(elem.payloadSize)) {
+                    parseSeekHead(data: payload)
+                }
+            }
+        }
+
+        // 2. If Seek points to Cues, parse them on demand
         if seekID == EBMLID.cues.rawValue && cuePoints.isEmpty {
             let cuesAbsoluteOffset = segmentDataOffset + seekPos
             if let elem = readElement(at: cuesAbsoluteOffset), elem.id == .cues {
+                if let payload = try? readBytes(offset: elem.payloadOffset, length: Int(elem.payloadSize)) {
+                    parseCues(data: payload)
+                }
+            } else if let elem = readElement(at: seekPos), elem.id == .cues {
                 if let payload = try? readBytes(offset: elem.payloadOffset, length: Int(elem.payloadSize)) {
                     parseCues(data: payload)
                 }
@@ -480,21 +506,19 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable {
                 let elemLen = Int(sizeVint.value)
 
                 if idVint.value == EBMLID.cuePoint.rawValue {
-                    if let entry = parseCuePoint(raw: raw, offset: cursor, length: elemLen) {
-                        self.cuePoints.append(entry)
-                    }
+                    let entries = parseCuePoints(raw: raw, offset: cursor, length: elemLen)
+                    self.cuePoints.append(contentsOf: entries)
                 }
                 cursor += elemLen
             }
         }
     }
 
-    private func parseCuePoint(raw: UnsafeRawBufferPointer, offset: Int, length: Int) -> CuePointEntry? {
+    private func parseCuePoints(raw: UnsafeRawBufferPointer, offset: Int, length: Int) -> [CuePointEntry] {
         var cursor = offset
-        let limit = offset + length
+        let limit = min(raw.count, offset + length)
         var cueTime: UInt64 = 0
-        var clusterPos: UInt64 = 0
-        var trackNum: UInt64 = 1
+        var entries: [CuePointEntry] = []
 
         while cursor < limit {
             guard let idVint = EBMLVint.parseElementID(from: raw, offset: cursor) else { break }
@@ -508,7 +532,10 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable {
             } else if idVint.value == EBMLID.cueTrackPositions.rawValue {
                 // Parse nested CueTrackPositions
                 var subCursor = cursor
-                let subLimit = cursor + elemLen
+                let subLimit = min(raw.count, cursor + elemLen)
+                var trackNum: UInt64 = 1
+                var clusterPos: UInt64 = 0
+
                 while subCursor < subLimit {
                     guard let subId = EBMLVint.parseElementID(from: raw, offset: subCursor) else { break }
                     subCursor += subId.length
@@ -523,13 +550,57 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable {
                     }
                     subCursor += subLen
                 }
+
+                if clusterPos > 0 {
+                    let timeInSeconds = (Double(cueTime) * Double(timestampScale)) / 1_000_000_000.0
+                    entries.append(CuePointEntry(timeSeconds: timeInSeconds, clusterPosition: clusterPos, trackNumber: trackNum))
+                }
             }
             cursor += elemLen
         }
 
-        guard clusterPos > 0 else { return nil }
-        let timeInSeconds = (Double(cueTime) * Double(timestampScale)) / 1_000_000_000.0
-        return CuePointEntry(timeSeconds: timeInSeconds, clusterPosition: clusterPos, trackNumber: trackNum)
+        return entries
+    }
+
+    /// Scans the tail of the file for the Cues element (standard in MKV files muxed on the fly).
+    private func scanForCuesAtTail() {
+        guard cuePoints.isEmpty, fileSize > segmentDataOffset else { return }
+        let tailSpan: UInt64 = min(fileSize - segmentDataOffset, 48 * 1024 * 1024)
+        let tailStart = fileSize - tailSpan
+
+        var searchOffset = tailStart
+        let chunkSize = 512 * 1024
+
+        while searchOffset < fileSize {
+            let toRead = min(chunkSize, Int(fileSize - searchOffset))
+            guard let data = try? readBytes(offset: searchOffset, length: toRead), data.count >= 4 else { break }
+
+            let match = data.withUnsafeBytes { raw -> Int? in
+                guard let base = raw.bindMemory(to: UInt8.self).baseAddress else { return nil }
+                let count = raw.count
+                for i in 0..<(count - 3) {
+                    if base[i] == 0x1C && base[i + 1] == 0x53 && base[i + 2] == 0xBB && base[i + 3] == 0x6B {
+                        return i
+                    }
+                }
+                return nil
+            }
+
+            if let idx = match {
+                let candidateOffset = searchOffset + UInt64(idx)
+                if let elem = readElement(at: candidateOffset), elem.id == .cues {
+                    if let payload = try? readBytes(offset: elem.payloadOffset, length: Int(elem.payloadSize)) {
+                        parseCues(data: payload)
+                        if !cuePoints.isEmpty {
+                            return
+                        }
+                    }
+                }
+                searchOffset = candidateOffset + 4
+            } else {
+                searchOffset += UInt64(max(1, toRead - 3))
+            }
+        }
     }
 
     private var pendingPackets: [DemuxedPacket] = []
@@ -817,15 +888,25 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable {
             }
 
             let cue = relevantCues[bestIndex]
-            self.currentOffset = segmentDataOffset + cue.clusterPosition
+            let offsetA = segmentDataOffset + cue.clusterPosition
+            let offsetB = cue.clusterPosition
+            if let elem = readElement(at: offsetA), elem.id == .cluster {
+                self.currentOffset = offsetA
+            } else if let elem = readElement(at: offsetB), elem.id == .cluster {
+                self.currentOffset = offsetB
+            } else if let resynced = resyncToCluster(from: offsetA, maxScanBytes: 15 * 1024 * 1024) {
+                self.currentOffset = resynced
+            } else {
+                self.currentOffset = offsetA
+            }
         } else {
             // Fallback: estimate cluster position via ratio and resynchronize
             let ratio = duration > 0 ? (clampedTarget / duration) : 0.0
             let estimatedOffset = segmentDataOffset + UInt64(Double(fileSize - segmentDataOffset) * ratio)
-            if let resynced = resyncToCluster(from: estimatedOffset) {
+            if let resynced = resyncToCluster(from: estimatedOffset, maxScanBytes: 64 * 1024 * 1024) {
                 self.currentOffset = resynced
             } else {
-                self.currentOffset = segmentDataOffset
+                self.currentOffset = firstClusterOffset ?? segmentDataOffset
             }
         }
 
@@ -836,7 +917,7 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable {
     }
 
     /// Scans forward from an offset to locate the 4-byte Matroska cluster element signature (0x1F43B675).
-    public func resyncToCluster(from startOffset: UInt64, maxScanBytes: Int = 15 * 1024 * 1024) -> UInt64? {
+    public func resyncToCluster(from startOffset: UInt64, maxScanBytes: Int = 64 * 1024 * 1024) -> UInt64? {
         let scanLimit = min(fileSize, startOffset + UInt64(maxScanBytes))
         var searchOffset = startOffset
         let chunkSize = 64 * 1024
@@ -881,15 +962,38 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable {
             return buffer.subdata(in: localOffset..<(localOffset + length))
         }
 
-        // Cache miss: read a chunk into buffer
         try fileHandle.seek(toOffset: offset)
-        let chunkToRead = max(length, readBufferCapacity)
-        let newChunk = try fileHandle.read(upToCount: chunkToRead) ?? Data()
 
-        self.buffer = newChunk
-        self.bufferFileOffset = offset
+        if length <= readBufferCapacity {
+            let chunkToRead = max(length, readBufferCapacity)
+            var newChunk = Data()
+            newChunk.reserveCapacity(chunkToRead)
 
-        return newChunk.prefix(length)
+            while newChunk.count < chunkToRead {
+                let needed = min(chunkToRead - newChunk.count, 512 * 1024)
+                guard let part = try fileHandle.read(upToCount: needed), !part.isEmpty else {
+                    break
+                }
+                newChunk.append(part)
+            }
+
+            self.buffer = newChunk
+            self.bufferFileOffset = offset
+            return newChunk.prefix(length)
+        } else {
+            // For oversized payloads (e.g. 4K high-bitrate intra frames, Cues table), read directly without truncating
+            var result = Data()
+            result.reserveCapacity(length)
+
+            while result.count < length {
+                let needed = min(length - result.count, 1024 * 1024)
+                guard let part = try fileHandle.read(upToCount: needed), !part.isEmpty else {
+                    break
+                }
+                result.append(part)
+            }
+            return result
+        }
     }
 
     // MARK: - Subtitle Cue Extraction

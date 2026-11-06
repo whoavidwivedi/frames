@@ -25,6 +25,8 @@ nonisolated public final class AudioEngineBridge: @unchecked Sendable {
     public let outputFormat: AVAudioFormat
     private var isPlaying = false
     private let lock = NSLock()
+    // Completion handlers must not take `lock`: playerNode.stop() drains them while `lock` is held.
+    private let counterLock = NSLock()
     
     // Hardware Master Clock State
     private var anchorSampleTime: AVAudioFramePosition = 0
@@ -33,6 +35,8 @@ nonisolated public final class AudioEngineBridge: @unchecked Sendable {
     private var hasAnchored = false
     private var hasScheduledFirstBuffer = false
     private var minimumSeekPTS: Double = 0.0
+    private var scheduledBufferCount: Int = 0
+    private var lastScheduledPTS: Double = 0.0
     
     // MARK: - Lifecycle
     
@@ -42,15 +46,11 @@ nonisolated public final class AudioEngineBridge: @unchecked Sendable {
         self.sampleRate = track.sampleRate > 0 ? track.sampleRate : 48000.0
         self.channels = track.channels > 0 ? track.channels : 2
         
-        // Target standard floating-point stereo format for audio hardware
-        guard let format = AVAudioFormat(
-            standardFormatWithSampleRate: self.sampleRate,
-            channels: 2
-        ) else {
+        guard let dec = NativeAudioDecoder(track: track) else {
             return nil
         }
-        self.outputFormat = format
-        self.decoder = NativeAudioDecoder(track: track)
+        self.decoder = dec
+        self.outputFormat = dec.outputFormat
         
         setupAudioEngine()
     }
@@ -131,6 +131,10 @@ nonisolated public final class AudioEngineBridge: @unchecked Sendable {
         hasAnchored = false
         hasScheduledFirstBuffer = false
         minimumSeekPTS = 0
+        lastScheduledPTS = 0
+        counterLock.lock()
+        scheduledBufferCount = 0
+        counterLock.unlock()
     }
     
     public func setVolume(_ volume: Float) {
@@ -150,6 +154,10 @@ nonisolated public final class AudioEngineBridge: @unchecked Sendable {
         anchorPts = pts
         anchorSampleTime = 0
         lastReportedTime = pts
+        lastScheduledPTS = pts
+        counterLock.lock()
+        scheduledBufferCount = 0
+        counterLock.unlock()
         hasAnchored = false
         hasScheduledFirstBuffer = false
         minimumSeekPTS = max(0.0, pts - 0.035)
@@ -175,10 +183,32 @@ nonisolated public final class AudioEngineBridge: @unchecked Sendable {
             hasScheduledFirstBuffer = true
             hasAnchored = false
         }
-        // Keep scheduling serialized with stop()/seek() so stale packets can never
-        // land in the player queue after a track switch or seek.
-        playerNode.scheduleBuffer(pcmBuffer, completionHandler: nil)
+        counterLock.lock()
+        scheduledBufferCount += 1
+        counterLock.unlock()
+        let bufDur = pcmBuffer.format.sampleRate > 0 ? (Double(pcmBuffer.frameLength) / pcmBuffer.format.sampleRate) : 0.0
+        lastScheduledPTS = max(lastScheduledPTS, pts + bufDur)
+
+        // Keep scheduling serialized with stop()/seek() and track in-flight buffers
+        playerNode.scheduleBuffer(pcmBuffer) { [weak self] in
+            guard let self = self else { return }
+            self.counterLock.lock()
+            self.scheduledBufferCount = max(0, self.scheduledBufferCount - 1)
+            self.counterLock.unlock()
+        }
         lock.unlock()
+    }
+
+    /// Throttling predicate to prevent runaway audio decoding and excessive memory footprint.
+    public var hasBufferHeadroom: Bool {
+        lock.lock()
+        let current = isPlaying ? (lastReportedTime > 0 ? lastReportedTime : anchorPts) : anchorPts
+        let scheduled = lastScheduledPTS
+        lock.unlock()
+        counterLock.lock()
+        let count = scheduledBufferCount
+        counterLock.unlock()
+        return scheduled < (current + 1.5) || count < 4
     }
     
     // MARK: - Master Clock Synchronization
