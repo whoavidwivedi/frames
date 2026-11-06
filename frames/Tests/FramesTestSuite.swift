@@ -1161,6 +1161,28 @@ public enum FramesTestSuite {
             assertTest("Scrub Cache Automatically Evicted Excess Frames to 8", condition: dynamicCache.count == 8)
         }
 
+        // LRU Protection on Nearest Frame Access
+        let lruCache = ScrubFrameCache(maxCapacity: 3)
+        if let pb = dummyPixelBuffer {
+            lruCache.insert(buffer: pb, pts: 1.0)
+            lruCache.insert(buffer: pb, pts: 2.0)
+            lruCache.insert(buffer: pb, pts: 3.0)
+            // Access oldest frame (1.0) via nearestFrame, updating its LRU recency
+            _ = lruCache.nearestFrame(to: 1.01)
+            // Insert frame 4.0 - since frame 1.0 was touched, frame 2.0 should be evicted!
+            lruCache.insert(buffer: pb, pts: 4.0)
+            assertTest("Scrub Cache LRU Touch Preserves Nearest Frame Match", condition: lruCache.getFrame(forTargetPTS: 1.0, tolerance: 0.05) != nil)
+            assertTest("Scrub Cache Evicts Untouched Older Frame", condition: lruCache.getFrame(forTargetPTS: 2.0, tolerance: 0.05) == nil)
+        }
+
+        // Multi-Step In-Flight Resolution Scaling (1080p -> 4K -> 8K)
+        let multiStepCache = ScrubFrameCache(width: 1920, height: 1080)
+        assertTest("Multi-Step Cache Initial 1080p Capacity (48)", condition: multiStepCache.maxCapacity == 48)
+        multiStepCache.updateCapacity(forWidth: 3840, height: 2160)
+        assertTest("Multi-Step Cache Scaled to 4K Capacity (16)", condition: multiStepCache.maxCapacity == 16)
+        multiStepCache.updateCapacity(forWidth: 7680, height: 4320)
+        assertTest("Multi-Step Cache Scaled to 8K Capacity (8)", condition: multiStepCache.maxCapacity == 8)
+
         // MARK: - 23. Metal 3 Aspect Ratio Scaling & Letterboxing Tests
         logs.append("\n[23] Testing Metal 3 Aspect Ratio Scaling & Letterboxing...")
         let videoW_A: Float = 1920
@@ -1998,9 +2020,29 @@ public enum FramesTestSuite {
             let len = CMBlockBufferGetDataLength(bb)
             assertTest("CMBlockBuffer Data Length Matches Payload Exactly", condition: len == samplePayload.count)
             assertTest("CMBlockBuffer Range Contiguous", condition: CMBlockBufferIsRangeContiguous(bb, atOffset: 0, length: len))
+            var copied = Data(repeating: 0, count: len)
+            copied.withUnsafeMutableBytes { ptr in
+                _ = CMBlockBufferCopyDataBytes(bb, atOffset: 0, dataLength: len, destination: ptr.baseAddress!)
+            }
+            assertTest("CMBlockBuffer Byte Integrity Preserved Exactly", condition: copied == samplePayload)
         }
         let emptyBB = VideoToolboxDecoder.createBlockBuffer(from: Data())
         assertTest("Empty Packet Data Block Buffer Guard", condition: emptyBB == nil)
+
+        // Sliced Subdata Block Buffer
+        let largeData = Data([0xAA, 0xBB, 0x00, 0x00, 0x00, 0x02, 0x99, 0x88, 0xCC])
+        let slicedData = largeData.subdata(in: 2..<8)
+        let slicedBB = VideoToolboxDecoder.createBlockBuffer(from: slicedData)
+        assertTest("Sliced Data Block Buffer Creation", condition: slicedBB != nil && CMBlockBufferGetDataLength(slicedBB!) == 6)
+
+        // FrameQueue Consecutive PTS Cadence Detection & Thread Safety
+        let autoCadenceQueue = FrameQueue(maxCount: 18)
+        if let pb = dummyPB {
+            // Enqueue frames at 60fps cadence with duration = 0
+            autoCadenceQueue.enqueue(VideoToolboxDecoder.DecodedVideoFrame(pixelBuffer: pb, pts: 0.000, duration: 0.0))
+            autoCadenceQueue.enqueue(VideoToolboxDecoder.DecodedVideoFrame(pixelBuffer: pb, pts: 0.01667, duration: 0.0))
+            assertTest("FrameQueue Auto-Detects 60fps Nominal Cadence from Delta", condition: abs(autoCadenceQueue.nominalFrameDuration - 0.01667) < 0.001)
+        }
         // MARK: - 32. Repository Quality & CI Pipeline Assets
         logs.append("\n[32] Testing Repository Quality & CI Pipeline Assets...")
         var projectRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)

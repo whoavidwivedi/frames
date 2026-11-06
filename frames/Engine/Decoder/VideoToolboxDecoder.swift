@@ -281,7 +281,7 @@ nonisolated public final class VideoToolboxDecoder: @unchecked Sendable {
             customBlockSource: &customBlockSource,
             offsetToData: 0,
             dataLength: data.count,
-            flags: 0,
+            flags: kCMBlockBufferAssureMemoryNowFlag,
             blockBufferOut: &blockBuffer
         )
         
@@ -293,19 +293,34 @@ nonisolated public final class VideoToolboxDecoder: @unchecked Sendable {
         return bb
     }
     
+    /// Dynamically resolved video dimensions from the active format description.
+    public var videoDimensions: (width: Int, height: Int)? {
+        frameLock.lock()
+        defer { frameLock.unlock() }
+        guard let desc = formatDescription else { return nil }
+        let dims = CMVideoFormatDescriptionGetDimensions(desc)
+        return (Int(dims.width), Int(dims.height))
+    }
+    
     // MARK: - Frame Decompression
     
     /// Feeds an elementary demuxed video packet into the VideoToolbox hardware decoder.
     public func decode(packet: DemuxedPacket, doNotOutput: Bool = false) -> Bool {
         // Dynamic Parameter Set Bootstrap if formatDescription was not in container headers
-        if formatDescription == nil || session == nil {
+        frameLock.lock()
+        let needsBootstrap = (formatDescription == nil || session == nil)
+        frameLock.unlock()
+        
+        if needsBootstrap {
             if track.isH264 {
                 let nals = NALParser.extractAnnexBNALUnits(from: packet.data)
                 let sps = nals.filter { ($0.first ?? 0) & 0x1F == 7 }
                 let pps = nals.filter { ($0.first ?? 0) & 0x1F == 8 }
                 if !sps.isEmpty && !pps.isEmpty, let desc = NALParser.createH264FormatDescription(sps: sps, pps: pps) {
+                    frameLock.lock()
                     self.formatDescription = desc
                     _ = setupDecompressionSession(with: desc)
+                    frameLock.unlock()
                 }
             } else if track.isHEVC {
                 let nals = NALParser.extractAnnexBNALUnits(from: packet.data)
@@ -313,13 +328,20 @@ nonisolated public final class VideoToolboxDecoder: @unchecked Sendable {
                 let sps = nals.filter { (($0.first ?? 0) >> 1) & 0x3F == 33 }
                 let pps = nals.filter { (($0.first ?? 0) >> 1) & 0x3F == 34 }
                 if !sps.isEmpty && !pps.isEmpty, let desc = NALParser.createHEVCFormatDescription(vps: vps, sps: sps, pps: pps) {
+                    frameLock.lock()
                     self.formatDescription = desc
                     _ = setupDecompressionSession(with: desc)
+                    frameLock.unlock()
                 }
             }
         }
         
-        guard let session = session, let formatDesc = formatDescription else { return false }
+        frameLock.lock()
+        let currentSession = self.session
+        let currentFormatDesc = self.formatDescription
+        frameLock.unlock()
+        
+        guard let session = currentSession, let formatDesc = currentFormatDesc else { return false }
         
         // Video Translation Layer: Convert Annex-B to AVCC/HVCC length-prefixed format for VideoToolbox
         let payload: Data

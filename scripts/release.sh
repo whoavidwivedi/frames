@@ -286,7 +286,7 @@ else
 • **In-App Production OTA Update Engine**: Instant update notifications without intrusive automatic restarts. Seamless in-app download, checksum integrity verification, atomic bundle swap, and app relaunch.
 • **Instant Update Discovery**: Background release checking against GitHub Releases with SemVer 2.0.0 resolution, manual check affordance in App Menu and Command Palette.
 • **Liquid Glass Update Modal**: Adaptive dual-mode interface showcasing real-time download progress, changelog highlights, and granular controls ("Update & Restart", "Later", "Skip this version").
-• **Apple Silicon Performance Polish**: 450/450 automated tests passing across 34 suites with zero regressions, strict concurrency compliance, and ultra-low unified memory footprint.
+• **Apple Silicon Performance Polish**: 458/458 automated tests passing across 34 suites with zero regressions, strict concurrency compliance, and ultra-low unified memory footprint.
 
 ### 📦 Installation
 

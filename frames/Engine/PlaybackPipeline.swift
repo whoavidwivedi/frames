@@ -20,12 +20,18 @@ nonisolated public final class FrameQueue: @unchecked Sendable {
     private var lock = os_unfair_lock()
     private var frames: [VideoToolboxDecoder.DecodedVideoFrame] = []
     private var minimumAcceptedPTS = -Double.infinity
-    public private(set) var nominalFrameDuration: Double = 1.0 / 30.0
+    private var _nominalFrameDuration: Double = 1.0 / 30.0
     public let maxCount: Int
+    
+    public var nominalFrameDuration: Double {
+        os_unfair_lock_lock(&lock)
+        defer { os_unfair_lock_unlock(&lock) }
+        return _nominalFrameDuration
+    }
     
     public init(maxCount: Int = 18, nominalFrameDuration: Double = 1.0 / 30.0) {
         self.maxCount = maxCount
-        self.nominalFrameDuration = nominalFrameDuration
+        self._nominalFrameDuration = max(0.001, nominalFrameDuration)
     }
     
     public var count: Int {
@@ -38,7 +44,7 @@ nonisolated public final class FrameQueue: @unchecked Sendable {
         os_unfair_lock_lock(&lock)
         defer { os_unfair_lock_unlock(&lock) }
         if duration > 0.001 {
-            self.nominalFrameDuration = duration
+            self._nominalFrameDuration = duration
         }
     }
     
@@ -47,6 +53,16 @@ nonisolated public final class FrameQueue: @unchecked Sendable {
         defer { os_unfair_lock_unlock(&lock) }
         guard frame.pts >= minimumAcceptedPTS else { return }
 
+        // Dynamically track nominal frame duration if reported by frame or consecutive delta
+        if frame.duration > 0.001 && abs(_nominalFrameDuration - (1.0 / 30.0)) < 0.0001 {
+            _nominalFrameDuration = frame.duration
+        } else if let last = frames.last, abs(_nominalFrameDuration - (1.0 / 30.0)) < 0.0001 {
+            let delta = frame.pts - last.pts
+            if delta > 0.001 && delta < 0.25 {
+                _nominalFrameDuration = delta
+            }
+        }
+
         // Fast path for monotonic presentation order
         if let last = frames.last, frame.pts >= last.pts {
             frames.append(frame)
@@ -54,11 +70,6 @@ nonisolated public final class FrameQueue: @unchecked Sendable {
             frames.insert(frame, at: idx)
         } else {
             frames.append(frame)
-        }
-
-        // Dynamically track nominal frame duration if reported by decoded frame
-        if frame.duration > 0.001 && abs(nominalFrameDuration - (1.0 / 30.0)) < 0.0001 {
-            nominalFrameDuration = frame.duration
         }
 
         // Discard from tail only if significantly beyond capacity to preserve upcoming display frames
@@ -95,7 +106,7 @@ nonisolated public final class FrameQueue: @unchecked Sendable {
         os_unfair_lock_lock(&lock)
         defer { os_unfair_lock_unlock(&lock) }
         
-        let duration = (frameDuration ?? nominalFrameDuration) > 0.001 ? (frameDuration ?? nominalFrameDuration) : (1.0 / 30.0)
+        let duration = (frameDuration ?? _nominalFrameDuration) > 0.001 ? (frameDuration ?? _nominalFrameDuration) : (1.0 / 30.0)
         let lagThreshold = max(0.033, 2.0 * duration)
         
         // Discard stale frames lagging behind masterClock by more than dynamic frame-rate-aware threshold
@@ -103,8 +114,9 @@ nonisolated public final class FrameQueue: @unchecked Sendable {
             frames.removeFirst()
         }
         guard let candidate = frames.first else { return nil }
-        // Deliver frame if due within the display cadence window (20ms tolerance)
-        if candidate.pts <= masterClock + 0.020 {
+        // Deliver frame if due within dynamic display cadence window (scaled for high refresh rates)
+        let deliveryTolerance = min(0.020, max(0.005, duration * 0.75))
+        if candidate.pts <= masterClock + deliveryTolerance {
             frames.removeFirst()
             return (candidate.pixelBuffer, candidate.pts)
         }
@@ -318,6 +330,8 @@ public final class PlaybackPipeline: ObservableObject {
             let trackHeight = vTrack.pixelHeight > 0 ? vTrack.pixelHeight : vTrack.displayHeight
             if trackWidth > 0 && trackHeight > 0 {
                 scrubCache.updateCapacity(forWidth: trackWidth, height: trackHeight)
+            } else if let dims = decoder.videoDimensions, dims.width > 0 && dims.height > 0 {
+                scrubCache.updateCapacity(forWidth: dims.width, height: dims.height)
             }
             
             // Frame-rate aware nominal cadence configuration
@@ -335,6 +349,11 @@ public final class PlaybackPipeline: ObservableObject {
             let q = self.frameQueue
             let cache = self.scrubCache
             decoder.setFrameHandler { frame in
+                let w = CVPixelBufferGetWidth(frame.pixelBuffer)
+                let h = CVPixelBufferGetHeight(frame.pixelBuffer)
+                if w > 0 && h > 0 {
+                    cache.updateCapacity(forWidth: w, height: h)
+                }
                 cache.insert(buffer: frame.pixelBuffer, pts: frame.pts)
                 q.enqueue(frame)
             }

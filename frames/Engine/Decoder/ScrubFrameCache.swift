@@ -32,6 +32,8 @@ nonisolated public final class ScrubFrameCache: @unchecked Sendable {
     private var frames: [CachedFrame] = []
     private var _maxCapacity: Int
     private var accessCounter: UInt64 = 0
+    private var lastConfiguredWidth: Int = 0
+    private var lastConfiguredHeight: Int = 0
     
     public var maxCapacity: Int {
         os_unfair_lock_lock(&lock)
@@ -75,6 +77,15 @@ nonisolated public final class ScrubFrameCache: @unchecked Sendable {
     /// Dynamically resizes the cache capacity to match the given video resolution.
     /// Any frames exceeding the new capacity are evicted based on least-recently-used order.
     public func updateCapacity(forWidth width: Int, height: Int) {
+        os_unfair_lock_lock(&lock)
+        if width == lastConfiguredWidth && height == lastConfiguredHeight && width > 0 {
+            os_unfair_lock_unlock(&lock)
+            return
+        }
+        lastConfiguredWidth = width
+        lastConfiguredHeight = height
+        os_unfair_lock_unlock(&lock)
+
         let capacity = ScrubFrameCache.recommendedCapacity(width: width, height: height)
         setCapacity(capacity)
     }
@@ -83,7 +94,11 @@ nonisolated public final class ScrubFrameCache: @unchecked Sendable {
     public func setCapacity(_ newCapacity: Int) {
         os_unfair_lock_lock(&lock)
         defer { os_unfair_lock_unlock(&lock) }
-        _maxCapacity = max(1, newCapacity)
+        let clamped = max(1, newCapacity)
+        if _maxCapacity == clamped && frames.count <= clamped {
+            return
+        }
+        _maxCapacity = clamped
         while frames.count > _maxCapacity {
             if let lruIdx = frames.indices.min(by: { frames[$0].accessTime < frames[$1].accessTime }) {
                 frames.remove(at: lruIdx)
@@ -173,7 +188,10 @@ nonisolated public final class ScrubFrameCache: @unchecked Sendable {
                 bestIndex = i
             }
         }
-        return (frames[bestIndex].buffer, frames[bestIndex].pts)
+        accessCounter &+= 1
+        let matched = frames[bestIndex]
+        frames[bestIndex] = CachedFrame(buffer: matched.buffer, pts: matched.pts, accessTime: accessCounter)
+        return (matched.buffer, matched.pts)
     }
     
     /// Clears all cached frames.
