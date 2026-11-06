@@ -250,6 +250,49 @@ nonisolated public final class VideoToolboxDecoder: @unchecked Sendable {
         return true
     }
     
+    // MARK: - Zero-Copy Block Buffer Creation
+    
+    /// Creates an optimized, zero-copy `CMBlockBuffer` backed directly by packet memory.
+    /// Avoids redundant heap allocations and payload memory copying during high-bitrate playback.
+    public static func createBlockBuffer(from data: Data) -> CMBlockBuffer? {
+        guard !data.isEmpty else { return nil }
+        
+        let cfData = data as CFData
+        guard let bytePtr = CFDataGetBytePtr(cfData) else { return nil }
+        let unmanaged = Unmanaged.passRetained(cfData)
+        
+        var customBlockSource = CMBlockBufferCustomBlockSource(
+            version: UInt32(kCMBlockBufferCustomBlockSourceVersion),
+            AllocateBlock: nil,
+            FreeBlock: { refCon, _, _ in
+                if let refCon = refCon {
+                    Unmanaged<CFData>.fromOpaque(refCon).release()
+                }
+            },
+            refCon: unmanaged.toOpaque()
+        )
+        
+        var blockBuffer: CMBlockBuffer?
+        let status = CMBlockBufferCreateWithMemoryBlock(
+            allocator: kCFAllocatorDefault,
+            memoryBlock: UnsafeMutableRawPointer(mutating: bytePtr),
+            blockLength: data.count,
+            blockAllocator: nil,
+            customBlockSource: &customBlockSource,
+            offsetToData: 0,
+            dataLength: data.count,
+            flags: 0,
+            blockBufferOut: &blockBuffer
+        )
+        
+        guard status == noErr, let bb = blockBuffer else {
+            unmanaged.release()
+            return nil
+        }
+        
+        return bb
+    }
+    
     // MARK: - Frame Decompression
     
     /// Feeds an elementary demuxed video packet into the VideoToolbox hardware decoder.
@@ -286,36 +329,8 @@ nonisolated public final class VideoToolboxDecoder: @unchecked Sendable {
             payload = packet.data
         }
         
-        // Wrap packet raw payload in a CMBlockBuffer
-        var blockBuffer: CMBlockBuffer?
-        let status = payload.withUnsafeBytes { rawPtr -> OSStatus in
-            guard rawPtr.baseAddress != nil else { return -1 }
-            return CMBlockBufferCreateWithMemoryBlock(
-                allocator: kCFAllocatorDefault,
-                memoryBlock: nil, // Allocate block memory
-                blockLength: payload.count,
-                blockAllocator: kCFAllocatorDefault,
-                customBlockSource: nil,
-                offsetToData: 0,
-                dataLength: payload.count,
-                flags: 0,
-                blockBufferOut: &blockBuffer
-            )
-        }
-        
-        guard status == noErr, let bb = blockBuffer else { return false }
-        
-        // Copy packet bytes into the allocated CMBlockBuffer
-        payload.withUnsafeBytes { raw in
-            if let base = raw.baseAddress {
-                CMBlockBufferReplaceDataBytes(
-                    with: base,
-                    blockBuffer: bb,
-                    offsetIntoDestination: 0,
-                    dataLength: payload.count
-                )
-            }
-        }
+        // Wrap packet raw payload in an optimized zero-copy CMBlockBuffer backed directly by CFData
+        guard let bb = VideoToolboxDecoder.createBlockBuffer(from: payload) else { return false }
         
         // Construct CMSampleTimingInfo
         let ptsTime = CMTime(seconds: packet.pts, preferredTimescale: 1_000_000)

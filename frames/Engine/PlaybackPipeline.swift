@@ -16,23 +16,33 @@ import os.lock
 
 // MARK: - High-Throughput Unfair-Lock Frame Queue
 
-nonisolated private final class FrameQueue: @unchecked Sendable {
+nonisolated public final class FrameQueue: @unchecked Sendable {
     private var lock = os_unfair_lock()
     private var frames: [VideoToolboxDecoder.DecodedVideoFrame] = []
     private var minimumAcceptedPTS = -Double.infinity
-    let maxCount: Int
+    public private(set) var nominalFrameDuration: Double = 1.0 / 30.0
+    public let maxCount: Int
     
-    init(maxCount: Int = 18) {
+    public init(maxCount: Int = 18, nominalFrameDuration: Double = 1.0 / 30.0) {
         self.maxCount = maxCount
+        self.nominalFrameDuration = nominalFrameDuration
     }
     
-    var count: Int {
+    public var count: Int {
         os_unfair_lock_lock(&lock)
         defer { os_unfair_lock_unlock(&lock) }
         return frames.count
     }
     
-    func enqueue(_ frame: VideoToolboxDecoder.DecodedVideoFrame) {
+    public func setNominalFrameDuration(_ duration: Double) {
+        os_unfair_lock_lock(&lock)
+        defer { os_unfair_lock_unlock(&lock) }
+        if duration > 0.001 {
+            self.nominalFrameDuration = duration
+        }
+    }
+    
+    public func enqueue(_ frame: VideoToolboxDecoder.DecodedVideoFrame) {
         os_unfair_lock_lock(&lock)
         defer { os_unfair_lock_unlock(&lock) }
         guard frame.pts >= minimumAcceptedPTS else { return }
@@ -46,6 +56,11 @@ nonisolated private final class FrameQueue: @unchecked Sendable {
             frames.append(frame)
         }
 
+        // Dynamically track nominal frame duration if reported by decoded frame
+        if frame.duration > 0.001 && abs(nominalFrameDuration - (1.0 / 30.0)) < 0.0001 {
+            nominalFrameDuration = frame.duration
+        }
+
         // Discard from tail only if significantly beyond capacity to preserve upcoming display frames
         let hardLimit = maxCount + 16
         if frames.count > hardLimit {
@@ -53,13 +68,13 @@ nonisolated private final class FrameQueue: @unchecked Sendable {
         }
     }
     
-    func firstFrame() -> CVPixelBuffer? {
+    public func firstFrame() -> CVPixelBuffer? {
         os_unfair_lock_lock(&lock)
         defer { os_unfair_lock_unlock(&lock) }
         return frames.first?.pixelBuffer
     }
     
-    func frameClosest(to targetPTS: Double) -> (buffer: CVPixelBuffer, pts: Double)? {
+    public func frameClosest(to targetPTS: Double) -> (buffer: CVPixelBuffer, pts: Double)? {
         os_unfair_lock_lock(&lock)
         defer { os_unfair_lock_unlock(&lock) }
         guard !frames.isEmpty else { return nil }
@@ -76,12 +91,15 @@ nonisolated private final class FrameQueue: @unchecked Sendable {
         return (matched.pixelBuffer, matched.pts)
     }
     
-    func dequeueNext(forMasterClock masterClock: Double) -> (buffer: CVPixelBuffer, pts: Double)? {
+    public func dequeueNext(forMasterClock masterClock: Double, frameDuration: Double? = nil) -> (buffer: CVPixelBuffer, pts: Double)? {
         os_unfair_lock_lock(&lock)
         defer { os_unfair_lock_unlock(&lock) }
         
-        // Only discard stale frames if they are > 100ms behind masterClock and newer frames are ready
-        while frames.count > 1 && frames[0].pts < masterClock - 0.100 {
+        let duration = (frameDuration ?? nominalFrameDuration) > 0.001 ? (frameDuration ?? nominalFrameDuration) : (1.0 / 30.0)
+        let lagThreshold = max(0.033, 2.0 * duration)
+        
+        // Discard stale frames lagging behind masterClock by more than dynamic frame-rate-aware threshold
+        while frames.count > 1 && frames[0].pts < masterClock - lagThreshold {
             frames.removeFirst()
         }
         guard let candidate = frames.first else { return nil }
@@ -93,13 +111,13 @@ nonisolated private final class FrameQueue: @unchecked Sendable {
         return nil
     }
     
-    func removeAll() {
+    public func removeAll() {
         os_unfair_lock_lock(&lock)
         defer { os_unfair_lock_unlock(&lock) }
         frames.removeAll()
     }
 
-    func reset(forSeek target: Double) {
+    public func reset(forSeek target: Double) {
         os_unfair_lock_lock(&lock)
         defer { os_unfair_lock_unlock(&lock) }
         frames.removeAll()
@@ -224,9 +242,17 @@ public final class PlaybackPipeline: ObservableObject {
     
     // Decoded Frame Ring Buffer & Scrub Frame Cache
     private let frameQueue = FrameQueue(maxCount: 18)
-    private let scrubCache = ScrubFrameCache(maxCapacity: 96)
+    private let scrubCache = ScrubFrameCache(maxCapacity: 48)
     private let packetChunkBuffer = PacketChunkBuffer(maxCapacity: 256)
     private var lastReportedUIClock: Double = -1.0
+    private var nominalFrameDuration: Double = 1.0 / 30.0
+    
+    public var currentNominalFrameDuration: Double {
+        nominalFrameDuration
+    }
+    public var scrubCacheCapacity: Int {
+        scrubCache.maxCapacity
+    }
     
     // Concurrency & Feeder Task
     private let seekToken = SeekToken()
@@ -286,6 +312,25 @@ public final class PlaybackPipeline: ObservableObject {
                 transition(to: .error("Failed to initialize VideoToolbox hardware decoder"))
                 return false
             }
+            
+            // Resolution-aware scrub cache scaling
+            let trackWidth = vTrack.pixelWidth > 0 ? vTrack.pixelWidth : vTrack.displayWidth
+            let trackHeight = vTrack.pixelHeight > 0 ? vTrack.pixelHeight : vTrack.displayHeight
+            if trackWidth > 0 && trackHeight > 0 {
+                scrubCache.updateCapacity(forWidth: trackWidth, height: trackHeight)
+            }
+            
+            // Frame-rate aware nominal cadence configuration
+            let nominalDuration: Double
+            if let defaultDur = vTrack.defaultDurationNs, defaultDur > 0 {
+                nominalDuration = Double(defaultDur) / 1_000_000_000.0
+            } else if let fps = vTrack.estimatedFPS, fps > 0 {
+                nominalDuration = 1.0 / fps
+            } else {
+                nominalDuration = 1.0 / 30.0
+            }
+            self.nominalFrameDuration = nominalDuration
+            self.frameQueue.setNominalFrameDuration(nominalDuration)
             
             let q = self.frameQueue
             let cache = self.scrubCache
@@ -695,7 +740,7 @@ public final class PlaybackPipeline: ObservableObject {
             masterClock = currentTime
         }
         
-        guard let (frame, _) = frameQueue.dequeueNext(forMasterClock: masterClock) else {
+        guard let (frame, _) = frameQueue.dequeueNext(forMasterClock: masterClock, frameDuration: nominalFrameDuration) else {
             return nil
         }
         

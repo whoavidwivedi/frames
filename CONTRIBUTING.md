@@ -32,7 +32,7 @@ Please read our [Code of Conduct](CODE_OF_CONDUCT.md) and [Security Policy](SECU
   ```
 - **Running the Test Suite**:
   ```bash
-  # Execute the 436+ automated tests directly via headless CLI flag
+  # Execute the 450+ automated tests directly via headless CLI flag
   build/DerivedData/Build/Products/Debug/frames.app/Contents/MacOS/frames --run-tests
   ```
 

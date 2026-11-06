@@ -1142,6 +1142,25 @@ public enum FramesTestSuite {
             assertTest("Scrub Cache Distance Guard", condition: missFar == nil)
         }
 
+        // Resolution-Aware Scrub Cache Scaling
+        assertTest("Scrub Cache 1080p Resolution Scaling (48 Frames)", condition: ScrubFrameCache.recommendedCapacity(width: 1920, height: 1080) == 48)
+        assertTest("Scrub Cache 1440p Resolution Scaling (24 Frames)", condition: ScrubFrameCache.recommendedCapacity(width: 2560, height: 1440) == 24)
+        assertTest("Scrub Cache 4K UHD Resolution Scaling (16 Frames)", condition: ScrubFrameCache.recommendedCapacity(width: 3840, height: 2160) == 16)
+        assertTest("Scrub Cache 8K UHD Resolution Scaling (8 Frames)", condition: ScrubFrameCache.recommendedCapacity(width: 7680, height: 4320) == 8)
+
+        // Dynamic Cache Resizing & LRU Eviction
+        let dynamicCache = ScrubFrameCache(width: 1920, height: 1080)
+        assertTest("Scrub Cache Initialized with 1080p Capacity", condition: dynamicCache.maxCapacity == 48)
+        if let pb = dummyPixelBuffer {
+            for i in 0..<10 {
+                dynamicCache.insert(buffer: pb, pts: Double(i))
+            }
+            assertTest("Scrub Cache Populated with 10 Frames", condition: dynamicCache.count == 10)
+            dynamicCache.updateCapacity(forWidth: 7680, height: 4320) // Resize down to 8 frames
+            assertTest("Scrub Cache Capacity Reduced to 8 for 8K", condition: dynamicCache.maxCapacity == 8)
+            assertTest("Scrub Cache Automatically Evicted Excess Frames to 8", condition: dynamicCache.count == 8)
+        }
+
         // MARK: - 23. Metal 3 Aspect Ratio Scaling & Letterboxing Tests
         logs.append("\n[23] Testing Metal 3 Aspect Ratio Scaling & Letterboxing...")
         let videoW_A: Float = 1920
@@ -1943,6 +1962,45 @@ public enum FramesTestSuite {
         assertTest("Annex-B Start Code Multi-Zero Padding Properly Handled", condition: extractedNals.count == 2)
         let convertedAVCC = NALParser.convertAnnexBToAVCC(annexBSampleWithPadding)
         assertTest("Annex-B Multi-Zero Padding Converted Without Extra Zeros", condition: convertedAVCC.count > 0 && convertedAVCC.count < annexBSampleWithPadding.count + 8)
+
+        // 7. Frame-Rate Aware Dynamic Late Frame Dropping in FrameQueue
+        let fq120 = FrameQueue(maxCount: 18, nominalFrameDuration: 1.0 / 120.0) // 120fps (8.33ms duration)
+        var dummyPB: CVPixelBuffer?
+        CVPixelBufferCreate(kCFAllocatorDefault, 16, 16, kCVPixelFormatType_32BGRA, nil, &dummyPB)
+        if let pb = dummyPB {
+            // Enqueue frames at PTS 1.000, 1.040, 1.080
+            fq120.enqueue(VideoToolboxDecoder.DecodedVideoFrame(pixelBuffer: pb, pts: 1.000, duration: 1.0 / 120.0))
+            fq120.enqueue(VideoToolboxDecoder.DecodedVideoFrame(pixelBuffer: pb, pts: 1.040, duration: 1.0 / 120.0))
+            fq120.enqueue(VideoToolboxDecoder.DecodedVideoFrame(pixelBuffer: pb, pts: 1.080, duration: 1.0 / 120.0))
+            
+            // At masterClock 1.045: frame 1.000 is 45ms behind (> 33ms threshold) -> dropped!
+            // Frame 1.040 is 5ms behind (<= 20ms delivery window) -> delivered!
+            let dequeued = fq120.dequeueNext(forMasterClock: 1.045)
+            assertTest("120fps Queue Drops Stale Frame Exceeding Dynamic Threshold", condition: dequeued != nil && abs(dequeued!.pts - 1.040) < 0.001)
+        }
+
+        let fq24 = FrameQueue(maxCount: 18, nominalFrameDuration: 1.0 / 24.0) // 24fps (41.6ms duration, lag threshold = 83.3ms)
+        if let pb = dummyPB {
+            // Enqueue frames at PTS 2.000, 2.050
+            fq24.enqueue(VideoToolboxDecoder.DecodedVideoFrame(pixelBuffer: pb, pts: 2.000, duration: 1.0 / 24.0))
+            fq24.enqueue(VideoToolboxDecoder.DecodedVideoFrame(pixelBuffer: pb, pts: 2.050, duration: 1.0 / 24.0))
+            
+            // At masterClock 2.010: frame 2.000 is 10ms behind (well within 83.3ms lag threshold and within 20ms delivery window)
+            let dequeued24 = fq24.dequeueNext(forMasterClock: 2.010)
+            assertTest("24fps Queue Preserves Staggered Frames Within Dynamic Lag Threshold", condition: dequeued24 != nil && abs(dequeued24!.pts - 2.000) < 0.001)
+        }
+
+        // 8. Zero-Copy CMBlockBuffer Allocation & Lifecycle Optimization
+        let samplePayload = Data([0x00, 0x00, 0x00, 0x04, 0x12, 0x34, 0x56, 0x78])
+        let blockBuffer = VideoToolboxDecoder.createBlockBuffer(from: samplePayload)
+        assertTest("Zero-Copy CMBlockBuffer Created Successfully", condition: blockBuffer != nil)
+        if let bb = blockBuffer {
+            let len = CMBlockBufferGetDataLength(bb)
+            assertTest("CMBlockBuffer Data Length Matches Payload Exactly", condition: len == samplePayload.count)
+            assertTest("CMBlockBuffer Range Contiguous", condition: CMBlockBufferIsRangeContiguous(bb, atOffset: 0, length: len))
+        }
+        let emptyBB = VideoToolboxDecoder.createBlockBuffer(from: Data())
+        assertTest("Empty Packet Data Block Buffer Guard", condition: emptyBB == nil)
         // MARK: - 32. Repository Quality & CI Pipeline Assets
         logs.append("\n[32] Testing Repository Quality & CI Pipeline Assets...")
         var projectRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)

@@ -30,13 +30,67 @@ nonisolated public final class ScrubFrameCache: @unchecked Sendable {
     
     private var lock = os_unfair_lock()
     private var frames: [CachedFrame] = []
-    public let maxCapacity: Int
+    private var _maxCapacity: Int
     private var accessCounter: UInt64 = 0
+    
+    public var maxCapacity: Int {
+        os_unfair_lock_lock(&lock)
+        defer { os_unfair_lock_unlock(&lock) }
+        return _maxCapacity
+    }
+    
+    // MARK: - Resolution-Aware Scaling
+    
+    /// Calculates the recommended scrub cache frame capacity based on video resolution.
+    /// Memory consumption scaling:
+    /// - <= 1080p (e.g. 1920x1080): 48 frames (~190MB in 8-bit YUV)
+    /// - 1440p (e.g. 2560x1440): 24 frames (~175MB in 8-bit YUV)
+    /// - 4K UHD (e.g. 3840x2160): 16 frames (~265MB in 10-bit YUV)
+    /// - 8K UHD (e.g. 7680x4320): 8 frames (~530MB in 10-bit YUV)
+    public static func recommendedCapacity(width: Int, height: Int) -> Int {
+        guard width > 0 && height > 0 else { return 48 }
+        let pixels = width * height
+        let maxDim = max(width, height)
+        if pixels > 4096 * 2304 || maxDim > 4096 {
+            return 8
+        } else if pixels > 2560 * 1440 || maxDim > 2560 {
+            return 16
+        } else if pixels > 1920 * 1080 || maxDim > 1920 {
+            return 24
+        } else {
+            return 48
+        }
+    }
     
     // MARK: - Lifecycle
     
     public init(maxCapacity: Int = 48) {
-        self.maxCapacity = maxCapacity
+        self._maxCapacity = max(1, maxCapacity)
+    }
+    
+    public convenience init(width: Int, height: Int) {
+        self.init(maxCapacity: ScrubFrameCache.recommendedCapacity(width: width, height: height))
+    }
+    
+    /// Dynamically resizes the cache capacity to match the given video resolution.
+    /// Any frames exceeding the new capacity are evicted based on least-recently-used order.
+    public func updateCapacity(forWidth width: Int, height: Int) {
+        let capacity = ScrubFrameCache.recommendedCapacity(width: width, height: height)
+        setCapacity(capacity)
+    }
+    
+    /// Dynamically adjusts the maximum capacity and trims excess LRU frames if needed.
+    public func setCapacity(_ newCapacity: Int) {
+        os_unfair_lock_lock(&lock)
+        defer { os_unfair_lock_unlock(&lock) }
+        _maxCapacity = max(1, newCapacity)
+        while frames.count > _maxCapacity {
+            if let lruIdx = frames.indices.min(by: { frames[$0].accessTime < frames[$1].accessTime }) {
+                frames.remove(at: lruIdx)
+            } else {
+                break
+            }
+        }
     }
     
     public var count: Int {
@@ -69,9 +123,11 @@ nonisolated public final class ScrubFrameCache: @unchecked Sendable {
         }
         
         // Evict least-recently-accessed entry if over capacity
-        if frames.count > maxCapacity {
+        while frames.count > _maxCapacity {
             if let lruIdx = frames.indices.min(by: { frames[$0].accessTime < frames[$1].accessTime }) {
                 frames.remove(at: lruIdx)
+            } else {
+                break
             }
         }
     }
