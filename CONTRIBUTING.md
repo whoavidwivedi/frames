@@ -46,4 +46,4 @@ We follow conventional commit specifications:
 3. Add unit test assertions in `frames/Tests/FramesTestSuite.swift`.
 4. Run `frames --run-tests` and verify all tests pass with **0 failures**.
 5. Push your branch and open a Pull Request using `gh pr create` or the GitHub Web UI.
-6. Ensure CI passes on `macos-14` before merging.
+6. Ensure CI passes on `macos-15` before merging.
