@@ -177,88 +177,90 @@ nonisolated public final class NativeAudioDecoder: @unchecked Sendable {
     
     /// Translates an elementary demuxed audio packet into an uncompressed 32-bit Float AVAudioPCMBuffer.
     public func decode(packet: DemuxedPacket) -> AVAudioPCMBuffer? {
-        if isPCM {
-            return decodePCM(data: packet.data)
-        }
-        
-        lock.lock()
-        defer { lock.unlock() }
-        
-        guard let conv = converter else { return nil }
-        
-        let framesExpected: UInt32 = 1536
-        guard let pcmBuffer = AVAudioPCMBuffer(pcmFormat: outputFormat, frameCapacity: framesExpected * 2) else {
-            return nil
-        }
-        // Pre-set frameLength so that mutableAudioBufferList initializes valid mDataByteSize
-        pcmBuffer.frameLength = framesExpected * 2
-        
-        feeder.data = packet.data
-        feeder.channels = UInt32(self.channels)
-        feeder.packetDescPtr.pointee = AudioStreamPacketDescription(
-            mStartOffset: 0,
-            mVariableFramesInPacket: 0,
-            mDataByteSize: UInt32(packet.data.count)
-        )
-        feeder.hasSupplied = false
-        
-        let inputProc: AudioConverterComplexInputDataProc = { (
-            _,
-            ioNumberDataPackets,
-            ioData,
-            outDataPacketDescription,
-            inUserData
-        ) -> OSStatus in
-            guard let userData = inUserData else {
-                ioNumberDataPackets.pointee = 0
-                return -1
+        return autoreleasepool {
+            if isPCM {
+                return decodePCM(data: packet.data)
             }
-            let feederCtx = Unmanaged<FeederContext>.fromOpaque(userData).takeUnretainedValue()
-            if feederCtx.hasSupplied || feederCtx.data.isEmpty {
-                ioNumberDataPackets.pointee = 0
-                ioData.pointee.mBuffers.mDataByteSize = 0
-                if let outDesc = outDataPacketDescription {
-                    outDesc.pointee = nil
+            
+            lock.lock()
+            defer { lock.unlock() }
+            
+            guard let conv = converter else { return nil }
+            
+            let framesExpected: UInt32 = 1536
+            guard let pcmBuffer = AVAudioPCMBuffer(pcmFormat: outputFormat, frameCapacity: framesExpected * 2) else {
+                return nil
+            }
+            // Pre-set frameLength so that mutableAudioBufferList initializes valid mDataByteSize
+            pcmBuffer.frameLength = framesExpected * 2
+            
+            feeder.data = packet.data
+            feeder.channels = UInt32(self.channels)
+            feeder.packetDescPtr.pointee = AudioStreamPacketDescription(
+                mStartOffset: 0,
+                mVariableFramesInPacket: 0,
+                mDataByteSize: UInt32(packet.data.count)
+            )
+            feeder.hasSupplied = false
+            
+            let inputProc: AudioConverterComplexInputDataProc = { (
+                _,
+                ioNumberDataPackets,
+                ioData,
+                outDataPacketDescription,
+                inUserData
+            ) -> OSStatus in
+                guard let userData = inUserData else {
+                    ioNumberDataPackets.pointee = 0
+                    return -1
                 }
-                return kAudioDecoderEndOfBatchStatus
+                let feederCtx = Unmanaged<FeederContext>.fromOpaque(userData).takeUnretainedValue()
+                if feederCtx.hasSupplied || feederCtx.data.isEmpty {
+                    ioNumberDataPackets.pointee = 0
+                    ioData.pointee.mBuffers.mDataByteSize = 0
+                    if let outDesc = outDataPacketDescription {
+                        outDesc.pointee = nil
+                    }
+                    return kAudioDecoderEndOfBatchStatus
+                }
+                
+                ioNumberDataPackets.pointee = 1
+                let numBytes = UInt32(feederCtx.data.count)
+                
+                feederCtx.data.withUnsafeBytes { raw in
+                    let ptr = UnsafeMutableRawPointer(mutating: raw.baseAddress!)
+                    ioData.pointee.mNumberBuffers = 1
+                    ioData.pointee.mBuffers.mNumberChannels = feederCtx.channels
+                    ioData.pointee.mBuffers.mDataByteSize = numBytes
+                    ioData.pointee.mBuffers.mData = ptr
+                }
+                
+                if let outDesc = outDataPacketDescription {
+                    outDesc.pointee = feederCtx.packetDescPtr
+                }
+                feederCtx.hasSupplied = true
+                return noErr
             }
             
-            ioNumberDataPackets.pointee = 1
-            let numBytes = UInt32(feederCtx.data.count)
+            var ioOutputFrames: UInt32 = framesExpected * 2
+            let feederPtr = Unmanaged.passUnretained(feeder).toOpaque()
+            let abl = pcmBuffer.mutableAudioBufferList
             
-            feederCtx.data.withUnsafeBytes { raw in
-                let ptr = UnsafeMutableRawPointer(mutating: raw.baseAddress!)
-                ioData.pointee.mNumberBuffers = 1
-                ioData.pointee.mBuffers.mNumberChannels = feederCtx.channels
-                ioData.pointee.mBuffers.mDataByteSize = numBytes
-                ioData.pointee.mBuffers.mData = ptr
-            }
+            let status = AudioConverterFillComplexBuffer(
+                conv,
+                inputProc,
+                feederPtr,
+                &ioOutputFrames,
+                abl,
+                nil
+            )
             
-            if let outDesc = outDataPacketDescription {
-                outDesc.pointee = feederCtx.packetDescPtr
+            guard (status == noErr || status == kAudioDecoderEndOfBatchStatus), ioOutputFrames > 0 else {
+                return nil
             }
-            feederCtx.hasSupplied = true
-            return noErr
+            pcmBuffer.frameLength = ioOutputFrames
+            return pcmBuffer
         }
-        
-        var ioOutputFrames: UInt32 = framesExpected * 2
-        let feederPtr = Unmanaged.passUnretained(feeder).toOpaque()
-        let abl = pcmBuffer.mutableAudioBufferList
-        
-        let status = AudioConverterFillComplexBuffer(
-            conv,
-            inputProc,
-            feederPtr,
-            &ioOutputFrames,
-            abl,
-            nil
-        )
-        
-        guard (status == noErr || status == kAudioDecoderEndOfBatchStatus), ioOutputFrames > 0 else {
-            return nil
-        }
-        pcmBuffer.frameLength = ioOutputFrames
-        return pcmBuffer
     }
     
     // MARK: - PCM Translation

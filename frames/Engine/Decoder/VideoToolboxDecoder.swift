@@ -306,139 +306,141 @@ nonisolated public final class VideoToolboxDecoder: @unchecked Sendable {
     
     /// Feeds an elementary demuxed video packet into the VideoToolbox hardware decoder.
     public func decode(packet: DemuxedPacket, doNotOutput: Bool = false) -> Bool {
-        // Dynamic Parameter Set Bootstrap if formatDescription was not in container headers
-        frameLock.lock()
-        let needsBootstrap = (formatDescription == nil || session == nil)
-        frameLock.unlock()
-        
-        if needsBootstrap {
-            if track.isH264 {
-                let nals = NALParser.extractAnnexBNALUnits(from: packet.data)
-                let sps = nals.filter { ($0.first ?? 0) & 0x1F == 7 }
-                let pps = nals.filter { ($0.first ?? 0) & 0x1F == 8 }
-                if !sps.isEmpty && !pps.isEmpty, let desc = NALParser.createH264FormatDescription(sps: sps, pps: pps) {
-                    frameLock.lock()
-                    self.formatDescription = desc
-                    _ = setupDecompressionSession(with: desc)
-                    frameLock.unlock()
-                }
-            } else if track.isHEVC {
-                let nals = NALParser.extractAnnexBNALUnits(from: packet.data)
-                let vps = nals.filter { (($0.first ?? 0) >> 1) & 0x3F == 32 }
-                let sps = nals.filter { (($0.first ?? 0) >> 1) & 0x3F == 33 }
-                let pps = nals.filter { (($0.first ?? 0) >> 1) & 0x3F == 34 }
-                if !sps.isEmpty && !pps.isEmpty, let desc = NALParser.createHEVCFormatDescription(vps: vps, sps: sps, pps: pps) {
-                    frameLock.lock()
-                    self.formatDescription = desc
-                    _ = setupDecompressionSession(with: desc)
-                    frameLock.unlock()
-                }
-            }
-        }
-        
-        frameLock.lock()
-        let currentSession = self.session
-        let currentFormatDesc = self.formatDescription
-        frameLock.unlock()
-        
-        guard let session = currentSession, let formatDesc = currentFormatDesc else { return false }
-        
-        // Video Translation Layer: Convert Annex-B to AVCC/HVCC length-prefixed format for VideoToolbox
-        let payload: Data
-        if (track.isH264 || track.isHEVC) && NALParser.isAnnexB(packet.data) {
-            payload = NALParser.convertAnnexBToAVCC(packet.data)
-        } else {
-            payload = packet.data
-        }
-        
-        // Wrap packet raw payload in an optimized zero-copy CMBlockBuffer backed directly by CFData
-        guard let bb = VideoToolboxDecoder.createBlockBuffer(from: payload) else { return false }
-        
-        // Construct CMSampleTimingInfo
-        let ptsTime = CMTime(seconds: packet.pts, preferredTimescale: 1_000_000)
-        let dtsTime = CMTime.invalid
-        let durationTime: CMTime
-        if let dur = packet.duration, dur > 0 {
-            durationTime = CMTime(seconds: dur, preferredTimescale: 1_000_000)
-        } else {
-            durationTime = CMTime.invalid
-        }
+        return autoreleasepool {
+            // Dynamic Parameter Set Bootstrap if formatDescription was not in container headers
+            frameLock.lock()
+            let needsBootstrap = (formatDescription == nil || session == nil)
+            frameLock.unlock()
             
-        var timing = CMSampleTimingInfo(
-            duration: durationTime,
-            presentationTimeStamp: ptsTime,
-            decodeTimeStamp: dtsTime
-        )
-        
-        // Create CMSampleBuffer
-        var sampleBuffer: CMSampleBuffer?
-        var sampleSize = payload.count
-        
-        let sampleStatus = CMSampleBufferCreateReady(
-            allocator: kCFAllocatorDefault,
-            dataBuffer: bb,
-            formatDescription: formatDesc,
-            sampleCount: 1,
-            sampleTimingEntryCount: 1,
-            sampleTimingArray: &timing,
-            sampleSizeEntryCount: 1,
-            sampleSizeArray: &sampleSize,
-            sampleBufferOut: &sampleBuffer
-        )
-        
-        guard sampleStatus == noErr, let sb = sampleBuffer else { return false }
-        
-        // Configure keyframe and dependency attachments for VideoToolbox DPB reference management
-        if let attachments = CMSampleBufferGetSampleAttachmentsArray(sb, createIfNecessary: true) {
-            let count = CFArrayGetCount(attachments)
-            if count > 0 {
-                let dict = unsafeBitCast(CFArrayGetValueAtIndex(attachments, 0), to: CFMutableDictionary.self)
-                if packet.isKeyframe {
-                    CFDictionarySetValue(dict, Unmanaged.passUnretained(kCMSampleAttachmentKey_DisplayImmediately).toOpaque(), Unmanaged.passUnretained(kCFBooleanTrue).toOpaque())
-                    CFDictionaryRemoveValue(dict, Unmanaged.passUnretained(kCMSampleAttachmentKey_NotSync).toOpaque())
-                    CFDictionaryRemoveValue(dict, Unmanaged.passUnretained(kCMSampleAttachmentKey_DependsOnOthers).toOpaque())
-                } else {
-                    CFDictionarySetValue(dict, Unmanaged.passUnretained(kCMSampleAttachmentKey_NotSync).toOpaque(), Unmanaged.passUnretained(kCFBooleanTrue).toOpaque())
-                    CFDictionarySetValue(dict, Unmanaged.passUnretained(kCMSampleAttachmentKey_DependsOnOthers).toOpaque(), Unmanaged.passUnretained(kCFBooleanTrue).toOpaque())
+            if needsBootstrap {
+                if track.isH264 {
+                    let nals = NALParser.extractAnnexBNALUnits(from: packet.data)
+                    let sps = nals.filter { ($0.first ?? 0) & 0x1F == 7 }
+                    let pps = nals.filter { ($0.first ?? 0) & 0x1F == 8 }
+                    if !sps.isEmpty && !pps.isEmpty, let desc = NALParser.createH264FormatDescription(sps: sps, pps: pps) {
+                        frameLock.lock()
+                        self.formatDescription = desc
+                        _ = setupDecompressionSession(with: desc)
+                        frameLock.unlock()
+                    }
+                } else if track.isHEVC {
+                    let nals = NALParser.extractAnnexBNALUnits(from: packet.data)
+                    let vps = nals.filter { (($0.first ?? 0) >> 1) & 0x3F == 32 }
+                    let sps = nals.filter { (($0.first ?? 0) >> 1) & 0x3F == 33 }
+                    let pps = nals.filter { (($0.first ?? 0) >> 1) & 0x3F == 34 }
+                    if !sps.isEmpty && !pps.isEmpty, let desc = NALParser.createHEVCFormatDescription(vps: vps, sps: sps, pps: pps) {
+                        frameLock.lock()
+                        self.formatDescription = desc
+                        _ = setupDecompressionSession(with: desc)
+                        frameLock.unlock()
+                    }
                 }
             }
-        }
-        
-        // Configure decode flags: allow silent reference picture decoding during preroll
-        var decodeFlags: VTDecodeFrameFlags = [._EnableAsynchronousDecompression]
-        if doNotOutput {
-            decodeFlags.insert(._DoNotOutputFrame)
-        }
-        
-        // Submit to Apple Silicon VideoToolbox ASIC with modern Swift completion handler
-        frameLock.lock()
-        let currentGen = self.sessionGeneration
-        frameLock.unlock()
-
-        let decodeStatus = VTDecompressionSessionDecodeFrame(
-            session,
-            sampleBuffer: sb,
-            flags: decodeFlags,
-            infoFlagsOut: nil
-        ) { [weak self] status, infoFlags, imageBuffer, _, presentationTimeStamp, presentationDuration in
-            guard let self = self else { return }
-            self.frameLock.lock()
-            guard self.sessionGeneration == currentGen else {
-                self.frameLock.unlock()
-                return
+            
+            frameLock.lock()
+            let currentSession = self.session
+            let currentFormatDesc = self.formatDescription
+            frameLock.unlock()
+            
+            guard let session = currentSession, let formatDesc = currentFormatDesc else { return false }
+            
+            // Video Translation Layer: Convert Annex-B to AVCC/HVCC length-prefixed format for VideoToolbox
+            let payload: Data
+            if (track.isH264 || track.isHEVC) && NALParser.isAnnexB(packet.data) {
+                payload = NALParser.convertAnnexBToAVCC(packet.data)
+            } else {
+                payload = packet.data
             }
-            self.frameLock.unlock()
-
-            self.handleDecodedFrame(
-                status: status,
-                infoFlags: infoFlags,
-                imageBuffer: imageBuffer,
-                presentationTimeStamp: presentationTimeStamp,
-                presentationDuration: presentationDuration
+            
+            // Wrap packet raw payload in an optimized zero-copy CMBlockBuffer backed directly by CFData
+            guard let bb = VideoToolboxDecoder.createBlockBuffer(from: payload) else { return false }
+            
+            // Construct CMSampleTimingInfo
+            let ptsTime = CMTime(seconds: packet.pts, preferredTimescale: 1_000_000)
+            let dtsTime = CMTime.invalid
+            let durationTime: CMTime
+            if let dur = packet.duration, dur > 0 {
+                durationTime = CMTime(seconds: dur, preferredTimescale: 1_000_000)
+            } else {
+                durationTime = CMTime.invalid
+            }
+                
+            var timing = CMSampleTimingInfo(
+                duration: durationTime,
+                presentationTimeStamp: ptsTime,
+                decodeTimeStamp: dtsTime
             )
+            
+            // Create CMSampleBuffer
+            var sampleBuffer: CMSampleBuffer?
+            var sampleSize = payload.count
+            
+            let sampleStatus = CMSampleBufferCreateReady(
+                allocator: kCFAllocatorDefault,
+                dataBuffer: bb,
+                formatDescription: formatDesc,
+                sampleCount: 1,
+                sampleTimingEntryCount: 1,
+                sampleTimingArray: &timing,
+                sampleSizeEntryCount: 1,
+                sampleSizeArray: &sampleSize,
+                sampleBufferOut: &sampleBuffer
+            )
+            
+            guard sampleStatus == noErr, let sb = sampleBuffer else { return false }
+            
+            // Configure keyframe and dependency attachments for VideoToolbox DPB reference management
+            if let attachments = CMSampleBufferGetSampleAttachmentsArray(sb, createIfNecessary: true) {
+                let count = CFArrayGetCount(attachments)
+                if count > 0 {
+                    let dict = unsafeBitCast(CFArrayGetValueAtIndex(attachments, 0), to: CFMutableDictionary.self)
+                    if packet.isKeyframe {
+                        CFDictionarySetValue(dict, Unmanaged.passUnretained(kCMSampleAttachmentKey_DisplayImmediately).toOpaque(), Unmanaged.passUnretained(kCFBooleanTrue).toOpaque())
+                        CFDictionaryRemoveValue(dict, Unmanaged.passUnretained(kCMSampleAttachmentKey_NotSync).toOpaque())
+                        CFDictionaryRemoveValue(dict, Unmanaged.passUnretained(kCMSampleAttachmentKey_DependsOnOthers).toOpaque())
+                    } else {
+                        CFDictionarySetValue(dict, Unmanaged.passUnretained(kCMSampleAttachmentKey_NotSync).toOpaque(), Unmanaged.passUnretained(kCFBooleanTrue).toOpaque())
+                        CFDictionarySetValue(dict, Unmanaged.passUnretained(kCMSampleAttachmentKey_DependsOnOthers).toOpaque(), Unmanaged.passUnretained(kCFBooleanTrue).toOpaque())
+                    }
+                }
+            }
+            
+            // Configure decode flags: allow silent reference picture decoding during preroll
+            var decodeFlags: VTDecodeFrameFlags = [._EnableAsynchronousDecompression]
+            if doNotOutput {
+                decodeFlags.insert(._DoNotOutputFrame)
+            }
+            
+            // Submit to Apple Silicon VideoToolbox ASIC with modern Swift completion handler
+            frameLock.lock()
+            let currentGen = self.sessionGeneration
+            frameLock.unlock()
+
+            let decodeStatus = VTDecompressionSessionDecodeFrame(
+                session,
+                sampleBuffer: sb,
+                flags: decodeFlags,
+                infoFlagsOut: nil
+            ) { [weak self] status, infoFlags, imageBuffer, _, presentationTimeStamp, presentationDuration in
+                guard let self = self else { return }
+                self.frameLock.lock()
+                guard self.sessionGeneration == currentGen else {
+                    self.frameLock.unlock()
+                    return
+                }
+                self.frameLock.unlock()
+
+                self.handleDecodedFrame(
+                    status: status,
+                    infoFlags: infoFlags,
+                    imageBuffer: imageBuffer,
+                    presentationTimeStamp: presentationTimeStamp,
+                    presentationDuration: presentationDuration
+                )
+            }
+            
+            return decodeStatus == noErr
         }
-        
-        return decodeStatus == noErr
     }
     
     // MARK: - Frame Delivery Callback
@@ -450,22 +452,24 @@ nonisolated public final class VideoToolboxDecoder: @unchecked Sendable {
         presentationTimeStamp: CMTime,
         presentationDuration: CMTime
     ) {
-        guard status == noErr, let pixelBuffer = imageBuffer else { return }
-        
-        let pts = CMTimeGetSeconds(presentationTimeStamp)
-        let duration = presentationDuration.isValid ? CMTimeGetSeconds(presentationDuration) : 0.0
-        let frame = DecodedVideoFrame(pixelBuffer: pixelBuffer, pts: pts, duration: duration)
-        
-        frameLock.lock()
-        if let handler = onFrameDecoded {
-            frameLock.unlock()
-            handler(frame)
-        } else {
-            bufferedFrames.append(frame)
-            if bufferedFrames.count > maxBufferedFrames {
-                bufferedFrames.removeFirst()
+        autoreleasepool {
+            guard status == noErr, let pixelBuffer = imageBuffer else { return }
+            
+            let pts = CMTimeGetSeconds(presentationTimeStamp)
+            let duration = presentationDuration.isValid ? CMTimeGetSeconds(presentationDuration) : 0.0
+            let frame = DecodedVideoFrame(pixelBuffer: pixelBuffer, pts: pts, duration: duration)
+            
+            frameLock.lock()
+            if let handler = onFrameDecoded {
+                frameLock.unlock()
+                handler(frame)
+            } else {
+                bufferedFrames.append(frame)
+                if bufferedFrames.count > maxBufferedFrames {
+                    bufferedFrames.removeFirst()
+                }
+                frameLock.unlock()
             }
-            frameLock.unlock()
         }
     }
 }

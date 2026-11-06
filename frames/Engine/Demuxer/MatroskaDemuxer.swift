@@ -1,9 +1,10 @@
 import Foundation
+import Darwin
 
 /// Pure Swift 6 zero-dependency streaming Matroska (.mkv) and WebM (.webm) demuxer.
 nonisolated public final class MatroskaDemuxer: @unchecked Sendable {
     public let fileURL: URL
-    private let fileHandle: FileHandle
+    private var fileDescriptor: Int32 = -1
     private let fileSize: UInt64
 
     public private(set) var docType: String = ""
@@ -42,15 +43,44 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable {
 
     public init(url: URL) throws {
         self.fileURL = url
-        self.fileHandle = try FileHandle(forReadingFrom: url)
-        let attr = try FileManager.default.attributesOfItem(atPath: url.path)
-        self.fileSize = (attr[.size] as? UInt64) ?? 0
+        let fd = url.withUnsafeFileSystemRepresentation { pathPtr -> Int32 in
+            guard let pathPtr = pathPtr else { return -1 }
+            return open(pathPtr, O_RDONLY)
+        }
+        guard fd >= 0 else {
+            throw DemuxerError.invalidEBMLHeader
+        }
+        self.fileDescriptor = fd
+        var st = stat()
+        if fstat(fd, &st) == 0 {
+            self.fileSize = UInt64(st.st_size)
+        } else {
+            let attr = try? FileManager.default.attributesOfItem(atPath: url.path)
+            self.fileSize = (attr?[.size] as? UInt64) ?? 0
+        }
 
-        try parseMetadata()
+        do {
+            try parseMetadata()
+        } catch {
+            Darwin.close(fd)
+            self.fileDescriptor = -1
+            throw error
+        }
+    }
+
+    public func close() {
+        ioLock.lock()
+        defer { ioLock.unlock() }
+        if fileDescriptor >= 0 {
+            Darwin.close(fileDescriptor)
+            fileDescriptor = -1
+        }
+        buffer = Data()
+        bufferFileOffset = 0
     }
 
     deinit {
-        try? fileHandle.close()
+        close()
     }
 
     // MARK: - Metadata Ingestion
@@ -608,69 +638,71 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable {
     // MARK: - Streaming Packet Generator
     /// Reads the next media packet from the stream. Returns nil when end of file is reached.
     public func nextPacket() throws -> DemuxedPacket? {
-        ioLock.lock()
-        defer { ioLock.unlock() }
+        try autoreleasepool {
+            ioLock.lock()
+            defer { ioLock.unlock() }
 
-        if !pendingPackets.isEmpty {
-            return pendingPackets.removeFirst()
-        }
+            if !pendingPackets.isEmpty {
+                return pendingPackets.removeFirst()
+            }
 
-        while currentOffset < fileSize {
-            guard let elem = readElement(at: currentOffset) else {
-                // If not at EOF, attempt resynchronization to the nearest cluster
-                if currentOffset < fileSize, let nextCluster = resyncToCluster(from: currentOffset) {
-                    currentOffset = nextCluster
+            while currentOffset < fileSize {
+                guard let elem = readElement(at: currentOffset) else {
+                    // If not at EOF, attempt resynchronization to the nearest cluster
+                    if currentOffset < fileSize, let nextCluster = resyncToCluster(from: currentOffset) {
+                        currentOffset = nextCluster
+                        continue
+                    }
+                    currentOffset = fileSize
+                    return nil
+                }
+
+                switch elem.id {
+                case .cluster:
+                    // Enter Cluster payload to read cluster timestamp and blocks
+                    currentOffset = elem.payloadOffset
                     continue
+
+                case .timestamp:
+                    // Cluster timestamp
+                    let tsData = try readBytes(offset: elem.payloadOffset, length: Int(elem.payloadSize))
+                    tsData.withUnsafeBytes { raw in
+                        self.currentClusterTimestamp = EBMLVint.parseInt(from: raw, offset: 0, length: Int(elem.payloadSize)) ?? 0
+                    }
+                    currentOffset = elem.payloadOffset + elem.payloadSize
+                    continue
+
+                case .simpleBlock, .block:
+                    // Elementary media block
+                    let blockData = try readBytes(offset: elem.payloadOffset, length: Int(elem.payloadSize))
+                    let pkts = parseBlock(data: blockData, isSimpleBlock: (elem.id == .simpleBlock), fileOffset: elem.payloadOffset)
+                    currentOffset = elem.payloadOffset + elem.payloadSize
+                    if !pkts.isEmpty {
+                        if pkts.count > 1 {
+                            pendingPackets.append(contentsOf: pkts.dropFirst())
+                        }
+                        return pkts.first
+                    }
+
+                case .blockGroup:
+                    let bgData = try readBytes(offset: elem.payloadOffset, length: Int(elem.payloadSize))
+                    let pkts = parseBlockGroup(data: bgData, fileOffset: elem.payloadOffset)
+                    currentOffset = elem.payloadOffset + elem.payloadSize
+                    if !pkts.isEmpty {
+                        if pkts.count > 1 {
+                            pendingPackets.append(contentsOf: pkts.dropFirst())
+                        }
+                        return pkts.first
+                    }
+
+                default:
+                    // Skip non-media elements (prevSize, position, padding)
+                    currentOffset = elem.payloadOffset + elem.payloadSize
                 }
-                currentOffset = fileSize
-                return nil
             }
 
-            switch elem.id {
-            case .cluster:
-                // Enter Cluster payload to read cluster timestamp and blocks
-                currentOffset = elem.payloadOffset
-                continue
-
-            case .timestamp:
-                // Cluster timestamp
-                let tsData = try readBytes(offset: elem.payloadOffset, length: Int(elem.payloadSize))
-                tsData.withUnsafeBytes { raw in
-                    self.currentClusterTimestamp = EBMLVint.parseInt(from: raw, offset: 0, length: Int(elem.payloadSize)) ?? 0
-                }
-                currentOffset = elem.payloadOffset + elem.payloadSize
-                continue
-
-            case .simpleBlock, .block:
-                // Elementary media block
-                let blockData = try readBytes(offset: elem.payloadOffset, length: Int(elem.payloadSize))
-                let pkts = parseBlock(data: blockData, isSimpleBlock: (elem.id == .simpleBlock), fileOffset: elem.payloadOffset)
-                currentOffset = elem.payloadOffset + elem.payloadSize
-                if !pkts.isEmpty {
-                    if pkts.count > 1 {
-                        pendingPackets.append(contentsOf: pkts.dropFirst())
-                    }
-                    return pkts.first
-                }
-
-            case .blockGroup:
-                let bgData = try readBytes(offset: elem.payloadOffset, length: Int(elem.payloadSize))
-                let pkts = parseBlockGroup(data: bgData, fileOffset: elem.payloadOffset)
-                currentOffset = elem.payloadOffset + elem.payloadSize
-                if !pkts.isEmpty {
-                    if pkts.count > 1 {
-                        pendingPackets.append(contentsOf: pkts.dropFirst())
-                    }
-                    return pkts.first
-                }
-
-            default:
-                // Skip non-media elements (prevSize, position, padding)
-                currentOffset = elem.payloadOffset + elem.payloadSize
-            }
+            return nil
         }
-
-        return nil
     }
 
     /// Reads a chunk of packets in a single high-efficiency demuxing batch.
@@ -952,47 +984,54 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable {
         return nil
     }
 
-    // MARK: - Buffered I/O Engine
-    private func readBytes(offset: UInt64, length: Int) throws -> Data {
-        guard length > 0, offset + UInt64(length) <= fileSize else { return Data() }
-
-        // If requested region is inside current buffer, slice directly without disk I/O
-        if offset >= bufferFileOffset && (offset + UInt64(length)) <= (bufferFileOffset + UInt64(buffer.count)) {
-            let localOffset = Int(offset - bufferFileOffset)
-            return buffer.subdata(in: localOffset..<(localOffset + length))
-        }
-
-        try fileHandle.seek(toOffset: offset)
-
-        if length <= readBufferCapacity {
-            let chunkToRead = max(length, readBufferCapacity)
-            var newChunk = Data()
-            newChunk.reserveCapacity(chunkToRead)
-
-            while newChunk.count < chunkToRead {
-                let needed = min(chunkToRead - newChunk.count, 512 * 1024)
-                guard let part = try fileHandle.read(upToCount: needed), !part.isEmpty else {
-                    break
+    // MARK: - POSIX Direct I/O Engine
+    private func readPOSIX(fd: Int32, offset: UInt64, length: Int) -> Data {
+        guard length > 0, fd >= 0 else { return Data() }
+        return autoreleasepool {
+            var result = Data(count: length)
+            let bytesRead = result.withUnsafeMutableBytes { (rawPtr: UnsafeMutableRawBufferPointer) -> Int in
+                guard let base = rawPtr.baseAddress else { return 0 }
+                var total = 0
+                while total < length {
+                    let n = pread(fd, base + total, length - total, off_t(offset + UInt64(total)))
+                    if n < 0 {
+                        if errno == EINTR { continue }
+                        break
+                    }
+                    if n == 0 { break }
+                    total += n
                 }
-                newChunk.append(part)
+                return total
             }
-
-            self.buffer = newChunk
-            self.bufferFileOffset = offset
-            return newChunk.prefix(length)
-        } else {
-            // For oversized payloads (e.g. 4K high-bitrate intra frames, Cues table), read directly without truncating
-            var result = Data()
-            result.reserveCapacity(length)
-
-            while result.count < length {
-                let needed = min(length - result.count, 1024 * 1024)
-                guard let part = try fileHandle.read(upToCount: needed), !part.isEmpty else {
-                    break
-                }
-                result.append(part)
+            if bytesRead < length {
+                return result.prefix(bytesRead)
             }
             return result
+        }
+    }
+
+    // MARK: - Buffered I/O Engine
+    private func readBytes(offset: UInt64, length: Int) throws -> Data {
+        return autoreleasepool {
+            guard length > 0, offset + UInt64(length) <= fileSize else { return Data() }
+
+            // If requested region is inside current buffer, slice directly without disk I/O
+            if offset >= bufferFileOffset && (offset + UInt64(length)) <= (bufferFileOffset + UInt64(buffer.count)) {
+                let localOffset = Int(offset - bufferFileOffset)
+                return buffer.subdata(in: localOffset..<(localOffset + length))
+            }
+
+            if length <= readBufferCapacity {
+                let chunkToRead = max(length, readBufferCapacity)
+                let actualToRead = min(chunkToRead, Int(fileSize - offset))
+                let newChunk = readPOSIX(fd: fileDescriptor, offset: offset, length: actualToRead)
+                self.buffer = newChunk
+                self.bufferFileOffset = offset
+                return newChunk.prefix(length)
+            } else {
+                // For oversized payloads (e.g. 4K high-bitrate intra frames, Cues table), read directly without intermediate copies
+                return readPOSIX(fd: fileDescriptor, offset: offset, length: length)
+            }
         }
     }
 
@@ -1000,11 +1039,8 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable {
     /// High-performance single-pass extractor for all embedded text subtitle tracks.
     /// Skips large video/audio payload reads to avoid memory pressure and disk thrashing.
     public func extractAllSubtitleCues() -> [UInt64: [SubtitleCue]] {
-        guard let subFileHandle = try? FileHandle(forReadingFrom: fileURL) else { return [:] }
-        defer { try? subFileHandle.close() }
-
         let targetTrackNumbers = Set(subtitleTracks.map { $0.trackNumber })
-        guard !targetTrackNumbers.isEmpty else { return [:] }
+        guard !targetTrackNumbers.isEmpty, fileDescriptor >= 0 else { return [:] }
 
         var result: [UInt64: [SubtitleCue]] = [:]
         for tNum in targetTrackNumbers {
@@ -1014,6 +1050,7 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable {
         var offset = firstClusterOffset ?? segmentDataOffset
         var clusterTime: Int64 = 0
         let limit = fileSize
+        let fd = self.fileDescriptor
 
         var readBuffer = Data()
         var readBufferOffset: UInt64 = 0
@@ -1025,9 +1062,10 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable {
                 let start = Int(offset - readBufferOffset)
                 return readBuffer.subdata(in: start..<(start + length))
             }
-            guard (try? subFileHandle.seek(toOffset: offset)) != nil else { return nil }
             let toRead = max(length, bufferChunkSize)
-            guard let newChunk = try? subFileHandle.read(upToCount: toRead), newChunk.count >= length else { return nil }
+            let actualToRead = min(toRead, Int(limit - offset))
+            let newChunk = readPOSIX(fd: fd, offset: offset, length: actualToRead)
+            guard newChunk.count >= length else { return nil }
             readBuffer = newChunk
             readBufferOffset = offset
             return newChunk.prefix(length)
@@ -1035,61 +1073,33 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable {
 
         while offset < limit {
             guard offset < fileSize else { break }
-            guard let headerData = readBuffered(offset: offset, length: 16), !headerData.isEmpty else { break }
-            guard let elem = parseElementHeader(data: headerData, baseOffset: offset) else { break }
+            let shouldContinue: Bool = autoreleasepool {
+                guard let headerData = readBuffered(offset: offset, length: 16), !headerData.isEmpty else { return false }
+                guard let elem = parseElementHeader(data: headerData, baseOffset: offset) else { return false }
 
-            if elem.id == .cluster {
-                offset = elem.payloadOffset
-                continue
-            } else if elem.id == .timestamp {
-                if let tsData = readBuffered(offset: elem.payloadOffset, length: Int(elem.payloadSize)) {
-                    tsData.withUnsafeBytes { raw in
-                        clusterTime = EBMLVint.parseInt(from: raw, offset: 0, length: Int(elem.payloadSize)) ?? 0
-                    }
-                }
-            } else if elem.id == .simpleBlock || elem.id == .block {
-                // Read only the first 8 bytes of the block to inspect track number
-                if let headerBytes = readBuffered(offset: elem.payloadOffset, length: min(8, Int(elem.payloadSize))),
-                   let trackVint = headerBytes.withUnsafeBytes({ EBMLVint.parseDataSize(from: $0, offset: 0) }) {
-                    if !targetTrackNumbers.contains(trackVint.value) {
-                        // Skip video / audio payload without reading it from disk
-                        offset = elem.payloadOffset + elem.payloadSize
-                        continue
-                    }
-                }
-
-                // Subtitle block matched - read payload and parse
-                if let blkData = readBuffered(offset: elem.payloadOffset, length: Int(elem.payloadSize)) {
-                    let packets = parseBlock(data: blkData, isSimpleBlock: (elem.id == .simpleBlock), fileOffset: elem.payloadOffset, clusterTimestamp: clusterTime)
-                    for pkt in packets where targetTrackNumbers.contains(pkt.trackNumber) {
-                        if let text = String(data: pkt.data, encoding: .utf8) {
-                            let clean = SubtitleParser.cleanSubtitleCueText(text)
-                            if !clean.isEmpty {
-                                let dur = (pkt.duration ?? 0) > 0 ? pkt.duration! : 3.0
-                                result[pkt.trackNumber, default: []].append(SubtitleCue(startTime: pkt.pts, endTime: pkt.pts + dur, text: clean))
-                            }
+                if elem.id == .cluster {
+                    offset = elem.payloadOffset
+                    return true
+                } else if elem.id == .timestamp {
+                    if let tsData = readBuffered(offset: elem.payloadOffset, length: Int(elem.payloadSize)) {
+                        tsData.withUnsafeBytes { raw in
+                            clusterTime = EBMLVint.parseInt(from: raw, offset: 0, length: Int(elem.payloadSize)) ?? 0
                         }
                     }
-                }
-            } else if elem.id == .blockGroup {
-                if let bgData = readBuffered(offset: elem.payloadOffset, length: min(64, Int(elem.payloadSize))) {
-                    let hasSubtitleTrack = bgData.withUnsafeBytes { raw -> Bool in
-                        var cursor = 0
-                        while cursor < raw.count {
-                            guard let idVint = EBMLVint.parseElementID(from: raw, offset: cursor) else { break }
-                            cursor += idVint.length
-                            guard let sizeVint = EBMLVint.parseDataSize(from: raw, offset: cursor) else { break }
-                            cursor += sizeVint.length
-                            if idVint.value == EBMLID.block.rawValue {
-                                guard let trackVint = EBMLVint.parseDataSize(from: raw, offset: cursor) else { break }
-                                return targetTrackNumbers.contains(trackVint.value)
-                            }
-                            cursor += Int(sizeVint.value)
+                } else if elem.id == .simpleBlock || elem.id == .block {
+                    // Read only the first 8 bytes of the block to inspect track number
+                    if let headerBytes = readBuffered(offset: elem.payloadOffset, length: min(8, Int(elem.payloadSize))),
+                       let trackVint = headerBytes.withUnsafeBytes({ EBMLVint.parseDataSize(from: $0, offset: 0) }) {
+                        if !targetTrackNumbers.contains(trackVint.value) {
+                            // Skip video / audio payload without reading it from disk
+                            offset = elem.payloadOffset + elem.payloadSize
+                            return true
                         }
-                        return false
                     }
-                    if hasSubtitleTrack, let fullBgData = readBuffered(offset: elem.payloadOffset, length: Int(elem.payloadSize)) {
-                        let packets = parseBlockGroup(data: fullBgData, fileOffset: elem.payloadOffset, clusterTimestamp: clusterTime)
+
+                    // Subtitle block matched - read payload and parse
+                    if let blkData = readBuffered(offset: elem.payloadOffset, length: Int(elem.payloadSize)) {
+                        let packets = parseBlock(data: blkData, isSimpleBlock: (elem.id == .simpleBlock), fileOffset: elem.payloadOffset, clusterTimestamp: clusterTime)
                         for pkt in packets where targetTrackNumbers.contains(pkt.trackNumber) {
                             if let text = String(data: pkt.data, encoding: .utf8) {
                                 let clean = SubtitleParser.cleanSubtitleCueText(text)
@@ -1100,10 +1110,42 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable {
                             }
                         }
                     }
+                } else if elem.id == .blockGroup {
+                    if let bgData = readBuffered(offset: elem.payloadOffset, length: min(64, Int(elem.payloadSize))) {
+                        let hasSubtitleTrack = bgData.withUnsafeBytes { raw -> Bool in
+                            var cursor = 0
+                            while cursor < raw.count {
+                                guard let idVint = EBMLVint.parseElementID(from: raw, offset: cursor) else { break }
+                                cursor += idVint.length
+                                guard let sizeVint = EBMLVint.parseDataSize(from: raw, offset: cursor) else { break }
+                                cursor += sizeVint.length
+                                if idVint.value == EBMLID.block.rawValue {
+                                    guard let trackVint = EBMLVint.parseDataSize(from: raw, offset: cursor) else { break }
+                                    return targetTrackNumbers.contains(trackVint.value)
+                                }
+                                cursor += Int(sizeVint.value)
+                            }
+                            return false
+                        }
+                        if hasSubtitleTrack, let fullBgData = readBuffered(offset: elem.payloadOffset, length: Int(elem.payloadSize)) {
+                            let packets = parseBlockGroup(data: fullBgData, fileOffset: elem.payloadOffset, clusterTimestamp: clusterTime)
+                            for pkt in packets where targetTrackNumbers.contains(pkt.trackNumber) {
+                                if let text = String(data: pkt.data, encoding: .utf8) {
+                                    let clean = SubtitleParser.cleanSubtitleCueText(text)
+                                    if !clean.isEmpty {
+                                        let dur = (pkt.duration ?? 0) > 0 ? pkt.duration! : 3.0
+                                        result[pkt.trackNumber, default: []].append(SubtitleCue(startTime: pkt.pts, endTime: pkt.pts + dur, text: clean))
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
-            }
 
-            offset = elem.payloadOffset + elem.payloadSize
+                offset = elem.payloadOffset + elem.payloadSize
+                return true
+            }
+            if !shouldContinue { break }
         }
 
         var sortedResult: [UInt64: [SubtitleCue]] = [:]
@@ -1116,11 +1158,6 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable {
     /// Extracts all subtitle cues for an embedded text-based subtitle track without altering current playback position.
     public func extractSubtitleCues(for targetTrackNumber: UInt64) -> [SubtitleCue] {
         return extractAllSubtitleCues()[targetTrackNumber] ?? []
-    }
-
-    private func readBytesAt(handle: FileHandle, offset: UInt64, length: Int) throws -> Data {
-        try handle.seek(toOffset: offset)
-        return try handle.read(upToCount: length) ?? Data()
     }
 
     private func parseElementHeader(data: Data, baseOffset: UInt64) -> ElementHeader? {

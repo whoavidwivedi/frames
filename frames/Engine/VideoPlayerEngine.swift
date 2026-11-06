@@ -417,7 +417,11 @@ public final class VideoPlayerEngine {
 
     // MARK: - Subtitles Management
     public func selectSubtitleTrack(_ track: SubtitleTrack) {
-        selectedSubtitleTrack = track
+        var targetTrack = track
+        if let idx = availableSubtitleTracks.firstIndex(where: { $0.id == track.id }) {
+            targetTrack = availableSubtitleTracks[idx]
+        }
+        selectedSubtitleTrack = targetTrack
         // Never show stale text from the previously selected track while cues load.
         activeSubtitleText = ""
 
@@ -425,8 +429,7 @@ public final class VideoPlayerEngine {
             if track.id == SubtitleTrack.off.id {
                 nativePipeline.selectSubtitleTrack(trackNumber: nil)
             } else {
-                // Cues are extracted once in the background at load time. Never scan the
-                // container on the main thread here: large MKVs would freeze the whole app.
+                // Cues are streamed on-the-fly and preserved in memory without full-file scanning.
                 nativePipeline.selectSubtitleTrack(trackNumber: track.trackNumber)
                 updateActiveSubtitle(at: currentTime)
             }
@@ -760,8 +763,17 @@ public final class VideoPlayerEngine {
             }
 
             self.nativePipeline.onSubtitleCue = { [weak self] cue in
-                    guard let self, self.selectedSubtitleTrack.id != SubtitleTrack.off.id else { return }
-                    if self.selectedSubtitleTrack.trackNumber == self.nativePipeline.activeSubtitleTrackNumber {
+                    guard let self else { return }
+                    let activeTrackNum = self.nativePipeline.activeSubtitleTrackNumber
+                    if let activeTrackNum {
+                        if let idx = self.availableSubtitleTracks.firstIndex(where: { $0.trackNumber == activeTrackNum }) {
+                            if !self.availableSubtitleTracks[idx].cues.contains(where: { abs($0.startTime - cue.startTime) < 0.1 }) {
+                                self.availableSubtitleTracks[idx].cues.append(cue)
+                            }
+                        }
+                    }
+                    guard self.selectedSubtitleTrack.id != SubtitleTrack.off.id else { return }
+                    if self.selectedSubtitleTrack.trackNumber == activeTrackNum {
                         if !self.selectedSubtitleTrack.cues.contains(where: { abs($0.startTime - cue.startTime) < 0.1 }) {
                             self.selectedSubtitleTrack.cues.append(cue)
                         }
@@ -770,28 +782,6 @@ public final class VideoPlayerEngine {
                         }
                     }
                 }
-
-            // Background extraction of embedded subtitle cues
-            // Background extraction of embedded subtitle cues in a single high-efficiency pass
-            if let demuxer = self.nativePipeline.demuxer {
-                Task.detached(priority: .utility) { [weak self, weak demuxer] in
-                    guard let demuxer else { return }
-                    let allCues = demuxer.extractAllSubtitleCues()
-                    guard !allCues.isEmpty else { return }
-                        await MainActor.run { [weak self] in
-                            guard let self, self.loadGeneration == generation else { return }
-                        for (trackNumber, cues) in allCues {
-                            if let idx = self.availableSubtitleTracks.firstIndex(where: { $0.trackNumber == trackNumber }) {
-                                self.availableSubtitleTracks[idx].cues = cues
-                                if self.selectedSubtitleTrack.trackNumber == trackNumber {
-                                    self.selectedSubtitleTrack.cues = cues
-                                    self.updateActiveSubtitle(at: self.currentTime)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
 
             nativePipeline.onPlaybackEnded = { [weak self] in
                     self?.markPlaybackEnded()

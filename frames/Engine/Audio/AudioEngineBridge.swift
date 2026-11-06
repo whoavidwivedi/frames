@@ -77,8 +77,10 @@ nonisolated public final class AudioEngineBridge: @unchecked Sendable {
     
     /// Translates an elementary demuxed packet into uncompressed PCM and schedules it for DAC playback.
     public func process(packet: DemuxedPacket) {
-        guard let pcm = decoder?.decode(packet: packet) else { return }
-        scheduleBuffer(pcm, pts: packet.pts)
+        autoreleasepool {
+            guard let pcm = decoder?.decode(packet: packet) else { return }
+            scheduleBuffer(pcm, pts: packet.pts)
+        }
     }
     
     private func startPlayerNode() {

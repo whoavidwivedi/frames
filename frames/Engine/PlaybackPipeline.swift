@@ -540,6 +540,7 @@ public final class PlaybackPipeline: ObservableObject {
         audioEngine?.stop()
         videoDecoder?.invalidate()
         videoDecoder = nil
+        demuxer?.close()
         demuxer = nil
         
         frameQueue.removeAll()
@@ -676,17 +677,21 @@ public final class PlaybackPipeline: ObservableObject {
                 
                 // Read until first keyframe in cluster
                 while packetsRead < 45 && !Task.isCancelled {
-                    guard let packet = try? demuxer.nextPacket() else { break }
-                    packetsRead += 1
-                    
-                    if packet.trackNumber == dec.track.trackNumber {
-                        if packet.isKeyframe {
-                            keyframePTS = packet.pts
-                            _ = dec.decode(packet: packet, doNotOutput: false)
-                            foundKeyframe = true
-                            break
+                    let shouldBreak: Bool = autoreleasepool {
+                        guard let packet = try? demuxer.nextPacket() else { return true }
+                        packetsRead += 1
+                        
+                        if packet.trackNumber == dec.track.trackNumber {
+                            if packet.isKeyframe {
+                                keyframePTS = packet.pts
+                                _ = dec.decode(packet: packet, doNotOutput: false)
+                                foundKeyframe = true
+                                return true
+                            }
                         }
+                        return false
                     }
+                    if shouldBreak { break }
                 }
                 
                 guard foundKeyframe, !Task.isCancelled else { continue }
@@ -706,12 +711,16 @@ public final class PlaybackPipeline: ObservableObject {
                             (self?.pendingScrubTarget != nil) || !(self?.isScrubbingActive ?? false)
                         }
                         if hasInterrupted { break }
-                        guard let packet = try? demuxer.nextPacket() else { break }
-                        refinedPackets += 1
-                        if packet.trackNumber == dec.track.trackNumber {
-                            _ = dec.decode(packet: packet, doNotOutput: false)
-                            if packet.pts >= targetPTS + 0.08 { break }
+                        let reachedEnd: Bool = autoreleasepool {
+                            guard let packet = try? demuxer.nextPacket() else { return true }
+                            refinedPackets += 1
+                            if packet.trackNumber == dec.track.trackNumber {
+                                _ = dec.decode(packet: packet, doNotOutput: false)
+                                if packet.pts >= targetPTS + 0.08 { return true }
+                            }
+                            return false
                         }
+                        if reachedEnd { break }
                     }
                     dec.waitForFrames()
                     if let exactMatched = cache.getFrame(forTargetPTS: targetPTS, tolerance: 0.35) {
@@ -735,35 +744,37 @@ public final class PlaybackPipeline: ObservableObject {
     
     /// Called by the 120Hz CADisplayLink to acquire the current frame matching the display cadence.
     public func nextFrameForDisplay() -> CVPixelBuffer? {
-        let masterClock: Double
-        if isPlaying {
-            masterClock = currentPlaybackTime()
+        return autoreleasepool {
+            let masterClock: Double
+            if isPlaying {
+                masterClock = currentPlaybackTime()
 
-            // Throttle UI property changes and notifications to ~20Hz (every 50ms) to avoid SwiftUI invalidation floods
-            if abs(masterClock - lastReportedUIClock) >= 0.048 {
-                lastReportedUIClock = masterClock
-                currentTime = masterClock
-                onTimeUpdate?(masterClock)
+                // Throttle UI property changes and notifications to ~20Hz (every 50ms) to avoid SwiftUI invalidation floods
+                if abs(masterClock - lastReportedUIClock) >= 0.048 {
+                    lastReportedUIClock = masterClock
+                    currentTime = masterClock
+                    onTimeUpdate?(masterClock)
+                }
+
+                if duration > 0 && masterClock >= duration {
+                    isPlaying = false
+                    audioEngine?.pause()
+                    feederTask?.cancel()
+                    feederTask = nil
+                    transition(to: .paused)
+                    onPlaybackEnded?()
+                    return nil
+                }
+            } else {
+                masterClock = currentTime
             }
-
-            if duration > 0 && masterClock >= duration {
-                isPlaying = false
-                audioEngine?.pause()
-                feederTask?.cancel()
-                feederTask = nil
-                transition(to: .paused)
-                onPlaybackEnded?()
+            
+            guard let (frame, _) = frameQueue.dequeueNext(forMasterClock: masterClock, frameDuration: nominalFrameDuration) else {
                 return nil
             }
-        } else {
-            masterClock = currentTime
+            
+            return frame
         }
-        
-        guard let (frame, _) = frameQueue.dequeueNext(forMasterClock: masterClock, frameDuration: nominalFrameDuration) else {
-            return nil
-        }
-        
-        return frame
     }
 
     private func resetClockTracker() {
@@ -834,25 +845,43 @@ public final class PlaybackPipeline: ObservableObject {
                 var videoKeyframesDecoded = 0
                 
                 while isCurrentGen() && !targetFrameFound && packetsRead < maxPackets {
-                    guard let packet = try? demuxer.nextPacket() else { break }
-                    packetsRead += 1
-                    
-                    if let dec = decoder, packet.trackNumber == dec.track.trackNumber {
-                        if packet.isKeyframe {
-                            videoKeyframesDecoded += 1
-                            packetBuffer.recordGOP(keyframePTS: packet.pts, fileOffset: packet.fileOffset)
-                            if videoKeyframesDecoded > 1 {
-                                targetFrameFound = true
-                                break
-                            }
-                        }
-
-                        // Decode frame normally so VideoToolbox ASIC populates reference frames and decoded image
-                        _ = dec.decode(packet: packet, doNotOutput: false)
-                        
-                        // Continue decoding until we pass the target PTS with sufficient margin to resolve any B-frame forward references
-                        if packet.pts >= targetPTS + 0.12 {
+                    autoreleasepool {
+                        guard let packet = try? demuxer.nextPacket() else {
                             targetFrameFound = true
+                            return
+                        }
+                        packetsRead += 1
+                        
+                        if let dec = decoder, packet.trackNumber == dec.track.trackNumber {
+                            if packet.isKeyframe {
+                                videoKeyframesDecoded += 1
+                                packetBuffer.recordGOP(keyframePTS: packet.pts, fileOffset: packet.fileOffset)
+                                if videoKeyframesDecoded > 1 {
+                                    targetFrameFound = true
+                                    return
+                                }
+                            }
+
+                            // Decode frame normally so VideoToolbox ASIC populates reference frames and decoded image
+                            _ = dec.decode(packet: packet, doNotOutput: false)
+                            
+                            // Continue decoding until we pass the target PTS with sufficient margin to resolve any B-frame forward references
+                            if packet.pts >= targetPTS + 0.12 {
+                                targetFrameFound = true
+                            }
+                        } else if let subNum = routing.activeSubtitleTrackNumber, packet.trackNumber == subNum {
+                            if let text = String(data: packet.data, encoding: .utf8) {
+                                let clean = SubtitleParser.cleanSubtitleCueText(text)
+                                if !clean.isEmpty {
+                                    let dur = (packet.duration ?? 0) > 0 ? packet.duration! : 3.0
+                                    let cue = SubtitleCue(startTime: packet.pts, endTime: packet.pts + dur, text: clean)
+                                    if let onSubCue = onSubCue {
+                                        Task { @MainActor in
+                                            onSubCue(cue)
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -874,57 +903,74 @@ public final class PlaybackPipeline: ObservableObject {
                 return
             }
             
-            // Mode B: Continuous Streaming Playback with Chunked Packet Prefetching
+            // Mode B: Continuous Streaming Playback with Chunked Packet Prefetching & Backpressure
             while isCurrentGen() {
                 let videoBuffered = q.count >= q.maxCount
-                let audioHasHeadroom = routing.currentAudioEngine?.hasBufferHeadroom ?? true
+                let activeAudio = routing.currentAudioEngine
+                let audioHasHeadroom = activeAudio?.hasBufferHeadroom ?? false
                 let audioBuffered = !audioHasHeadroom
 
                 // Throttle feeding if decoded frame queue and audio buffer have sufficient headroom
-                if videoBuffered && audioBuffered {
+                // Also throttle if packetBuffer has accumulated enough deferred video packets
+                if videoBuffered && (audioBuffered || packetBuffer.count >= packetBuffer.maxCapacity) {
                     try? await Task.sleep(nanoseconds: 15_000_000) // 15ms sleep
                     continue
                 }
 
-                // If video queue is full, throttle down slightly to allow audio replenishment without CPU spin
-                if videoBuffered {
-                    try? await Task.sleep(nanoseconds: 5_000_000) // 5ms sleep
-                }
-
                 guard isCurrentGen() else { break }
 
-                // Fetch next demuxed packet from container
-                guard let packet = try? demuxer.nextPacket() else {
-                    // Container end-of-file reached
-                    try? await Task.sleep(nanoseconds: 30_000_000)
-                    continue
-                }
-
-                // Route packet to hardware video decoder or native audio translation engine
-                let activeAudio = routing.currentAudioEngine
-                let activeAudioNum = routing.activeAudioTrackNumber
-                let activeSubNum = routing.activeSubtitleTrackNumber
-
-                if let dec = decoder, packet.trackNumber == dec.track.trackNumber {
-                    if packet.isKeyframe {
-                        packetBuffer.recordGOP(keyframePTS: packet.pts, fileOffset: packet.fileOffset)
+                var shouldSleepAfterEOF = false
+                autoreleasepool {
+                    // 1. Prioritize deferred video packets if video queue has headroom:
+                    // If video has drained below maxCount, decode the next packet from packetBuffer
+                    if !videoBuffered, let deferredPacket = packetBuffer.dequeue() {
+                        if let dec = decoder {
+                            _ = dec.decode(packet: deferredPacket)
+                        }
+                        return
                     }
-                    _ = dec.decode(packet: packet)
-                } else if let a = activeAudio, packet.trackNumber == activeAudioNum {
-                    a.process(packet: packet)
-                } else if let subNum = activeSubNum, packet.trackNumber == subNum {
-                    if let text = String(data: packet.data, encoding: .utf8) {
-                        let clean = SubtitleParser.cleanSubtitleCueText(text)
-                        if !clean.isEmpty {
-                            let dur = (packet.duration ?? 0) > 0 ? packet.duration! : 3.0
-                            let cue = SubtitleCue(startTime: packet.pts, endTime: packet.pts + dur, text: clean)
-                            if let onSubCue = onSubCue {
-                                Task { @MainActor in
-                                    onSubCue(cue)
+
+                    // 2. Read next packet from container
+                    guard let packet = try? demuxer.nextPacket() else {
+                        shouldSleepAfterEOF = true
+                        return
+                    }
+
+                    // Route packet to hardware video decoder or native audio translation engine
+                    let activeAudioNum = routing.activeAudioTrackNumber
+                    let activeSubNum = routing.activeSubtitleTrackNumber
+
+                    if let dec = decoder, packet.trackNumber == dec.track.trackNumber {
+                        if packet.isKeyframe {
+                            packetBuffer.recordGOP(keyframePTS: packet.pts, fileOffset: packet.fileOffset)
+                        }
+                        // Backpressure: If video is already buffered, defer video decode to prevent
+                        // uncompressed CVPixelBuffer memory leak while waiting for audio packets.
+                        if videoBuffered {
+                            packetBuffer.enqueue(packet)
+                        } else {
+                            _ = dec.decode(packet: packet)
+                        }
+                    } else if let a = activeAudio, packet.trackNumber == activeAudioNum {
+                        a.process(packet: packet)
+                    } else if let subNum = activeSubNum, packet.trackNumber == subNum {
+                        if let text = String(data: packet.data, encoding: .utf8) {
+                            let clean = SubtitleParser.cleanSubtitleCueText(text)
+                            if !clean.isEmpty {
+                                let dur = (packet.duration ?? 0) > 0 ? packet.duration! : 3.0
+                                let cue = SubtitleCue(startTime: packet.pts, endTime: packet.pts + dur, text: clean)
+                                if let onSubCue = onSubCue {
+                                    Task { @MainActor in
+                                        onSubCue(cue)
+                                    }
                                 }
                             }
                         }
                     }
+                }
+
+                if shouldSleepAfterEOF {
+                    try? await Task.sleep(nanoseconds: 30_000_000)
                 }
             }
         }

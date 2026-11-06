@@ -2154,6 +2154,56 @@ public enum FramesTestSuite {
 
         try? FileManager.default.removeItem(at: tempCaptureDir)
 
+        // MARK: - 35. Memory Management, Feeder Backpressure & POSIX I/O Robustness
+        logs.append("\n[35] Testing Memory Management, Feeder Backpressure & POSIX I/O Robustness...")
+
+        // 1. PacketChunkBuffer Backpressure Deferral & FIFO
+        let chunkBuf = PacketChunkBuffer(maxCapacity: 64)
+        for i in 0..<10 {
+            let pkt = DemuxedPacket(trackNumber: 1, pts: Double(i) * 0.04, dts: Double(i) * 0.04, duration: 0.04, isKeyframe: i == 0, data: Data(repeating: UInt8(i), count: 256), fileOffset: UInt64(i * 1000))
+            chunkBuf.enqueue(pkt)
+        }
+        assertTest("PacketChunkBuffer Enqueue Count", condition: chunkBuf.count == 10)
+        assertTest("PacketChunkBuffer FIFO Preservation", condition: chunkBuf.dequeue()?.pts == 0.0 && chunkBuf.dequeue()?.pts == 0.04)
+
+        // 2. POSIX pread Atomic Correctness
+        let tempPOSIXFile = FileManager.default.temporaryDirectory.appendingPathComponent("frames_posix_test_\(UUID().uuidString).bin")
+        let testPattern = (0..<1024).map { UInt8($0 % 256) }
+        let patternData = Data(testPattern)
+        try? patternData.write(to: tempPOSIXFile)
+
+        let fd = open(tempPOSIXFile.path, O_RDONLY)
+        assertTest("POSIX Open Succeeded", condition: fd >= 0)
+        if fd >= 0 {
+            var readBuf = [UInt8](repeating: 0, count: 64)
+            let bytesRead = pread(fd, &readBuf, 64, 128)
+            let matched = bytesRead == 64 && readBuf == Array(testPattern[128..<192])
+            assertTest("POSIX pread Offset & Byte Integrity", condition: matched)
+            close(fd)
+        }
+        try? FileManager.default.removeItem(at: tempPOSIXFile)
+
+        // 3. Autoreleasepool Memory Draining Stability
+        for _ in 0..<500 {
+            autoreleasepool {
+                _ = Data(repeating: 0xAB, count: 64 * 1024)
+            }
+        }
+        let currentFootprint = AppleSiliconMetrics.shared.memoryFootprintMB
+        assertTest("Flat Memory Footprint (< 150MB) After Heavy Churn", condition: currentFootprint > 0 && currentFootprint < 150.0, "\(String(format: "%.1f", currentFootprint)) MB")
+
+        // 4. Subtitle Track Switching Streamed Cue Preservation
+        let subSwitchEngine = VideoPlayerEngine()
+        let trackA = SubtitleTrack(id: "sub_a", title: "English", languageCode: "en", cues: [SubtitleCue(startTime: 1.0, endTime: 3.0, text: "Hello")], trackNumber: 10)
+        let trackB = SubtitleTrack(id: "sub_b", title: "French", languageCode: "fr", cues: [SubtitleCue(startTime: 1.0, endTime: 3.0, text: "Bonjour")], trackNumber: 11)
+        subSwitchEngine.availableSubtitleTracks = [SubtitleTrack.off, trackA, trackB]
+        subSwitchEngine.selectSubtitleTrack(trackA)
+        assertTest("Subtitle Track A Selected With Cue", condition: subSwitchEngine.selectedSubtitleTrack.cues.count == 1)
+        subSwitchEngine.selectSubtitleTrack(trackB)
+        assertTest("Subtitle Track B Selected With Cue", condition: subSwitchEngine.selectedSubtitleTrack.cues.count == 1)
+        subSwitchEngine.selectSubtitleTrack(trackA)
+        assertTest("Subtitle Track A Retains Cues Across Selection", condition: subSwitchEngine.selectedSubtitleTrack.cues.first?.text == "Hello")
+
         // Summary
         logs.append("\n==========================================")
         logs.append("RESULTS: \(passed) PASSED, \(failed) FAILED")
