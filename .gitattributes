@@ -1,3 +1,40 @@
+# ==============================================================================
+# Frames Git Attributes & Line Ending Configuration
+# ==============================================================================
+
+# Automatic text normalization
+* text=auto
+
+# Swift & Xcode Source Files
+*.swift text eol=lf
+*.xcconfig text eol=lf
+*.plist text eol=lf
+*.metal text eol=lf
+*.strings text eol=lf
+*.stringsdict text eol=lf
+
+# Project Definition & Workspace
+*.pbxproj merge=union
+*.xcworkspacedata text eol=lf
+*.xcscheme text eol=lf
+
+# Documentation & Configurations
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.sh text eol=lf
+
+# Binary Assets & Packaging
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.mp4 binary
+*.icns binary
+*.zip binary
+*.tar.gz binary
+
 # GitHub Linguist Overrides
 # Keep release scripts in repo while marking them as non-detectable so Languages bar remains 100% Swift
 scripts/* linguist-detectable=false

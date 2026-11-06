@@ -29,7 +29,7 @@ public enum TimeJumpParser {
         guard !trimmed.isEmpty else { return nil }
 
         // Strip leading colon if used as prefix indicator in command menu (e.g. ":1:30")
-        var raw = trimmed
+        let raw = trimmed
         if raw.hasPrefix(":") && raw.count > 1 && !raw.dropFirst().contains(":") {
             // E.g., ":45" -> treat as 45 seconds
             if let seconds = Double(raw.dropFirst()) {

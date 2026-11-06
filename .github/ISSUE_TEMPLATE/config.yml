@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: GitHub Discussions
+    url: https://github.com/whoavidwivedi/frames/discussions
+    about: Ask questions, share workflows, and connect with other Frames users.
+  - name: Security Vulnerability Reporting
+    url: https://github.com/whoavidwivedi/frames/security/policy
+    about: Report security issues privately through our security policy.

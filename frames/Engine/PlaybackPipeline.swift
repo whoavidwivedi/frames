@@ -587,7 +587,7 @@ public final class PlaybackPipeline: ObservableObject {
             guard let demuxer else { return }
             
             while !Task.isCancelled {
-                let target = await MainActor.run { () -> Double? in
+                let target = await MainActor.run { [weak self] () -> Double? in
                     guard let self, self.isScrubbingActive else { return nil }
                     let t = self.pendingScrubTarget
                     self.pendingScrubTarget = nil
@@ -595,7 +595,7 @@ public final class PlaybackPipeline: ObservableObject {
                 }
                 
                 guard let targetPTS = target else {
-                    let stillActive = await MainActor.run { self?.isScrubbingActive ?? false }
+                    let stillActive = await MainActor.run { [weak self] in self?.isScrubbingActive ?? false }
                     if !stillActive { break }
                     try? await Task.sleep(nanoseconds: 8_000_000) // 8ms poll for next scrub movement
                     continue
@@ -630,18 +630,16 @@ public final class PlaybackPipeline: ObservableObject {
                 
                 // Deliver keyframe to Metal 3 canvas immediately (120fps direct presentation)
                 if let matched = cache.getFrame(forTargetPTS: keyframePTS, tolerance: 1.0) ?? cache.nearestFrame(to: targetPTS) {
-                    await MainActor.run {
-                        renderer?.updateFrame(matched.buffer)
-                    }
+                    renderer?.updateFrame(matched.buffer)
                 }
                 
                 // If cursor paused briefly on this position, progressively refine up to targetPTS (max 12 frames)
-                let hasNewTarget = await MainActor.run { self?.pendingScrubTarget != nil || !(self?.isScrubbingActive ?? false) }
+                let hasNewTarget = await MainActor.run { [weak self] in (self?.pendingScrubTarget != nil) || !(self?.isScrubbingActive ?? false) }
                 if !hasNewTarget && targetPTS > keyframePTS + 0.04 {
                     var refinedPackets = 0
                     while refinedPackets < 15 && !Task.isCancelled {
-                        let hasInterrupted = await MainActor.run {
-                            self?.pendingScrubTarget != nil || !(self?.isScrubbingActive ?? false)
+                        let hasInterrupted = await MainActor.run { [weak self] in
+                            (self?.pendingScrubTarget != nil) || !(self?.isScrubbingActive ?? false)
                         }
                         if hasInterrupted { break }
                         guard let packet = try? demuxer.nextPacket() else { break }
@@ -653,9 +651,7 @@ public final class PlaybackPipeline: ObservableObject {
                     }
                     dec.waitForFrames()
                     if let exactMatched = cache.getFrame(forTargetPTS: targetPTS, tolerance: 0.35) {
-                        await MainActor.run {
-                            renderer?.updateFrame(exactMatched.buffer)
-                        }
+                        renderer?.updateFrame(exactMatched.buffer)
                     }
                 }
                 
@@ -802,22 +798,14 @@ public final class PlaybackPipeline: ObservableObject {
                 
                 // Select frame closest to targetPTS from scrub cache or frameQueue
                 if let matched = cache.getFrame(forTargetPTS: targetPTS, tolerance: 0.35) {
-                    await MainActor.run {
-                        renderer?.updateFrame(matched.buffer)
-                    }
+                    renderer?.updateFrame(matched.buffer)
                 } else if let candidate = q.frameClosest(to: targetPTS) {
                     cache.insert(buffer: candidate.buffer, pts: candidate.pts)
-                    await MainActor.run {
-                        renderer?.updateFrame(candidate.buffer)
-                    }
+                    renderer?.updateFrame(candidate.buffer)
                 } else if let nearest = cache.nearestFrame(to: targetPTS) {
-                    await MainActor.run {
-                        renderer?.updateFrame(nearest.buffer)
-                    }
+                    renderer?.updateFrame(nearest.buffer)
                 } else if let first = q.firstFrame() {
-                    await MainActor.run {
-                        renderer?.updateFrame(first)
-                    }
+                    renderer?.updateFrame(first)
                 }
                 return
             }

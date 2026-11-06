@@ -1,0 +1,39 @@
+name: Feature Request
+description: Propose an idea or enhancement for Frames
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        We welcome your ideas to make Frames the finest native macOS video player for Apple Silicon!
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or Workflow Gap
+      description: Is your feature request related to a specific workflow limitation or pain point?
+      placeholder: I am frustrated when...
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution / Enhancement
+      description: Describe what you want to see happen and how it should feel or behave.
+      placeholder: Add a shortcut or panel that...
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Any alternative implementations, third-party approaches, or workarounds you've evaluated.
+    validations:
+      required: false
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Screenshots, UI mockups, sample files, or external references.
+    validations:
+      required: false

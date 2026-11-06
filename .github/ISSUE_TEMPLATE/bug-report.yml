@@ -1,0 +1,85 @@
+name: Bug Report
+description: Report a bug or playback defect in Frames
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Frames! Please provide detailed environment and reproduction info.
+  - type: input
+    id: mac-model
+    attributes:
+      label: Mac Hardware & Apple Silicon Chip
+      description: e.g. MacBook Pro 16" (M3 Max, 36GB), Mac mini (M2 Pro), MacBook Air 15" (M4)
+      placeholder: Apple Silicon M-series
+    validations:
+      required: true
+  - type: input
+    id: os-version
+    attributes:
+      label: macOS Version
+      description: e.g. macOS 14.5 Sonoma, macOS 15.1 Sequoia
+      placeholder: macOS 14.0+
+    validations:
+      required: true
+  - type: input
+    id: app-version
+    attributes:
+      label: Frames Version
+      description: e.g. v1.3.0 (check via ⌘, -> About or App Menu -> About Frames)
+      placeholder: v1.3.0
+    validations:
+      required: true
+  - type: input
+    id: media-format
+    attributes:
+      label: Media File Details (if applicable)
+      description: Container format, video/audio codec, resolution, and color space (e.g. MKV, HEVC 10-bit HDR, 4K@60fps, Opus audio)
+      placeholder: e.g. MKV / HEVC Main 10 / 3840x2160 / 60fps
+    validations:
+      required: false
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the defect is.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: Detailed sequential steps to reproduce the behavior.
+      placeholder: |
+        1. Drag video '...' into Frames window
+        2. Press '...' or scrub timeline to 01:23
+        3. Observe '...'
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen instead?
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Crash Logs or Console Output (if applicable)
+      description: Paste any crash traces, Console.app entries, or terminal logs.
+      render: shell
+    validations:
+      required: false
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-submission Checklist
+      options:
+        - label: I am running on an Apple Silicon Mac (M1/M2/M3/M4).
+          required: true
+        - label: I tested on the latest release of Frames.
+          required: true
+        - label: I checked existing issues to avoid filing a duplicate.
+          required: true

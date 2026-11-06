@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/Frames-Icon-HD.png" width="120" alt="Frames App Icon" />
+  <img src="assets/frames-icon-hd.png" width="120" alt="Frames App Icon" />
 </p>
 
 <h1 align="center">Frames</h1>
@@ -10,17 +10,18 @@
 
 <p align="center">
   <a href="https://github.com/whoavidwivedi/frames/releases/latest"><img src="https://img.shields.io/github/v/release/whoavidwivedi/frames?style=flat-square&color=black&label=Release" alt="Latest Release"></a>
+  <a href="https://github.com/whoavidwivedi/frames/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/whoavidwivedi/frames/ci.yml?branch=main&style=flat-square&color=black&label=CI" alt="CI Status"></a>
   <img src="https://img.shields.io/badge/Platform-macOS%2014.0%2B-black?style=flat-square&logo=apple" alt="Platform: macOS 14.0+">
   <img src="https://img.shields.io/badge/Apple%20Silicon-ARM64-black?style=flat-square&logo=apple" alt="Apple Silicon ARM64">
   <img src="https://img.shields.io/badge/Language-Swift%206-black?style=flat-square&logo=swift" alt="Swift 6">
   <img src="https://img.shields.io/badge/Design-shadcn%20base--luma%20%2F%20neutral-black?style=flat-square" alt="shadcn base-luma / neutral">
-  <img src="https://img.shields.io/badge/Tests-406%20Passed%20(0%20warnings)-black?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-426%20Passed%20(0%20warnings)-black?style=flat-square" alt="Tests">
   <a href="https://github.com/whoavidwivedi/frames/pulls"><img src="https://img.shields.io/badge/PRs-Welcome-black?style=flat-square" alt="PRs Welcome"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/whoavidwivedi/frames?style=flat-square&color=black" alt="License: MIT"></a>
 </p>
 
 <p align="center">
-  <img src="assets/Frames-Splash.gif" width="720" alt="Frames Splash Animation" />
+  <img src="assets/frames-splash.gif" width="720" alt="Frames Splash Animation" />
 </p>
 
 ---
@@ -29,7 +30,7 @@
 
 **Frames** is an ultra-fast, zero-bloat video player and media management dashboard built from the ground up for macOS and Apple Silicon. 
 
-Traditional desktop video players are often weighed down by multi-hundred-megabyte Electron wrappers or legacy codebases dating back decades. Frames is written in pure **Swift and SwiftUI**, leveraging Apple Silicon's dedicated **VideoToolbox** media decoders and Unified Memory architecture to deliver fluid 60fps / 120fps playback, buttery timeline scrubbing, and sub-second cold starts with minimal battery drain.
+Traditional desktop video players are often weighed down by multi-hundred-megabyte Electron wrappers or legacy codebases dating back decades. Frames is written in pure **Swift 6 and SwiftUI**, leveraging Apple Silicon's dedicated **VideoToolbox** media decoders and Unified Memory architecture to deliver fluid 60fps / 120fps playback, buttery timeline scrubbing, and sub-second cold starts with minimal battery drain.
 
 The user interface adheres strictly to the **shadcn `base-luma`/`neutral`** (preset `b3lnoM3QO`) design language: matte charcoal dark surfaces (`oklch(0.145 0 0)` / `#0a0a0a`), subtle border contours (`Color.white.opacity(0.10)`), warm terracotta & copper accents, and smooth pill-radius controls.
 
@@ -126,12 +127,12 @@ Designed for native macOS and keyboard-first navigation:
 
 ## Testing & Optimization Suite
 
-Frames includes a built-in test suite covering CoreGraphics math, subtitle parsers, Apple Silicon architecture checks, time formatting, and memory benchmarks.
+Frames includes a built-in automated test suite covering demuxing, decoding, Metal 3 rendering, design tokens, time formatting, and memory benchmarks.
 
 Run tests directly from terminal:
 
 ```bash
-./build/frames.app/Contents/MacOS/frames --run-tests
+build/DerivedData/Build/Products/Debug/frames.app/Contents/MacOS/frames --run-tests
 ```
 
 ```
@@ -156,47 +157,29 @@ Run tests directly from terminal:
   ✔ PASS: WebVTT Timing
   ✔ PASS: WebVTT Text
 
-[3] Testing VideoMetadata...
-  ✔ PASS: 4K Resolution String
-  ✔ PASS: 1080p Resolution String
-  ✔ PASS: 720p Resolution String
-  ✔ PASS: Bitrate Description
+... (31 comprehensive test suites) ...
 
-[4] Testing AppleSiliconMetrics...
-  ✔ PASS: Apple Silicon Detected
-  ✔ PASS: Active CPU Cores
-  ✔ PASS: Physical Memory Detected
-  ✔ PASS: Display Refresh Rate Valid
-  ✔ PASS: Low Memory Footprint (< 200MB)
+[30] Testing Timestamp Jump Parser & Expression Engine...
+  ✔ PASS: TimeJumpParser MM:SS Parse (1:23 -> 83s)
+  ✔ PASS: TimeJumpParser HH:MM:SS Parse (01:23:45 -> 5025s)
+  ✔ PASS: TimeJumpParser Leading Colon (:45 -> 45s)
+  ✔ PASS: TimeJumpParser Unit Suffix Seconds (90s -> 90s)
+  ✔ PASS: TimeJumpParser Unit Suffix Minutes (15m -> 900s)
+  ✔ PASS: TimeJumpParser Unit Suffix Hours (2h -> 7200s)
+  ✔ PASS: TimeJumpParser Relative Forward (+30s from 60s -> 90s)
+  ✔ PASS: TimeJumpParser Relative Backward (-15s from 60s -> 45s)
+  ✔ PASS: TimeJumpParser Negative Underflow Clamped to 0.0
+  ✔ PASS: TimeJumpParser Duration Overflow Clamped to Duration
+  ✔ PASS: TimeJumpParser Invalid Input Rejected
+  ✔ PASS: TimeJumpParser Empty Input Rejected
 
-[5] Testing Monotonic Time Interpolation...
-  ✔ PASS: Time Interpolation Monotonicity (120fps Zero Jitter)
-
-[6] Testing Shadcn mira/neutral Design Tokens & Scrubber Math...
-  ✔ PASS: Shadcn Radius Scale (Sm=4, Md=6, Lg=8, Xl=10)
-  ✔ PASS: Scrubber Zero Duration Division Guard
-  ✔ PASS: Scrubber Seek Underflow Clamp
-  ✔ PASS: Scrubber Seek Overflow Clamp
-
-[7] Testing Subtitle Parser Performance Benchmark (1,000 cues)...
-  ✔ PASS: 1,000 Cues Correctly Parsed
-  ✔ PASS: 1,000 Cues Parse Latency < 100ms
-  ✔ PASS: Active Cue Lookup at Time T
-
-[8] Testing Apple Silicon Architecture & Unified Memory...
-  ✔ PASS: ARM64 Architecture Verified
-  ✔ PASS: Memory Footprint Under 150MB
-
-[9] Testing Library & Dashboard Manager...
-  ✔ PASS: Library Video Item Ingestion
-  ✔ PASS: Duplicate Ingestion Guard
-  ✔ PASS: Dashboard Search Filter
-  ✔ PASS: Dashboard Favorites Filter
-  ✔ PASS: Playback Progress Recorded (50%)
-  ✔ PASS: Recent Timestamp Recorded
+[31] Testing High-Resolution Frame Capture Engine...
+  ✔ PASS: FrameCaptureEngine Directory Creation
+  ✔ PASS: FrameCaptureEngine Standard Filename Format
+  ✔ PASS: FrameCaptureEngine File Persistence & Metadata
 
 ==========================================
-RESULTS: 38 PASSED, 0 FAILED
+RESULTS: 426 PASSED, 0 FAILED
 ==========================================
 ```
 
@@ -221,34 +204,20 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild \
   -project frames.xcodeproj \
   -scheme frames \
   -configuration Release \
+  -destination "platform=macOS,arch=arm64" \
   -derivedDataPath ./build/DerivedData \
   build
 ```
 
 ---
 
-## Contributing & Pull Requests
+## Contributing & Community
 
 Contributions, feedback, and pull requests are warmly welcomed!
 
-### PR Workflow
-1. **Fork the repository** and create your branch from `main`:
-   ```bash
-   git checkout -b feature/your-feature-name
-   # or
-   git checkout -b fix/your-bug-fix
-   ```
-2. **Adhere to Code & Design Guidelines**:
-   * Pure Swift & SwiftUI (no third-party package bloat).
-   * Follow `shadcn` base-luma/neutral design tokens (preset `b3lnoM3QO`).
-   * Maintain **0 warnings and 0 errors** on Xcode builds.
-3. **Verify Tests**:
-   Ensure all 406 tests pass cleanly before submitting:
-   ```bash
-   ./Build/Products/Debug/frames.app/Contents/MacOS/frames --run-tests
-   ```
-4. **Submit a Pull Request**:
-   Open a PR against the `main` branch with a clear summary of your changes.
+- Read our [Contributing Guidelines](CONTRIBUTING.md) for details on code style, branch workflows, and PR verification.
+- Review our [Code of Conduct](CODE_OF_CONDUCT.md) for community standards.
+- Check our [Security Policy](SECURITY.md) for responsible vulnerability reporting.
 
 ---
 

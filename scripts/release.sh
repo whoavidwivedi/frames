@@ -12,7 +12,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 DIST_DIR="${PROJECT_ROOT}/dist"
-PROJECT_FILE="${PROJECT_ROOT}/frames.xcodeproj/project.xcproj"
 PBXPROJ_FILE="${PROJECT_ROOT}/frames.xcodeproj/project.pbxproj"
 
 export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
@@ -103,7 +102,11 @@ done
 
 if [[ -z "${VERSION}" ]]; then
     # Try reading current version from project
-    CURRENT_VERSION=$(grep '"MARKETING_VERSION":' "${PROJECT_FILE}" | head -n 1 | sed -E 's/.*"MARKETING_VERSION": "([^"]+)".*/\1/')
+    if [[ -f "${PBXPROJ_FILE}" ]]; then
+        CURRENT_VERSION=$(grep 'MARKETING_VERSION = ' "${PBXPROJ_FILE}" | head -n 1 | sed -E 's/.*MARKETING_VERSION = ([^;]+);/\1/' | tr -d ' ')
+    else
+        CURRENT_VERSION="unknown"
+    fi
     echo "❌ Error: Release version required. Current version is ${CURRENT_VERSION}."
     echo "Usage: ./scripts/release.sh <VERSION> (e.g., ./scripts/release.sh 1.2.0)"
     exit 1
@@ -183,20 +186,15 @@ fi
 # ------------------------------------------------------------------------------
 # 3. Version Bump in Xcode Project
 # ------------------------------------------------------------------------------
-echo "==> [3/7] Updating version to ${VERSION} in ${PROJECT_FILE}..."
-sed -i '' -E "s/\"MARKETING_VERSION\": \"[^\"]+\"/\"MARKETING_VERSION\": \"${VERSION}\"/g" "${PROJECT_FILE}"
-
-# Increment build number
-CURRENT_BUILD=$(grep '"CURRENT_PROJECT_VERSION":' "${PROJECT_FILE}" | head -n 1 | sed -E 's/.*"CURRENT_PROJECT_VERSION": "([^"]+)".*/\1/')
-NEW_BUILD=$((CURRENT_BUILD + 1))
-sed -i '' -E "s/\"CURRENT_PROJECT_VERSION\": \"[0-9]+\"/\"CURRENT_PROJECT_VERSION\": \"${NEW_BUILD}\"/g" "${PROJECT_FILE}"
-
+echo "==> [3/7] Updating version to ${VERSION} in Xcode project..."
 if [[ -f "${PBXPROJ_FILE}" ]]; then
+    CURRENT_BUILD=$(grep 'CURRENT_PROJECT_VERSION = ' "${PBXPROJ_FILE}" | head -n 1 | sed -E 's/.*CURRENT_PROJECT_VERSION = ([0-9]+);/\1/' | tr -d ' ')
+    NEW_BUILD=$((CURRENT_BUILD + 1))
     sed -i '' -E "s/MARKETING_VERSION = [^;]+;/MARKETING_VERSION = ${VERSION};/g" "${PBXPROJ_FILE}"
-    sed -i '' -E "s/CURRENT_PROJECT_VERSION = [^;]+;/CURRENT_PROJECT_VERSION = ${NEW_BUILD};/g" "${PBXPROJ_FILE}"
+    sed -i '' -E "s/CURRENT_PROJECT_VERSION = [0-9]+;/CURRENT_PROJECT_VERSION = ${NEW_BUILD};/g" "${PBXPROJ_FILE}"
+    echo "  MARKETING_VERSION: ${VERSION}"
+    echo "  CURRENT_PROJECT_VERSION: ${NEW_BUILD}"
 fi
-echo "  MARKETING_VERSION: ${VERSION}"
-echo "  CURRENT_PROJECT_VERSION: ${NEW_BUILD}"
 
 # ------------------------------------------------------------------------------
 # 4. Release Compilation & Signing
@@ -254,7 +252,6 @@ if [[ "${DRY_RUN}" == "true" ]]; then
 fi
 
 echo "==> [6/7] Committing version bump and creating git tag ${TAG}..."
-git add "${PROJECT_FILE}"
 [[ -f "${PBXPROJ_FILE}" ]] && git add "${PBXPROJ_FILE}"
 
 # Only commit if changes exist
