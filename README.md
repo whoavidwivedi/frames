@@ -41,13 +41,14 @@ Download the latest pre-compiled binary from the [Releases](https://github.com/w
 
 | Release | Version | macOS Architecture | Download |
 | :--- | :--- | :--- | :--- |
-| **Latest** | **v1.2.0** | Apple Silicon (`arm64`) | [**Frames-v1.2.0-macOS.zip**](https://github.com/whoavidwivedi/frames/releases/download/v1.2.0/Frames-v1.2.0-macOS.zip) |
+| **Latest** | **v1.3.0** | Apple Silicon (`arm64`) | [**Frames-v1.3.0-macOS.zip**](https://github.com/whoavidwivedi/frames/releases/download/v1.3.0/Frames-v1.3.0-macOS.zip) |
+| Previous | v1.2.0 | Apple Silicon (`arm64`) | [Frames-v1.2.0-macOS.zip](https://github.com/whoavidwivedi/frames/releases/download/v1.2.0/Frames-v1.2.0-macOS.zip) |
 | Previous | v1.1.0 | Apple Silicon (`arm64`) | [Frames-v1.1.0-macOS.zip](https://github.com/whoavidwivedi/frames/releases/download/v1.1.0/Frames-v1.1.0-macOS.zip) |
 | Previous | v1.0.2 | Apple Silicon (`arm64`) | [Frames-v1.0.2-macOS.zip](https://github.com/whoavidwivedi/frames/releases/download/v1.0.2/Frames-v1.0.2-macOS.zip) |
 | Previous | v1.0.1 | Apple Silicon (`arm64`) | [Frames-v1.0.1-macOS.zip](https://github.com/whoavidwivedi/frames/releases/download/v1.0.1/Frames-v1.0.1-macOS.zip) |
 | Initial | v1.0.0 | Apple Silicon (`arm64`) | [Frames-v1.0.0-macOS.zip](https://github.com/whoavidwivedi/frames/releases/download/v1.0.0/Frames-v1.0.0-macOS.zip) |
 
-1. Download `Frames-v1.2.0-macOS.zip`.
+1. Download `Frames-v1.3.0-macOS.zip`.
 2. Move `frames.app` into your `/Applications` folder.
 3. Open Frames and enjoy fluid hardware-accelerated playback with built-in in-app OTA update support.
 
@@ -81,13 +82,18 @@ Download the latest pre-compiled binary from the [Releases](https://github.com/w
 
 ### 5. In-App Production OTA Update Engine
 * **Non-Intrusive Update Discovery**: Asynchronous background query against GitHub Releases API with SemVer 2.0.0 parsing. Never forces disruptive silent updates.
-* **Liquid Glass Update Modal**: Sleek adaptive modal displaying version diff (`v1.1.0 → v1.2.0`), release notes highlights, download size, and real-time download progress.
+* **Liquid Glass Update Modal**: Sleek adaptive modal displaying version diff (`v1.2.0 → v1.3.0`), release notes highlights, download size, and real-time download progress.
 * **Granular User Control**: "Update & Restart", "Later", and "Skip this version" options, plus manual check affordance in App Menu (`Frames -> Check for Updates...`) and Command Palette.
 * **Atomic Bundle Swap & Clean Restart**: Validates package signature and bundle integrity, atomically replaces the application bundle, cleans quarantine flags, and smoothly restarts.
 
-### 6. Command Palette (`⌘K`)
+### 6. Command Palette (`⌘K`) & High-Res Frame Capture (`⌘S`)
 * **Instant Keyboard Access**: Press `⌘K` from anywhere in the app to search and execute any command, switch themes, navigate folders, adjust audio/video playback, or check for updates.
-* **Fuzzy Filtering**: Multi-token search with keyboard shortcuts and arrow-key navigation.
+* **High-Res Frame Snapshot Engine (`⌘S`)**: Instant capture of native resolution video frames directly exported to `~/Pictures/Frames`.
+* **Timestamp Jump Expressions**: Jump directly to any position using expressions such as `1:23`, `01:15:00`, `90s`, `15m`, or relative offsets `+30s` / `-15s` via Command Palette.
+
+### 7. Native Settings Window (`⌘,`)
+* Comprehensive 5-tab native macOS preferences: General, Playback, Audio, Subtitles, and About.
+* Configurable hardware acceleration, ProMotion 120Hz sync, HDR tone mapping, subtitle styling, and battery saver guard.
 
 ---
 
@@ -103,6 +109,9 @@ Designed for native macOS and keyboard-first navigation:
 | `.` / `,` | Frame step forward / backward |
 | `↑` / `↓` | Volume adjust ($\pm 5\%$) |
 | `M` | Toggle mute |
+| `⌘S` | Capture high-resolution video frame snapshot |
+| `⌘K` | Open Command Palette |
+| `⌘,` | Open Preferences / Settings |
 | `⌃⌘F` or `F` | Toggle native macOS fullscreen (macOS default) |
 | `⌃⌥⌘F` / `Zoom` | Toggle windowed fullscreen / Zoom (macOS default) |
 | `⌘M` | Minimize window (macOS default) |
