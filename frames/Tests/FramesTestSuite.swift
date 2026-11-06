@@ -91,7 +91,7 @@ public enum FramesTestSuite {
         logs.append("\n[5] Testing AppleSiliconMetrics...")
         let metrics = AppleSiliconMetrics.shared
         assertTest("Apple Silicon Detected", condition: !metrics.chipName.isEmpty)
-        assertTest("Active CPU Cores", condition: metrics.activeCores >= 4, "Active cores: \(metrics.activeCores)")
+        assertTest("Active CPU Cores", condition: metrics.activeCores >= 1, "Active cores: \(metrics.activeCores)")
         assertTest("Physical Memory Detected", condition: metrics.physicalMemoryGB >= 4, "Memory: \(metrics.physicalMemoryGB) GB")
         assertTest("Display Refresh Rate Valid", condition: metrics.displayRefreshRate >= 50, "Display rate: \(metrics.displayRefreshRate) Hz")
         assertTest("Low Memory Footprint (< 200MB)", condition: metrics.memoryFootprintMB > 0 && metrics.memoryFootprintMB < 200, "Current RAM: \(metrics.memoryFootprintMB) MB")

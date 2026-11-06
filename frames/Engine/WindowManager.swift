@@ -337,13 +337,22 @@ public final class WindowManager {
         let isHalfHeight = abs(heightRatio - 0.5) <= 0.10
         let isFullWidth = widthRatio >= 0.90
 
-        // Quarter screen: corner tiling (~50% width and ~50% height)
-        if isHalfWidth && isHalfHeight {
+        // Sequoia tiling edge-docking alignment (accounting for Sequoia tiling margins of 0-20pt)
+        let edgeTolerance: CGFloat = 24.0
+        let isNearLeft = abs(frame.minX - vf.minX) <= edgeTolerance
+        let isNearRight = abs(frame.maxX - vf.maxX) <= edgeTolerance
+        let isNearBottom = abs(frame.minY - vf.minY) <= edgeTolerance
+        let isNearTop = abs(frame.maxY - vf.maxY) <= edgeTolerance
+
+        // Quarter screen: corner tiling (~50% width and ~50% height docked to a screen corner)
+        if isHalfWidth && isHalfHeight && (isNearLeft || isNearRight) && (isNearTop || isNearBottom) {
             return .quarterScreen
         }
 
-        // Split screen: vertical half (left/right) or horizontal half (top/bottom)
-        if (isHalfWidth && isFullHeight) || (isFullWidth && isHalfHeight) {
+        // Split screen: vertical half (left/right) or horizontal half (top/bottom) docked to screen edges
+        let isVerticalSplit = isHalfWidth && isFullHeight && (isNearLeft || isNearRight)
+        let isHorizontalSplit = isFullWidth && isHalfHeight && (isNearTop || isNearBottom)
+        if isVerticalSplit || isHorizontalSplit {
             return .splitScreen
         }
 
