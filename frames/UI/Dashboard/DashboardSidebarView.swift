@@ -7,8 +7,6 @@ public struct DashboardSidebarView: View {
     public var onPlayURL: (URL) -> Void
     @State private var hoveredFolderId: UUID? = nil
     @State private var hoveredRow: String? = nil
-    @State private var isHoveringAdd: Bool = false
-    @State private var isShowingAddMenu: Bool = false
     @State private var windowManager = WindowManager.shared
 
     public init(library: LibraryManager, width: CGFloat = 210, onPlayURL: @escaping (URL) -> Void) {
@@ -19,62 +17,6 @@ public struct DashboardSidebarView: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Primary Action: Dashed-Line Frame with Plus Icon in the Middle
-            Menu {
-                Button {
-                    library.selectFilesToPlay { url in
-                        onPlayURL(url)
-                    }
-                } label: {
-                    Label("Add Videos to Play...", systemImage: "film")
-                }
-
-                Button {
-                    library.selectAndAddFolder()
-                } label: {
-                    Label("Add Folder to Library...", systemImage: "folder.badge.plus")
-                }
-            } label: {
-                VStack(spacing: 5) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(ShadcnTheme.foreground)
-
-                    Text("Add Videos or Folder")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: 54)
-                .background(
-                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
-                        .fill(.ultraThinMaterial)
-                )
-                .background(
-                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
-                        .fill(isHoveringAdd ? ShadcnTheme.cardHover : ShadcnTheme.card.opacity(0.45))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
-                        .strokeBorder(
-                            isHoveringAdd ? ShadcnTheme.borderActive : ShadcnTheme.border,
-                            style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])
-                        )
-                )
-                .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous))
-            }
-            .menuStyle(.borderlessButton)
-            .pointingHand()
-            .help("Click to select files/folders or drag & drop here")
-            .onHover { h in
-                withAnimation(.fluidQuick) {
-                    isHoveringAdd = h
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.top, 10)
-            .padding(.bottom, 10)
-
             // Scrollable Navigation List
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 18) {
@@ -164,6 +106,7 @@ public struct DashboardSidebarView: View {
                     }
                 }
                 .padding(.horizontal, 12)
+                .padding(.top, 12)
             }
 
             Spacer()
@@ -208,8 +151,6 @@ public struct DashboardSidebarView: View {
             alignment: .trailing
         )
         .clipped()
-        .animation(.fluidSpring, value: width)
-        .animation(.fluidWindow, value: windowManager.currentLayoutState)
     }
 
     // MARK: - Row Components

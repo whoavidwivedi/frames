@@ -406,7 +406,6 @@ public struct DashboardTopBarView: View {
             .background(ShadcnTheme.background)
             .animation(.fluidSpring, value: library.isSearchActive)
             .animation(.fluidSpring, value: library.viewMode)
-            .animation(.fluidWindow, value: windowManager.currentLayoutState)
         }
         .frame(height: 38)
         .macOSDefaultTitleBar()

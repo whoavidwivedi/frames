@@ -102,6 +102,7 @@ nonisolated public final class MetalVideoRenderer: @unchecked Sendable {
     private var lastLayerWidth: Float = 0
     private var lastLayerHeight: Float = 0
     private var cachedAspectScale = simd_float2(1.0, 1.0)
+    private var cachedColorSpaceMode: Int32 = 0
 
     // MARK: - Frame Submission
     
@@ -133,6 +134,7 @@ nonisolated public final class MetalVideoRenderer: @unchecked Sendable {
         self.lastLayerWidth = 0
         self.lastLayerHeight = 0
         self.cachedAspectScale = simd_float2(1.0, 1.0)
+        self.cachedColorSpaceMode = 0
         if let cache = textureCache {
             CVMetalTextureCacheFlush(cache, 0)
         }
@@ -245,24 +247,25 @@ nonisolated public final class MetalVideoRenderer: @unchecked Sendable {
             }
                 cachedAspectScale = aspectScale
             }
-        }
-        
-        // Automatic HDR / SDR detection from buffer attachments
-        var effectiveMode = mode
-        if mode == 0 {
-            if let transfer = CVBufferCopyAttachment(buffer, kCVImageBufferTransferFunctionKey, nil) as? String {
-                if transfer == (kCVImageBufferTransferFunction_SMPTE_ST_2084_PQ as String) {
-                    effectiveMode = 2
-                } else if transfer == (kCVImageBufferTransferFunction_ITU_R_2100_HLG as String) {
-                    effectiveMode = 3
-                }
-            } else if let primaries = CVBufferCopyAttachment(buffer, kCVImageBufferColorPrimariesKey, nil) as? String {
-                if primaries == (kCVImageBufferColorPrimaries_ITU_R_2020 as String) {
-                    effectiveMode = 1
+
+            var detected = mode
+            if mode == 0 {
+                if let transfer = CVBufferCopyAttachment(buffer, kCVImageBufferTransferFunctionKey, nil) as? String {
+                    if transfer == (kCVImageBufferTransferFunction_SMPTE_ST_2084_PQ as String) {
+                        detected = 2
+                    } else if transfer == (kCVImageBufferTransferFunction_ITU_R_2100_HLG as String) {
+                        detected = 3
+                    }
+                } else if let primaries = CVBufferCopyAttachment(buffer, kCVImageBufferColorPrimariesKey, nil) as? String {
+                    if primaries == (kCVImageBufferColorPrimaries_ITU_R_2020 as String) {
+                        detected = 1
+                    }
                 }
             }
+            cachedColorSpaceMode = detected
         }
-        
+        let effectiveMode = (mode != 0) ? mode : cachedColorSpaceMode
+
         // Prepare Uniforms
         var uniforms = createUniforms(for: effectiveMode)
         uniforms.aspectScale = aspectScale

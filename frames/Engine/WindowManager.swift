@@ -39,7 +39,6 @@ public final class WindowManager {
         isNativeFullscreen || isWindowedFullscreen
     }
 
-    private var savedWindowFrame: NSRect?
     private var prePipWindowFrame: NSRect?
     private var lastDoubleClickTime: TimeInterval = 0
 
@@ -52,6 +51,13 @@ public final class WindowManager {
         window.tabbingMode = .disallowed
     }
 
+    /// File pickers and sheets are NSPanels. Their resize/key notifications must
+    /// never drive the main window's layout, or the dashboard shrinks while Finder opens.
+    private func contentWindow(from notification: Notification) -> NSWindow? {
+        guard let window = notification.object as? NSWindow, !(window is NSPanel) else { return nil }
+        return window
+    }
+
     private func setupNotifications() {
         NotificationCenter.default.addObserver(
             forName: NSWindow.didBecomeKeyNotification,
@@ -59,7 +65,7 @@ public final class WindowManager {
             queue: .main
         ) { [weak self] notification in
             MainActor.assumeIsolated {
-                if let window = notification.object as? NSWindow {
+                if let window = self?.contentWindow(from: notification) {
                     self?.configureWindow(window)
                 }
             }
@@ -71,7 +77,7 @@ public final class WindowManager {
             queue: .main
         ) { [weak self] notification in
             MainActor.assumeIsolated {
-                if let window = notification.object as? NSWindow {
+                if let window = self?.contentWindow(from: notification) {
                     self?.configureWindow(window)
                 }
             }
@@ -83,13 +89,12 @@ public final class WindowManager {
             queue: .main
         ) { [weak self] notification in
             MainActor.assumeIsolated {
-                if let window = notification.object as? NSWindow {
-                    self?.configureWindow(window)
-                }
+                guard let window = self?.contentWindow(from: notification) else { return }
+                self?.configureWindow(window)
                 withAnimation(.fluidWindow) {
                     self?.isTransitioning = true
                     self?.isNativeFullscreen = true
-                    self?.updateLayoutState()
+                    self?.updateLayoutState(window: window)
                 }
             }
         }
@@ -100,13 +105,12 @@ public final class WindowManager {
             queue: .main
         ) { [weak self] notification in
             MainActor.assumeIsolated {
-                if let window = notification.object as? NSWindow {
-                    self?.configureWindow(window)
-                }
+                guard let window = self?.contentWindow(from: notification) else { return }
+                self?.configureWindow(window)
                 withAnimation(.fluidWindow) {
                     self?.isTransitioning = false
                     self?.isNativeFullscreen = true
-                    self?.updateLayoutState()
+                    self?.updateLayoutState(window: window)
                 }
             }
         }
@@ -117,13 +121,12 @@ public final class WindowManager {
             queue: .main
         ) { [weak self] notification in
             MainActor.assumeIsolated {
-                if let window = notification.object as? NSWindow {
-                    self?.configureWindow(window)
-                }
+                guard let window = self?.contentWindow(from: notification) else { return }
+                self?.configureWindow(window)
                 withAnimation(.fluidWindow) {
                     self?.isTransitioning = true
                     self?.isNativeFullscreen = false
-                    self?.updateLayoutState()
+                    self?.updateLayoutState(window: window)
                 }
             }
         }
@@ -134,13 +137,12 @@ public final class WindowManager {
             queue: .main
         ) { [weak self] notification in
             MainActor.assumeIsolated {
-                if let window = notification.object as? NSWindow {
-                    self?.configureWindow(window)
-                }
+                guard let window = self?.contentWindow(from: notification) else { return }
+                self?.configureWindow(window)
                 withAnimation(.fluidWindow) {
                     self?.isTransitioning = false
                     self?.isNativeFullscreen = false
-                    self?.updateLayoutState()
+                    self?.updateLayoutState(window: window)
                 }
             }
         }
@@ -151,9 +153,8 @@ public final class WindowManager {
             queue: .main
         ) { [weak self] notification in
             MainActor.assumeIsolated {
-                if let window = notification.object as? NSWindow {
-                    self?.configureWindow(window)
-                }
+                guard let window = self?.contentWindow(from: notification) else { return }
+                self?.configureWindow(window)
                 self?.isLiveResizing = true
             }
         }
@@ -163,13 +164,13 @@ public final class WindowManager {
             object: nil,
             queue: .main
         ) { [weak self] notification in
-            MainActor.assumeIsolated {
-                if let window = notification.object as? NSWindow {
-                    self?.configureWindow(window)
-                }
-                self?.isLiveResizing = false
+            DispatchQueue.main.async {
+                guard let self = self,
+                      let window = self.contentWindow(from: notification) else { return }
+                self.configureWindow(window)
+                self.isLiveResizing = false
                 withAnimation(.fluidWindow) {
-                    self?.updateLayoutState()
+                    self.updateLayoutState(window: window)
                 }
             }
         }
@@ -179,12 +180,11 @@ public final class WindowManager {
             object: nil,
             queue: .main
         ) { [weak self] notification in
-            MainActor.assumeIsolated {
-                guard let self = self, !self.isLiveResizing else { return }
-                if let window = notification.object as? NSWindow {
-                    self.configureWindow(window)
-                }
-                self.updateLayoutState()
+            DispatchQueue.main.async {
+                guard let self = self, !self.isLiveResizing,
+                      let window = self.contentWindow(from: notification) else { return }
+                self.configureWindow(window)
+                self.updateLayoutState(window: window)
             }
         }
     }
@@ -192,12 +192,8 @@ public final class WindowManager {
     public func toggleNativeFullscreen() {
         guard let window = activeWindow else { return }
         configureWindow(window)
-
-        // If currently in windowed fullscreen, revert first
-        if isWindowedFullscreen {
-            exitWindowedFullscreen(window: window, animated: false)
-        }
-
+        // Native AppKit fullscreen; the Window Server handles the transition and
+        // restores whatever window frame the user came from.
         window.toggleFullScreen(nil)
     }
 
@@ -205,17 +201,16 @@ public final class WindowManager {
         guard let win = window ?? activeWindow else { return }
         configureWindow(win)
 
-        // If currently in native fullscreen, exit it first
+        // If currently in native fullscreen, revert first
         if isNativeFullscreen {
             win.toggleFullScreen(nil)
             return
         }
 
-        if isWindowedFullscreen {
-            exitWindowedFullscreen(window: win, animated: true)
-        } else {
-            enterWindowedFullscreen(window: win)
-        }
+        // AppKit's native Zoom: it remembers the pre-zoom frame, respects the
+        // Window Server's target frame, and restores exactly what the user had.
+        win.performZoom(nil)
+        updateLayoutState(window: win)
     }
 
     public func exitAnyFullscreen() {
@@ -223,7 +218,10 @@ public final class WindowManager {
         configureWindow(window)
 
         if isWindowedFullscreen {
-            exitWindowedFullscreen(window: window, animated: true)
+            if window.isZoomed {
+                window.performZoom(nil)
+            }
+            updateLayoutState(window: window)
         } else if isNativeFullscreen {
             window.toggleFullScreen(nil)
         }
@@ -360,44 +358,17 @@ public final class WindowManager {
         guard let win = window ?? activeWindow else { return }
         configureWindow(win)
         currentWindowSize = win.frame.size
+        if !isNativeFullscreen && !isPictureInPicture {
+            // Native Window > Zoom and Option-click green button bypass our menu,
+            // so mirror AppKit's actual zoom state instead of tracking it ourselves.
+            isWindowedFullscreen = win.isZoomed
+        }
         let newState = computeLayoutState(window: win)
+        // Window resizing and tiling are driven by the Window Server. Animating the
+        // responsive layout after the frame has already changed causes the whole
+        // dashboard to lag behind the pointer, so apply state changes immediately.
         if newState != currentLayoutState {
-            if isLiveResizing {
-                currentLayoutState = newState
-            } else {
-                withAnimation(.fluidWindow) {
-                    currentLayoutState = newState
-                }
-            }
-        }
-    }
-
-    private func enterWindowedFullscreen(window: NSWindow) {
-        configureWindow(window)
-        guard let screen = window.screen ?? NSScreen.main else { return }
-        savedWindowFrame = window.frame
-        withAnimation(.fluidWindow) {
-            isWindowedFullscreen = true
-            currentLayoutState = .windowedFull
-        }
-
-        // Smoothly expand to fill entire visible display area (macOS native Zoom standard)
-        window.setFrame(screen.visibleFrame, display: true, animate: true)
-    }
-
-    private func exitWindowedFullscreen(window: NSWindow, animated: Bool) {
-        configureWindow(window)
-        withAnimation(.fluidWindow) {
-            isWindowedFullscreen = false
-        }
-        if let saved = savedWindowFrame {
-            window.setFrame(saved, display: true, animate: animated)
-            savedWindowFrame = nil
-        } else if window.isZoomed {
-            window.performZoom(nil)
-        }
-        withAnimation(.fluidWindow) {
-            updateLayoutState(window: window)
+            currentLayoutState = newState
         }
     }
 

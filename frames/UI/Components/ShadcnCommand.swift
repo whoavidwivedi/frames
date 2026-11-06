@@ -30,7 +30,7 @@ public struct CommandShortcut: View, Equatable {
 public struct CommandSeparator: View, Equatable, Identifiable {
     public let id: String
 
-    public init(id: String = "command-separator") {
+    public init(id: String = UUID().uuidString) {
         self.id = id
     }
 
@@ -128,9 +128,11 @@ public struct CommandItem: View, Identifiable, Equatable {
     }
 
     @Environment(CommandContext.self) private var context: CommandContext?
+    @State private var isHovered = false
 
     public var body: some View {
         let isSelected = context?.selectedItemId == id
+        let isHighlighted = isSelected || isHovered
 
         HStack(spacing: 8) {
             if let icon = icon {
@@ -164,15 +166,15 @@ public struct CommandItem: View, Identifiable, Equatable {
         .padding(.vertical, subtitle == nil ? 6 : 7)
         .background(
             RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                .fill(isSelected ? ShadcnTheme.accentActive : Color.clear)
+                .fill(isHighlighted ? ShadcnTheme.accentActive : Color.clear)
         )
         .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
         .opacity(isDisabled ? 0.4 : 1.0)
         .pointingHand()
         .onHover { hovering in
-            if hovering && !isDisabled {
-                context?.selectedItemId = id
-            }
+            // Hover must not change keyboard selection: doing so made the list
+            // scroll itself while the pointer was moving over results.
+            isHovered = hovering && !isDisabled
         }
         .onTapGesture {
             if !isDisabled {

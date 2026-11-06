@@ -103,9 +103,7 @@ public final class LibraryManager {
     }
 
     public func toggleSidebar() {
-        withAnimation(.fluidSpring) {
-            isSidebarVisible.toggle()
-        }
+        isSidebarVisible.toggle()
     }
 
     public func toggleSearch() {

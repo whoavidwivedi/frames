@@ -101,9 +101,7 @@ public struct DashboardContentView: View {
             .background(ShadcnTheme.background)
             .clipped()
             .animation(.fluidSpring, value: library.viewMode)
-            .animation(.fluidSpring, value: isNarrow)
             .animation(.fluidSpring, value: library.selectedCategory)
-            .animation(.fluidWindow, value: windowManager.currentLayoutState)
         }
     }
 

@@ -62,3 +62,7 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/
 fastlane/test_output/
+
+# Agent Tools & Customizations
+.agents/
+skills-lock.json

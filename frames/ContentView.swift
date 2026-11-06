@@ -289,17 +289,13 @@ struct ContentView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 .ignoresSafeArea()
-                .transition(.asymmetric(
-                    insertion: .opacity,
-                    removal: .opacity.combined(with: .scale(scale: 1.04, anchor: .center))
-                ))
+                .transition(.opacity)
                 .zIndex(100)
             }
         }
         .frame(minWidth: 460, minHeight: 320)
         .animation(.fluidSpring, value: engine.currentURL != nil)
         .animation(.fluidSpring, value: engine.controlsVisible)
-        .animation(.fluidWindow, value: windowManager.currentLayoutState)
         .onChange(of: engine.controlsVisible) { _, visible in
             if !visible && engine.isPlaying {
                 NSCursor.setHiddenUntilMouseMoves(true)

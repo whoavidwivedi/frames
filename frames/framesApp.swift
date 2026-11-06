@@ -2,6 +2,13 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+extension Notification.Name {
+    public static let openVideoNotification = Notification.Name("FramesOpenVideoNotification")
+    public static let returnToDashboardNotification = Notification.Name("FramesReturnToDashboardNotification")
+    public static let toggleCommandPaletteNotification = Notification.Name("FramesToggleCommandPaletteNotification")
+    public static let requestOpenFilePickerNotification = Notification.Name("FramesRequestOpenFilePickerNotification")
+}
+
 @main
 struct framesApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
@@ -9,13 +16,6 @@ struct framesApp: App {
     init() {
         NSWindow.allowsAutomaticWindowTabbing = false
         ThemeManager.shared.applyAppearance()
-        if CommandLine.arguments.contains("--run-tests") {
-            let result = FramesTestSuite.runAllTests()
-            for line in result.logs {
-                print(line)
-            }
-            exit(result.failed == 0 ? 0 : 1)
-        }
     }
 
     var body: some Scene {
@@ -48,24 +48,6 @@ struct framesApp: App {
                     NSApp.keyWindow?.performClose(nil)
                 }
                 .keyboardShortcut("w", modifiers: .command)
-            }
-
-            SwiftUI.CommandGroup(replacing: .windowArrangement) {
-                Button("Minimize") {
-                    NSApp.keyWindow?.miniaturize(nil)
-                }
-                .keyboardShortcut("m", modifiers: .command)
-
-                Button("Zoom") {
-                    WindowManager.shared.toggleWindowedFullscreen()
-                }
-
-                Divider()
-
-                Button(WindowManager.shared.isNativeFullscreen ? "Exit Full Screen" : "Enter Full Screen") {
-                    WindowManager.shared.toggleNativeFullscreen()
-                }
-                .keyboardShortcut("f", modifiers: [.control, .command])
             }
 
             CommandMenu("View") {
@@ -133,6 +115,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSWindow.allowsAutomaticWindowTabbing = false
         for window in NSApp.windows {
             window.tabbingMode = .disallowed
+        }
+
+        if CommandLine.arguments.contains("--run-tests") {
+            let result = FramesTestSuite.runAllTests()
+            for line in result.logs {
+                print(line)
+            }
+            fflush(stdout)
+            exit(result.failed == 0 ? 0 : 1)
         }
 
         if let mainMenu = NSApp.mainMenu {
@@ -249,11 +240,4 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             menu.removeItem(at: menu.items.count - 1)
         }
     }
-}
-
-public extension Notification.Name {
-    static let openVideoNotification = Notification.Name("FramesOpenVideoNotification")
-    static let returnToDashboardNotification = Notification.Name("FramesReturnToDashboardNotification")
-    static let toggleCommandPaletteNotification = Notification.Name("FramesToggleCommandPaletteNotification")
-    static let requestOpenFilePickerNotification = Notification.Name("FramesRequestOpenFilePickerNotification")
 }

@@ -25,17 +25,15 @@ public final class TitleBarDragNSView: NSView {
         self.wantsLayer = true
     }
 
-    public override func updateConstraints() {
-        super.updateConstraints()
-    }
 
     public override func mouseDown(with event: NSEvent) {
-        // AppKit's -[NSWindow performDragWithEvent:] internally checks event.clickCount.
-        // If event.clickCount >= 2, AppKit triggers the titlebar double-click action (Zoom / Windowed Full / Miniaturize).
-        // By guarding for clickCount == 1, we ensure that:
-        // 1. Single click & drag still smoothly moves the window.
-        // 2. Double clicks, double taps, and rapid clicks are ignored by performDrag,
-        //    preventing the window from toggling to its original state or full windowed.
+        // Double-click / double-tap the top bar: match the macOS title bar action
+        // (Zoom to fill, then restore the previous frame; or Minimize per System Settings).
+        if event.clickCount == 2 {
+            WindowManager.shared.performTitleBarDoubleClickAction(window: window)
+            return
+        }
+        // Single click starts the native window drag.
         guard event.clickCount == 1 else { return }
         window?.performDrag(with: event)
     }
