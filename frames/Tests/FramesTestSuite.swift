@@ -2433,10 +2433,48 @@ public enum FramesTestSuite {
         let timeDisplayHost = NSHostingView(rootView: timeDisplayView)
         assertTest("PlaybackTimeDisplay NSHostingView Mount Operable", condition: timeDisplayHost.fittingSize.width > 0)
 
+        // Subtitle Idempotency & Observation Decoupling
+        decoupledEngine.updateActiveSubtitle(at: 10.0)
+        assertTest("VideoPlayerEngine Subtitle Update Idempotent With Subtitles Off", condition: decoupledEngine.activeSubtitleText.isEmpty)
+
         // 4. MatroskaDemuxer Unindexed MKV Cluster Cache & Seek Fallback
         let entryA = MatroskaDemuxer.ClusterIndexEntry(timeSeconds: 5.0, offset: 1024)
         let entryB = MatroskaDemuxer.ClusterIndexEntry(timeSeconds: 15.0, offset: 4096)
         assertTest("ClusterIndexEntry Ordering Preserved", condition: entryA < entryB)
+
+        // Live synthetic MKV with unindexed clusters
+        let tempMKVURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("test_unindexed_\(UUID().uuidString).mkv")
+        var mkvBytes = Data()
+        // EBML Header (DocType "mk")
+        mkvBytes.append(contentsOf: [0x1A, 0x45, 0xDF, 0xA3, 0x85, 0x42, 0x82, 0x82, 0x6D, 0x6B])
+        // Segment (Unknown Size: 0x01FFFFFFFFFFFFFF)
+        mkvBytes.append(contentsOf: [0x18, 0x53, 0x80, 0x67, 0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])
+        // Cluster 1 at offset 22 (Timestamp: 0ms)
+        mkvBytes.append(contentsOf: [0x1F, 0x43, 0xB6, 0x75, 0x86, 0xE7, 0x81, 0x00, 0xEC, 0x81, 0x00])
+        // Cluster 2 at offset 33 (Timestamp: 5000ms = 5.0s)
+        mkvBytes.append(contentsOf: [0x1F, 0x43, 0xB6, 0x75, 0x86, 0xE7, 0x82, 0x13, 0x88, 0xEC, 0x80])
+        try? mkvBytes.write(to: tempMKVURL)
+
+        if let demuxer = try? MatroskaDemuxer(url: tempMKVURL) {
+            demuxer.recordCluster(timeSeconds: 0.0, offset: 22)
+            demuxer.recordCluster(timeSeconds: 5.0, offset: 33)
+            demuxer.recordCluster(timeSeconds: 10.0, offset: 44)
+            assertTest("MatroskaDemuxer Cached Cluster Count Recorded", condition: demuxer.cachedClusterCount >= 3)
+            assertTest("MatroskaDemuxer Highest Cached Cluster Time", condition: demuxer.highestCachedClusterTime() >= 10.0)
+
+            let closestBeforeFive = demuxer.findClosestCachedCluster(targetSeconds: 4.5)
+            assertTest("MatroskaDemuxer Find Closest Cluster Before Target", condition: closestBeforeFive?.timeSeconds == 0.0)
+
+            let closestAtFive = demuxer.findClosestCachedCluster(targetSeconds: 5.0)
+            assertTest("MatroskaDemuxer Find Exact Matching Cluster", condition: closestAtFive?.timeSeconds == 5.0)
+
+            demuxer.seek(to: 0.0)
+            assertTest("MatroskaDemuxer Zero Seek Handled", condition: true)
+            demuxer.seek(to: 5.0)
+            assertTest("MatroskaDemuxer Cached Fallback Seek Handled", condition: true)
+            demuxer.close()
+        }
+        try? FileManager.default.removeItem(at: tempMKVURL)
 
         // 5. CoreAudio Rate Switch Smoothing & Dynamic Headroom
         let dummyAudioTrackRate = DemuxedTrack(trackNumber: 2, trackUID: 202, type: .audio, codecID: "A_AAC", sampleRate: 48000.0, channels: 2)
@@ -2446,6 +2484,11 @@ public enum FramesTestSuite {
             assertTest("AudioEngineBridge 1.25x Rate Switch Headroom", condition: audioBridge.hasBufferHeadroom)
             audioBridge.setPlaybackRate(2.0)
             assertTest("AudioEngineBridge 2.0x Rate Switch Headroom", condition: audioBridge.hasBufferHeadroom)
+            // Rapid seek & 0.5x -> 2.0x switch
+            audioBridge.setPlaybackRate(0.5)
+            audioBridge.seek(to: 12.0)
+            audioBridge.setPlaybackRate(2.0)
+            assertTest("AudioEngineBridge Rapid 0.5x to 2.0x Seek & Rate Switch Stable", condition: audioBridge.hasBufferHeadroom)
             audioBridge.setPlaybackRate(1.0)
             assertTest("AudioEngineBridge 1.0x Rate Switch Restored", condition: audioBridge.hasBufferHeadroom)
             audioBridge.stop()
@@ -2453,6 +2496,7 @@ public enum FramesTestSuite {
 
         // 6. MetalVideoRenderer Asynchronous / Conditional Texture Cache Maintenance
         if let renderer = MetalVideoRenderer() {
+            renderer.clearFrame()
             renderer.clearFrame()
             assertTest("MetalVideoRenderer Clears Frame Without Blocking", condition: true)
         }

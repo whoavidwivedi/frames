@@ -105,27 +105,23 @@ nonisolated public final class MetalVideoRenderer: @unchecked Sendable {
     private var cachedAspectScale = simd_float2(1.0, 1.0)
     private var cachedColorSpaceMode: Int32 = 0
     private var isFlushPending: Bool = false
-    private var flushLock = os_unfair_lock()
+    private let flushLock = NSLock()
 
     private func flushTextureCacheAsync(cache: CVMetalTextureCache) {
-        var shouldDispatch = false
-        withUnsafeMutablePointer(to: &flushLock) { ptr in
-            os_unfair_lock_lock(ptr)
-            if !isFlushPending {
-                isFlushPending = true
-                shouldDispatch = true
-            }
-            os_unfair_lock_unlock(ptr)
+        flushLock.lock()
+        if isFlushPending {
+            flushLock.unlock()
+            return
         }
-        guard shouldDispatch else { return }
+        isFlushPending = true
+        flushLock.unlock()
+
         DispatchQueue.global(qos: .utility).async { [weak self] in
             CVMetalTextureCacheFlush(cache, 0)
             guard let self = self else { return }
-            withUnsafeMutablePointer(to: &self.flushLock) { ptr in
-                os_unfair_lock_lock(ptr)
-                self.isFlushPending = false
-                os_unfair_lock_unlock(ptr)
-            }
+            self.flushLock.lock()
+            self.isFlushPending = false
+            self.flushLock.unlock()
         }
     }
 

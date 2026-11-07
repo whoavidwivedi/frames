@@ -60,50 +60,77 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable {
     private let ioLock = NSLock()
     private var cachedClusters: [ClusterIndexEntry] = []
     private var backgroundIndexTask: Task<Void, Never>?
-    private var clusterLock = os_unfair_lock()
+    private let clusterLock = NSLock()
 
     public func recordCluster(timeSeconds: Double, offset: UInt64) {
-        withUnsafeMutablePointer(to: &clusterLock) { ptr in
-            os_unfair_lock_lock(ptr)
-            defer { os_unfair_lock_unlock(ptr) }
-            if let idx = cachedClusters.firstIndex(where: { $0.offset == offset }) {
-                if cachedClusters[idx].timeSeconds <= 0 && timeSeconds > 0 {
-                    cachedClusters[idx] = ClusterIndexEntry(timeSeconds: timeSeconds, offset: offset)
-                    cachedClusters.sort()
-                }
-                return
+        clusterLock.lock()
+        defer { clusterLock.unlock() }
+        if let idx = cachedClusters.firstIndex(where: { $0.offset == offset }) {
+            if cachedClusters[idx].timeSeconds <= 0 && timeSeconds > 0 {
+                cachedClusters[idx] = ClusterIndexEntry(timeSeconds: timeSeconds, offset: offset)
+                cachedClusters.sort()
             }
-            cachedClusters.append(ClusterIndexEntry(timeSeconds: timeSeconds, offset: offset))
-            cachedClusters.sort()
+            return
         }
+        cachedClusters.append(ClusterIndexEntry(timeSeconds: timeSeconds, offset: offset))
+        cachedClusters.sort()
     }
 
     public var cachedClusterCount: Int {
-        withUnsafeMutablePointer(to: &clusterLock) { ptr in
-            os_unfair_lock_lock(ptr)
-            defer { os_unfair_lock_unlock(ptr) }
-            return cachedClusters.count
-        }
+        clusterLock.lock()
+        defer { clusterLock.unlock() }
+        return cachedClusters.count
     }
 
     public func findClosestCachedCluster(targetSeconds: Double) -> ClusterIndexEntry? {
-        withUnsafeMutablePointer(to: &clusterLock) { ptr in
-            os_unfair_lock_lock(ptr)
-            defer { os_unfair_lock_unlock(ptr) }
-            guard !cachedClusters.isEmpty else { return nil }
-            var low = 0
-            var high = cachedClusters.count - 1
-            var best: ClusterIndexEntry? = nil
-            while low <= high {
-                let mid = (low + high) / 2
-                if cachedClusters[mid].timeSeconds <= targetSeconds {
-                    best = cachedClusters[mid]
-                    low = mid + 1
-                } else {
-                    high = mid - 1
-                }
+        clusterLock.lock()
+        defer { clusterLock.unlock() }
+        guard !cachedClusters.isEmpty else { return nil }
+        var low = 0
+        var high = cachedClusters.count - 1
+        var best: ClusterIndexEntry? = nil
+        while low <= high {
+            let mid = (low + high) / 2
+            if cachedClusters[mid].timeSeconds <= targetSeconds {
+                best = cachedClusters[mid]
+                low = mid + 1
+            } else {
+                high = mid - 1
             }
-            return best ?? cachedClusters.first
+        }
+        return best
+    }
+
+    public func highestCachedClusterTime() -> Double {
+        clusterLock.lock()
+        defer { clusterLock.unlock() }
+        return cachedClusters.last?.timeSeconds ?? 0.0
+    }
+
+    public func readClusterTimestamp(at payloadOffset: UInt64) -> Double? {
+        guard fileDescriptor >= 0 else { return nil }
+        var clusterHead = Data(count: 64)
+        let chRead = clusterHead.withUnsafeMutableBytes { ptr -> Int in
+            guard let base = ptr.baseAddress else { return 0 }
+            return pread(fileDescriptor, base, 64, off_t(payloadOffset))
+        }
+        guard chRead >= 4 else { return nil }
+        let scale = self.timestampScaleSeconds
+        return clusterHead.withUnsafeBytes { raw in
+            var innerOff = 0
+            while innerOff < chRead {
+                guard let childId = EBMLVint.parseElementID(from: raw, offset: innerOff),
+                      let childSz = EBMLVint.parseDataSize(from: raw, offset: innerOff + childId.length) else { break }
+                let childPayloadOff = innerOff + childId.length + childSz.length
+                if EBMLID(rawValue: childId.value) == .timestamp {
+                    if let tsInt = EBMLVint.parseInt(from: raw, offset: childPayloadOff, length: Int(childSz.value)) {
+                        return Double(tsInt) * scale
+                    }
+                    break
+                }
+                innerOff = childPayloadOff + Int(childSz.value)
+            }
+            return nil
         }
     }
 
@@ -132,6 +159,11 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable {
                     }
                     let id = EBMLID(rawValue: idVint.value) ?? .void
                     return (id, idVint.length + sizeVint.length, sizeVint.value)
+                }
+
+                if totalHeaderLen == 0 {
+                    offset += 1
+                    continue
                 }
 
                 if elemID == .cluster {
@@ -167,7 +199,8 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable {
                     } else {
                         offset = payloadOffset + 1
                     }
-                } else if elemID == .segment || elemID == .void {
+                } else if payloadSize > 0 && payloadSize < (size - offset - UInt64(totalHeaderLen)) {
+                    // Safely jump over standard top-level master elements (Info, Tracks, Tags, Void, etc.)
                     offset += UInt64(totalHeaderLen) + payloadSize
                 } else {
                     offset += 1
@@ -1080,16 +1113,26 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable {
                 self.currentOffset = offsetA
             }
         } else {
-            // Fallback for unindexed MKV: query cached cluster index before resorting to brute force scan
-            if let cached = findClosestCachedCluster(targetSeconds: clampedTarget) {
+            // Fallback for unindexed MKV:
+            // If the target is within or near the indexed cluster range, use cached index binary search.
+            let maxCachedTime = highestCachedClusterTime()
+            if clampedTarget <= (maxCachedTime + 5.0), let cached = findClosestCachedCluster(targetSeconds: clampedTarget) {
                 self.currentOffset = cached.offset
             } else {
-                // Fallback: estimate cluster position via ratio and resynchronize
+                // If seeking beyond indexed range, estimate cluster position via ratio and resynchronize
                 let ratio = duration > 0 ? (clampedTarget / duration) : 0.0
                 let estimatedOffset = segmentDataOffset + UInt64(Double(fileSize - segmentDataOffset) * ratio)
                 if let resynced = resyncToCluster(from: estimatedOffset, maxScanBytes: 64 * 1024 * 1024) {
                     self.currentOffset = resynced
-                    recordCluster(timeSeconds: clampedTarget, offset: resynced)
+                    let parsedTS: Double
+                    if let elem = readElement(at: resynced), elem.id == .cluster {
+                        parsedTS = readClusterTimestamp(at: elem.payloadOffset) ?? clampedTarget
+                    } else {
+                        parsedTS = clampedTarget
+                    }
+                    recordCluster(timeSeconds: parsedTS, offset: resynced)
+                } else if let cached = findClosestCachedCluster(targetSeconds: clampedTarget) {
+                    self.currentOffset = cached.offset
                 } else {
                     self.currentOffset = firstClusterOffset ?? segmentDataOffset
                 }

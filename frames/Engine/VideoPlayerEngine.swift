@@ -66,7 +66,9 @@ public final class VideoPlayerEngine {
         }
     }
 
+    @ObservationIgnored
     public var lastSyncTime: Double = 0.0
+    @ObservationIgnored
     public var lastSyncDate: Date = Date()
     public var duration: Double = 0.0 {
         didSet {
@@ -315,6 +317,7 @@ public final class VideoPlayerEngine {
     // MARK: - Playback Controls
     private var isSeekInProgress = false
     private var chaseTime: CMTime = .zero
+    @ObservationIgnored
     private var displayTime: Double = 0.0
 
     public func play() {
@@ -557,18 +560,19 @@ public final class VideoPlayerEngine {
 
     public func updateActiveSubtitle(at time: Double) {
         guard selectedSubtitleTrack.id != SubtitleTrack.off.id else {
-            activeSubtitleText = ""
+            if !activeSubtitleText.isEmpty {
+                activeSubtitleText = ""
+            }
             return
         }
 
         if !selectedSubtitleTrack.cues.isEmpty {
             let adjustedTime = time - subtitleDelay
-            if let match = selectedSubtitleTrack.cues.first(where: { adjustedTime >= $0.startTime && adjustedTime <= $0.endTime }) {
-                activeSubtitleText = match.text
-            } else {
-                activeSubtitleText = ""
+            let newText = selectedSubtitleTrack.cues.first(where: { adjustedTime >= $0.startTime && adjustedTime <= $0.endTime })?.text ?? ""
+            if activeSubtitleText != newText {
+                activeSubtitleText = newText
             }
-        } else {
+        } else if !activeSubtitleText.isEmpty {
             activeSubtitleText = ""
         }
     }

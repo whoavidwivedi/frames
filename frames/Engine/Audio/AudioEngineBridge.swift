@@ -169,6 +169,10 @@ nonisolated public final class AudioEngineBridge: @unchecked Sendable {
             lastReportedTime = current
             hasAnchored = true
         } else {
+            if lastReportedTime > 0 {
+                anchorPts = lastReportedTime
+            }
+            anchorSampleTime = 0
             hasAnchored = false
         }
     }
@@ -179,7 +183,11 @@ nonisolated public final class AudioEngineBridge: @unchecked Sendable {
         
         playerNode.stop()
         decoder?.reset()
+        timePitchNode.reset()
         timePitchNode.rate = playbackRate
+        timePitchNode.pitch = 0.0
+        timePitchNode.overlap = 8.0
+        timePitchNode.bypass = (abs(playbackRate - 1.0) < 0.001)
         anchorPts = pts
         anchorSampleTime = 0
         lastReportedTime = pts
