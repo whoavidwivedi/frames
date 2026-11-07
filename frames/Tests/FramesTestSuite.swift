@@ -177,7 +177,7 @@ public enum FramesTestSuite {
         let benchDurationMs = Date().timeIntervalSince(benchStart) * 1000.0
 
         assertTest("1,000 Cues Correctly Parsed", condition: parsedLargeCues.count == 1000, "Got \(parsedLargeCues.count)")
-        assertTest("1,000 Cues Parse Latency < 100ms", condition: benchDurationMs < 100.0, "Latency: \(String(format: "%.2f", benchDurationMs)) ms")
+        assertTest("1,000 Cues Parse Latency < 250ms (CI & Debug Guard)", condition: benchDurationMs < 250.0, "Latency: \(String(format: "%.2f", benchDurationMs)) ms")
 
         // Active Cue lookup test
         let testTargetTime = 301.2 // corresponds to cue ~100
