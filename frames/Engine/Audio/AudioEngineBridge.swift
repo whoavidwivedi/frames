@@ -16,7 +16,9 @@ nonisolated public final class AudioEngineBridge: @unchecked Sendable {
     
     private let audioEngine = AVAudioEngine()
     private let playerNode = AVAudioPlayerNode()
+    private let timePitchNode = AVAudioUnitTimePitch()
     private let decoder: NativeAudioDecoder?
+    private var playbackRate: Float = 1.0
     
     public let track: DemuxedTrack
     public let sampleRate: Double
@@ -40,11 +42,12 @@ nonisolated public final class AudioEngineBridge: @unchecked Sendable {
     
     // MARK: - Lifecycle
     
-    public init?(track: DemuxedTrack) {
+    public init?(track: DemuxedTrack, initialRate: Float = 1.0) {
         guard track.isAudio else { return nil }
         self.track = track
         self.sampleRate = track.sampleRate > 0 ? track.sampleRate : 48000.0
         self.channels = track.channels > 0 ? track.channels : 2
+        self.playbackRate = max(0.25, min(initialRate, 4.0))
         
         guard let dec = NativeAudioDecoder(track: track) else {
             return nil
@@ -61,8 +64,12 @@ nonisolated public final class AudioEngineBridge: @unchecked Sendable {
     
     private func setupAudioEngine() {
         audioEngine.attach(playerNode)
-        audioEngine.connect(playerNode, to: audioEngine.mainMixerNode, format: outputFormat)
+        audioEngine.attach(timePitchNode)
+        audioEngine.connect(playerNode, to: timePitchNode, format: outputFormat)
+        audioEngine.connect(timePitchNode, to: audioEngine.mainMixerNode, format: outputFormat)
         playerNode.volume = 1.0
+        timePitchNode.rate = playbackRate
+        timePitchNode.pitch = 0.0
         audioEngine.mainMixerNode.outputVolume = 1.0
         
         do {
@@ -138,6 +145,25 @@ nonisolated public final class AudioEngineBridge: @unchecked Sendable {
     public var currentVolume: Float {
         return playerNode.volume
     }
+
+    public func setPlaybackRate(_ rate: Float) {
+        lock.lock()
+        defer { lock.unlock() }
+        let clamped = max(0.25, min(rate, 4.0))
+        playbackRate = clamped
+        timePitchNode.rate = clamped
+        
+        // Re-anchor clock to current playback time so future elapsed calculations scale from here
+        if isPlaying,
+           let nodeTime = playerNode.lastRenderTime,
+           let playerTime = playerNode.playerTime(forNodeTime: nodeTime),
+           playerTime.sampleRate > 0 {
+            let current = calculateMasterTimeLocked(playerTime: playerTime)
+            anchorPts = current
+            anchorSampleTime = playerTime.sampleTime
+            lastReportedTime = current
+        }
+    }
     
     public func seek(to pts: Double) {
         lock.lock()
@@ -145,6 +171,7 @@ nonisolated public final class AudioEngineBridge: @unchecked Sendable {
         
         playerNode.stop()
         decoder?.reset()
+        timePitchNode.rate = playbackRate
         anchorPts = pts
         anchorSampleTime = 0
         lastReportedTime = pts
@@ -206,6 +233,17 @@ nonisolated public final class AudioEngineBridge: @unchecked Sendable {
     }
     
     // MARK: - Master Clock Synchronization
+
+    private func calculateMasterTimeLocked(playerTime: AVAudioTime) -> Double {
+        if !hasAnchored {
+            anchorSampleTime = playerTime.sampleTime
+            hasAnchored = true
+        }
+        let elapsedSamples = max(0, playerTime.sampleTime - anchorSampleTime)
+        let elapsedSeconds = Double(elapsedSamples) / playerTime.sampleRate
+        let current = max(0.0, anchorPts + elapsedSeconds)
+        return current
+    }
     
     /// Returns the true monotonic nanosecond-accurate hardware clock time (in seconds).
     public var currentMasterTime: Double {
@@ -217,13 +255,7 @@ nonisolated public final class AudioEngineBridge: @unchecked Sendable {
         if let nodeTime = playerNode.lastRenderTime,
            let playerTime = playerNode.playerTime(forNodeTime: nodeTime),
            playerTime.sampleRate > 0 {
-            if !hasAnchored {
-                anchorSampleTime = playerTime.sampleTime
-                hasAnchored = true
-            }
-            let elapsedSamples = max(0, playerTime.sampleTime - anchorSampleTime)
-            let elapsedSeconds = Double(elapsedSamples) / playerTime.sampleRate
-            let current = max(0.0, anchorPts + elapsedSeconds)
+            let current = calculateMasterTimeLocked(playerTime: playerTime)
             lastReportedTime = current
             return current
         }

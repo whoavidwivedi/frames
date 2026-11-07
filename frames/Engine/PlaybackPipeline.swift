@@ -381,7 +381,7 @@ public final class PlaybackPipeline: ObservableObject {
             }()
             let defaultAudio = preferredAudio ?? (d.audioTracks.first(where: { $0.isDefault }) ?? d.audioTracks.first)
             if let aTrack = defaultAudio {
-                let bridge = AudioEngineBridge(track: aTrack)
+                let bridge = AudioEngineBridge(track: aTrack, initialRate: playbackRate)
                 self.audioEngine = bridge
                 self.activeAudioTrackNumber = aTrack.trackNumber
                 routing.updateAudio(engine: bridge, trackNumber: aTrack.trackNumber)
@@ -422,7 +422,8 @@ public final class PlaybackPipeline: ObservableObject {
         // AVAudioEngine setup/start can block for hundreds of milliseconds. Build the
         // replacement engine off the main thread and keep the old one playing until ready.
         audioSwitchTask = Task.detached(priority: .userInitiated) { [weak self] in
-            let newEngine = AudioEngineBridge(track: track)
+            let currentRate = await MainActor.run { [weak self] in self?.playbackRate ?? 1.0 }
+            let newEngine = AudioEngineBridge(track: track, initialRate: currentRate)
             guard !Task.isCancelled else {
                 newEngine?.stop()
                 return
@@ -469,8 +470,14 @@ public final class PlaybackPipeline: ObservableObject {
 
     public func setPlaybackRate(_ rate: Float) {
         let clamped = max(0.25, min(rate, 4.0))
+        let now = CACurrentMediaTime()
+        let current = currentPlaybackTime()
         self.playbackRate = clamped
         routing.setPlaybackRate(clamped)
+        self.playbackStartPts = current
+        self.playbackStartTime = now
+        resetClockTracker()
+        audioEngine?.setPlaybackRate(clamped)
     }
     
     /// Opens and prepares a media file for native zero-copy playback.
@@ -497,6 +504,7 @@ public final class PlaybackPipeline: ObservableObject {
         playbackStartTime = CACurrentMediaTime()
         playbackStartPts = currentTime
         resetClockTracker()
+        audioEngine?.setPlaybackRate(playbackRate)
         audioEngine?.play()
         transition(to: .playing)
         

@@ -79,7 +79,14 @@ public struct SpeedSelectorPanel: View {
                     }
                 }
 
-                Slider(value: $engine.playbackRate, in: 0.25...3.0, step: 0.05)
+                Slider(
+                    value: Binding(
+                        get: { Double(engine.playbackRate) },
+                        set: { engine.playbackRate = Float(round($0 * 20.0) / 20.0) }
+                    ),
+                    in: 0.25...3.0,
+                    step: 0.05
+                )
                     .tint(Color.white.opacity(0.85))
                     .pointingHand()
             }

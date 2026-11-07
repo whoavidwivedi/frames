@@ -39,10 +39,15 @@ public final class VideoPlayerEngine {
     }
     public var playbackRate: Float = 1.0 {
         didSet {
+            guard oldValue != playbackRate else { return }
             let clamped = max(0.25, min(playbackRate, 4.0))
+            player.defaultRate = clamped
             if isPlaying {
                 player.rate = clamped
             }
+            lastSyncTime = currentTime
+            lastSyncDate = Date()
+            displayTime = currentTime
             if isNativePipelineActive {
                 nativePipeline.setPlaybackRate(clamped)
             }
@@ -219,14 +224,15 @@ public final class VideoPlayerEngine {
         let asset = AVURLAsset(url: url)
         let playerItem = AVPlayerItem(asset: asset)
 
-        // Apple Silicon low-latency audio/video configuration
-        playerItem.audioTimePitchAlgorithm = .timeDomain
+        // Apple Silicon low-latency audio/video configuration with broad time-pitch scaling
+        playerItem.audioTimePitchAlgorithm = .spectral
         playerItem.allowedAudioSpatializationFormats = SettingsManager.shared.spatialAudioEnabled
             ? .monoStereoAndMultichannel
             : []
 
         observePlayerItem(playerItem)
         player.replaceCurrentItem(with: playerItem)
+        player.defaultRate = playbackRate
         player.volume = volume
         player.isMuted = isMuted
 
@@ -260,8 +266,10 @@ public final class VideoPlayerEngine {
         lastSyncDate = Date()
         displayTime = currentTime
         if isNativePipelineActive {
+            nativePipeline.setPlaybackRate(playbackRate)
             nativePipeline.play()
         } else {
+            player.defaultRate = playbackRate
             player.rate = playbackRate
         }
         isPlaying = true
@@ -597,6 +605,10 @@ public final class VideoPlayerEngine {
                     let d = playerItem.duration.seconds
                     if !d.isNaN && !d.isInfinite {
                         self.duration = d
+                    }
+                    if self.isPlaying {
+                        self.player.defaultRate = self.playbackRate
+                        self.player.rate = self.playbackRate
                     }
                     if let seekTime = self.pendingInitialSeekTime, seekTime > 0 {
                         let targetTime = seekTime

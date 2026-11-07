@@ -2251,6 +2251,22 @@ public enum FramesTestSuite {
         let speedSheetHost = NSHostingView(rootView: SpeedSelectorPanel(engine: hudEngine))
         assertTest("SpeedSelectorPanel NSHostingView Mount Operable", condition: speedSheetHost.fittingSize.width > 0)
 
+        // Variable Playback Rate & AudioEngineBridge Pitch Scaling
+        let dummyTrack = DemuxedTrack(trackNumber: 99, trackUID: 999, type: .audio, codecID: "A_AAC", sampleRate: 48000.0, channels: 2)
+        if let bridge = AudioEngineBridge(track: dummyTrack, initialRate: 2.0) {
+            assertTest("AudioEngineBridge Initial Rate Configured", condition: abs(bridge.currentVolume - 1.0) < 0.01)
+            bridge.setPlaybackRate(1.5)
+            bridge.stop()
+        }
+
+        let testRatePipeline = PlaybackPipeline()
+        testRatePipeline.setPlaybackRate(2.0)
+        assertTest("PlaybackPipeline Playback Rate Clamped & Synchronized", condition: abs(testRatePipeline.playbackRate - 2.0) < 0.001)
+
+        hudEngine.playbackRate = 2.0
+        assertTest("VideoPlayerEngine Playback Rate Set", condition: abs(hudEngine.playbackRate - 2.0) < 0.001)
+        assertTest("VideoPlayerEngine Player Default Rate Synced", condition: abs(hudEngine.player.defaultRate - 2.0) < 0.001)
+
         // Summary
         logs.append("\n==========================================")
         logs.append("RESULTS: \(passed) PASSED, \(failed) FAILED")
