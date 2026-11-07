@@ -6,6 +6,9 @@ public struct LiquidGlassHUD: View {
     @Bindable var engine: VideoPlayerEngine
     @State private var windowManager = WindowManager.shared
     @State private var showVolumePopover = false
+    @State private var isAudioHovered = false
+    @State private var isSubtitlesHovered = false
+    @State private var isSpeedHovered = false
 
     public init(engine: VideoPlayerEngine) {
         self.engine = engine
@@ -154,161 +157,9 @@ public struct LiquidGlassHUD: View {
 
                 // MARK: - Right Controls Cluster
                 HStack(spacing: 6) {
-                    // Audio Streams Menu Picker
-                    Menu {
-                        Section("Audio Streams") {
-                            if engine.availableAudioTracks.isEmpty {
-                                Button {} label: {
-                                    Label("Default Audio", systemImage: "checkmark")
-                                }
-                            } else {
-                                ForEach(engine.availableAudioTracks) { track in
-                                    Button {
-                                        engine.selectAudioTrack(track)
-                                    } label: {
-                                        if engine.selectedAudioTrack?.id == track.id {
-                                            Label(track.title, systemImage: "checkmark")
-                                        } else {
-                                            Text(track.title)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    } label: {
-                        HStack(spacing: 5) {
-                            Image(systemName: "speaker.wave.2.bubble")
-                                .font(.system(size: 12, weight: .semibold))
-                            if !isNarrow {
-                                Text(audioButtonLabel)
-                                    .font(.system(size: 11, weight: .medium))
-                                    .lineLimit(1)
-                                    .frame(maxWidth: 100)
-                                    .truncationMode(.tail)
-                            }
-                        }
-                        .foregroundStyle(Color.white)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 5)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(Color.white.opacity(0.14))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .strokeBorder(Color.white.opacity(0.20), lineWidth: 1)
-                        )
-                    }
-                    .menuStyle(.borderlessButton)
-                    .pointingHand()
-                    .help("Select Audio Track")
-
-                    // Subtitles Menu Picker
-                    Menu {
-                        Section("Subtitles") {
-                            Button {
-                                engine.selectSubtitleTrack(SubtitleTrack.off)
-                            } label: {
-                                if engine.selectedSubtitleTrack.id == SubtitleTrack.off.id {
-                                    Label("Off", systemImage: "checkmark")
-                                } else {
-                                    Text("Off")
-                                }
-                            }
-
-                            Divider()
-
-                            ForEach(engine.availableSubtitleTracks.filter { $0.id != SubtitleTrack.off.id }) { track in
-                                Button {
-                                    engine.selectSubtitleTrack(track)
-                                } label: {
-                                    if engine.selectedSubtitleTrack.id == track.id {
-                                        Label(track.title, systemImage: "checkmark")
-                                    } else {
-                                        Text(track.title)
-                                    }
-                                }
-                            }
-
-                            Divider()
-
-                            Button {
-                                openExternalSubtitlePicker()
-                            } label: {
-                                Label("Add Subtitle File (.srt, .vtt)...", systemImage: "plus")
-                            }
-
-                            if engine.selectedSubtitleTrack.id != SubtitleTrack.off.id {
-                                Menu("Subtitle Delay (\(String(format: "%+.1fs", engine.subtitleDelay)))") {
-                                    Button("-1.0s") { engine.subtitleDelay -= 1.0 }
-                                    Button("-0.5s") { engine.subtitleDelay -= 0.5 }
-                                    Button("0.0s (Reset)") { engine.subtitleDelay = 0.0 }
-                                    Button("+0.5s") { engine.subtitleDelay += 0.5 }
-                                    Button("+1.0s") { engine.subtitleDelay += 1.0 }
-                                }
-                            }
-                        }
-                    } label: {
-                        HStack(spacing: 5) {
-                            Image(systemName: engine.selectedSubtitleTrack.id == SubtitleTrack.off.id ? "captions.bubble" : "captions.bubble.fill")
-                                .font(.system(size: 12, weight: .semibold))
-                            if !isNarrow {
-                                Text(engine.selectedSubtitleTrack.id == SubtitleTrack.off.id ? "Subtitles" : engine.selectedSubtitleTrack.title)
-                                    .font(.system(size: 11, weight: .medium))
-                                    .lineLimit(1)
-                                    .frame(maxWidth: 110)
-                                    .truncationMode(.tail)
-                            }
-                        }
-                        .foregroundStyle(Color.white)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 5)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(engine.selectedSubtitleTrack.id == SubtitleTrack.off.id ? Color.white.opacity(0.14) : Color.white.opacity(0.26))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .strokeBorder(Color.white.opacity(0.20), lineWidth: 1)
-                        )
-                    }
-                    .menuStyle(.borderlessButton)
-                    .pointingHand()
-                    .help("Select Subtitles")
-
-                    // Playback Rate Menu Picker
-                    Menu {
-                        Section("Playback Speed") {
-                            ForEach([0.5, 0.75, 1.0, 1.25, 1.5, 2.0] as [Float], id: \.self) { rate in
-                                Button {
-                                    engine.playbackRate = rate
-                                } label: {
-                                    if abs(engine.playbackRate - rate) < 0.01 {
-                                        Label(Self.formatRate(rate), systemImage: "checkmark")
-                                    } else {
-                                        Text(Self.formatRate(rate))
-                                    }
-                                }
-                            }
-                        }
-                    } label: {
-                        Text(Self.formatRate(engine.playbackRate))
-                            .font(.system(size: 11, weight: .bold, design: .monospaced))
-                            .foregroundStyle(Color.white)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 5)
-                            .background(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(Color.white.opacity(0.14))
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .strokeBorder(Color.white.opacity(0.20), lineWidth: 1)
-                            )
-                    }
-                    .menuStyle(.borderlessButton)
-                    .pointingHand()
-                    .help("Playback Speed")
+                    audioSelectorButton(isNarrow: isNarrow)
+                    subtitlesSelectorButton(isNarrow: isNarrow)
+                    speedSelectorButton()
 
                     // Picture-in-Picture Toggle
                     dockedButton(
@@ -367,6 +218,119 @@ public struct LiquidGlassHUD: View {
             return track.title
         }
         return "Audio"
+    }
+
+    private func audioSelectorButton(isNarrow: Bool) -> some View {
+        let isOpen = engine.activeInspectorSheet == .audio
+        let fillBg = isOpen ? Color.white.opacity(0.25) : (isAudioHovered ? Color.white.opacity(0.18) : Color.white.opacity(0.12))
+        let strokeCol = isOpen ? Color.white.opacity(0.4) : (isAudioHovered ? Color.white.opacity(0.28) : Color.white.opacity(0.18))
+
+        return Button {
+            withAnimation(.fluidSpring) {
+                engine.activeInspectorSheet = (isOpen ? nil : .audio)
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: isOpen ? "speaker.wave.2.bubble.fill" : "speaker.wave.2.bubble")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(isOpen ? Color.white : Color.white.opacity(0.9))
+                if !isNarrow {
+                    Text(audioButtonLabel)
+                        .font(.system(size: 11, weight: isOpen ? .semibold : .medium))
+                        .lineLimit(1)
+                        .frame(maxWidth: 95)
+                        .truncationMode(.tail)
+                        .foregroundStyle(Color.white)
+                }
+            }
+            .padding(.horizontal, isNarrow ? 7 : 9)
+            .frame(height: 28)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(fillBg)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(strokeCol, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .pointingHand()
+        .onHover { isAudioHovered = $0 }
+        .help(isOpen ? "Close Audio Settings" : "Select Audio Track & Channels")
+    }
+
+    private func subtitlesSelectorButton(isNarrow: Bool) -> some View {
+        let isOpen = engine.activeInspectorSheet == .subtitles
+        let isSubOn = engine.selectedSubtitleTrack.id != SubtitleTrack.off.id
+        let fillBg = isOpen ? Color.accentColor.opacity(0.3) : (isSubOn ? Color.white.opacity(0.24) : (isSubtitlesHovered ? Color.white.opacity(0.18) : Color.white.opacity(0.12)))
+        let strokeCol = isOpen ? Color.accentColor.opacity(0.5) : (isSubOn ? Color.white.opacity(0.35) : (isSubtitlesHovered ? Color.white.opacity(0.28) : Color.white.opacity(0.18)))
+        let subTitle = isSubOn ? engine.selectedSubtitleTrack.title : "Subtitles"
+
+        return Button {
+            withAnimation(.fluidSpring) {
+                engine.activeInspectorSheet = (isOpen ? nil : .subtitles)
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: (isOpen || isSubOn) ? "captions.bubble.fill" : "captions.bubble")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(isSubOn ? Color.accentColor : Color.white)
+                if !isNarrow {
+                    Text(subTitle)
+                        .font(.system(size: 11, weight: (isOpen || isSubOn) ? .semibold : .medium))
+                        .lineLimit(1)
+                        .frame(maxWidth: 100)
+                        .truncationMode(.tail)
+                        .foregroundStyle(Color.white)
+                }
+            }
+            .padding(.horizontal, isNarrow ? 7 : 9)
+            .frame(height: 28)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(fillBg)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(strokeCol, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .pointingHand()
+        .onHover { isSubtitlesHovered = $0 }
+        .help(isOpen ? "Close Subtitle Settings" : "Subtitles, Captions & Timing")
+    }
+
+    private func speedSelectorButton() -> some View {
+        let isOpen = engine.activeInspectorSheet == .speed
+        let isNonStandard = abs(engine.playbackRate - 1.0) > 0.01
+        let fillBg = isOpen ? Color.cyan.opacity(0.3) : (isNonStandard ? Color.cyan.opacity(0.18) : (isSpeedHovered ? Color.white.opacity(0.18) : Color.white.opacity(0.12)))
+        let strokeCol = isOpen ? Color.cyan.opacity(0.6) : (isNonStandard ? Color.cyan.opacity(0.35) : (isSpeedHovered ? Color.white.opacity(0.28) : Color.white.opacity(0.18)))
+
+        return Button {
+            withAnimation(.fluidSpring) {
+                engine.activeInspectorSheet = (isOpen ? nil : .speed)
+            }
+        } label: {
+            Text(Self.formatRate(engine.playbackRate))
+                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .foregroundStyle(isNonStandard ? Color.cyan : Color.white)
+                .padding(.horizontal, 8)
+                .frame(height: 28)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(fillBg)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .strokeBorder(strokeCol, lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+        .pointingHand()
+        .onHover { isSpeedHovered = $0 }
+        .help(isOpen ? "Close Speed Settings" : "Playback Speed")
     }
 
     private func dockedButton(icon: String, help: String, action: @escaping () -> Void) -> some View {

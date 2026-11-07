@@ -2213,6 +2213,44 @@ public enum FramesTestSuite {
         subSwitchEngine.selectSubtitleTrack(trackA)
         assertTest("Subtitle Track A Retains Cues Across Selection", condition: subSwitchEngine.selectedSubtitleTrack.cues.first?.text == "Hello")
 
+        // MARK: - 36. Enhanced Audio & Subtitle Selector Sheets & Liquid HUD Controls
+        logs.append("\n[36] Testing Enhanced Audio & Subtitle Selector Sheets & Liquid HUD Controls...")
+
+        let hudEngine = VideoPlayerEngine()
+        let engAudio = AudioTrack(id: "a1", title: "English Dialogue", languageCode: "en", channelLayout: "5.1 Surround", formatDescription: "E-AC3", trackNumber: 1)
+        let jpnAudio = AudioTrack(id: "a2", title: "Japanese Original", languageCode: "ja", channelLayout: "Stereo", formatDescription: "AAC", trackNumber: 2)
+        hudEngine.availableAudioTracks = [engAudio, jpnAudio]
+        hudEngine.selectAudioTrack(engAudio)
+
+        assertTest("Selected Audio Track Set Correctly", condition: hudEngine.selectedAudioTrack?.id == "a1")
+        assertTest("Selected Audio Channel Layout 5.1 Surround", condition: hudEngine.selectedAudioTrack?.channelLayout == "5.1 Surround")
+
+        // Inspector Sheet State Cycling
+        hudEngine.activeInspectorSheet = .audio
+        assertTest("Active Inspector Sheet Audio Operable", condition: hudEngine.activeInspectorSheet == .audio)
+        hudEngine.activeInspectorSheet = .subtitles
+        assertTest("Active Inspector Sheet Subtitles Operable", condition: hudEngine.activeInspectorSheet == .subtitles)
+        hudEngine.activeInspectorSheet = .speed
+        assertTest("Active Inspector Sheet Speed Operable", condition: hudEngine.activeInspectorSheet == .speed)
+        hudEngine.activeInspectorSheet = nil
+        assertTest("Active Inspector Sheet Dismiss Operable", condition: hudEngine.activeInspectorSheet == nil)
+
+        // Rate Formatter Precision
+        assertTest("Format Rate 1.0x", condition: LiquidGlassHUD.formatRate(1.0) == "1.0x")
+        assertTest("Format Rate 1.25x", condition: LiquidGlassHUD.formatRate(1.25) == "1.25x")
+        assertTest("Format Rate 0.5x", condition: LiquidGlassHUD.formatRate(0.5) == "0.5x")
+        assertTest("Format Rate 2.0x", condition: LiquidGlassHUD.formatRate(2.0) == "2.0x")
+
+        // NSHostingView Mount Operable
+        let audioSheetHost = NSHostingView(rootView: AudioSelectorPanel(engine: hudEngine))
+        assertTest("AudioSelectorPanel NSHostingView Mount Operable", condition: audioSheetHost.fittingSize.width > 0)
+
+        let subSheetHost = NSHostingView(rootView: SubtitleSelectorPanel(engine: hudEngine))
+        assertTest("SubtitleSelectorPanel NSHostingView Mount Operable", condition: subSheetHost.fittingSize.width > 0)
+
+        let speedSheetHost = NSHostingView(rootView: SpeedSelectorPanel(engine: hudEngine))
+        assertTest("SpeedSelectorPanel NSHostingView Mount Operable", condition: speedSheetHost.fittingSize.width > 0)
+
         // Summary
         logs.append("\n==========================================")
         logs.append("RESULTS: \(passed) PASSED, \(failed) FAILED")
