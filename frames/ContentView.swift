@@ -137,16 +137,17 @@ struct ContentView: View {
                         )
                     }
 
-                    // Docked Bottom Control Bar (Scrubber, Playback, Audio, Subtitles, Rate, PiP, Fullscreen)
+                    // Floating Bottom Control Bar (Scrubber, Playback, Audio, Subtitles, Rate, PiP, Fullscreen)
                     if engine.controlsVisible {
                         VStack(spacing: 0) {
                             Spacer()
                             LiquidGlassHUD(engine: engine)
+                                .padding(.bottom, 20)
                         }
                         .transition(
                             .asymmetric(
-                                insertion: .opacity.combined(with: .offset(y: 8)),
-                                removal: .opacity
+                                insertion: .opacity.combined(with: .scale(scale: 0.96)).combined(with: .offset(y: 12)),
+                                removal: .opacity.combined(with: .scale(scale: 0.98)).combined(with: .offset(y: 8))
                             )
                         )
                     }
@@ -186,8 +187,8 @@ struct ContentView: View {
                                             EmptyView()
                                         }
                                     }
-                                    .padding(.bottom, engine.controlsVisible ? 84 : 20)
-                                    .padding(.trailing, 16)
+                                    .padding(.bottom, engine.controlsVisible ? 116 : 20)
+                                    .padding(.trailing, 20)
                                 }
                             }
                         }

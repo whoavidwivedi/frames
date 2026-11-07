@@ -149,12 +149,23 @@ public struct TopBarOverlay: View {
                     .fill(.ultraThinMaterial)
                     .environment(\.colorScheme, .dark)
                 Rectangle()
-                    .fill(Color(white: 0.08, opacity: 0.85))
+                    .fill(Color(white: 0.07, opacity: 0.65))
+                LinearGradient(
+                    colors: [Color.white.opacity(0.08), Color.white.opacity(0.01)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
             }
         )
         .overlay(alignment: .bottom) {
             Rectangle()
-                .fill(Color.white.opacity(0.12))
+                .fill(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.20), Color.white.opacity(0.05)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
                 .frame(height: 1)
         }
         .macOSDefaultTitleBar()

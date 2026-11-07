@@ -26,7 +26,7 @@ public struct LiquidGlassHUD: View {
                 .pointingHand()
 
             // Primary Playback Controls Dock
-            HStack(spacing: isNarrow ? 8 : 12) {
+            HStack(spacing: isNarrow ? 6 : 10) {
                 // MARK: - Left Controls Cluster
                 HStack(spacing: 6) {
                     // Play / Pause / Replay
@@ -34,17 +34,35 @@ public struct LiquidGlassHUD: View {
                         engine.togglePlayPause()
                     } label: {
                         Image(systemName: engine.isPlaying ? "pause.fill" : (engine.hasEnded ? "arrow.counterclockwise" : "play.fill"))
-                            .font(.system(size: 15, weight: .semibold))
+                            .font(.system(size: 15, weight: .bold))
                             .foregroundStyle(Color.white)
-                            .frame(width: 32, height: 32)
+                            .frame(width: 34, height: 34)
                             .background(
                                 Circle()
-                                    .fill(Color.white.opacity(0.18))
+                                    .fill(.ultraThinMaterial)
+                                    .overlay(
+                                        Circle()
+                                            .fill(
+                                                LinearGradient(
+                                                    colors: [Color.white.opacity(0.28), Color.white.opacity(0.14)],
+                                                    startPoint: .topLeading,
+                                                    endPoint: .bottomTrailing
+                                                )
+                                            )
+                                    )
                             )
                             .overlay(
                                 Circle()
-                                    .strokeBorder(Color.white.opacity(0.22), lineWidth: 1)
+                                    .strokeBorder(
+                                        LinearGradient(
+                                            colors: [Color.white.opacity(0.55), Color.white.opacity(0.20)],
+                                            startPoint: .top,
+                                            endPoint: .bottom
+                                        ),
+                                        lineWidth: 1
+                                    )
                             )
+                            .shadow(color: Color.black.opacity(0.25), radius: 3, y: 1)
                     }
                     .buttonStyle(.plain)
                     .pointingHand()
@@ -70,16 +88,30 @@ public struct LiquidGlassHUD: View {
                             }
                         } label: {
                             Image(systemName: engine.isMuted ? "speaker.slash.fill" : (engine.volume < 0.5 ? "speaker.wave.1.fill" : "speaker.wave.2.fill"))
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundStyle(Color.white)
-                                .frame(width: 28, height: 28)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(engine.isMuted ? Color(red: 1.0, green: 0.45, blue: 0.45) : Color.white)
+                                .frame(width: 30, height: 30)
                                 .background(
-                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                        .fill(engine.isMuted ? Color.red.opacity(0.25) : Color.white.opacity(0.12))
+                                    Circle()
+                                        .fill(.ultraThinMaterial)
+                                        .overlay(
+                                            Circle()
+                                                .fill(engine.isMuted ? Color.red.opacity(0.24) : Color.white.opacity(0.14))
+                                        )
                                 )
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                        .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
+                                    Circle()
+                                        .strokeBorder(
+                                            LinearGradient(
+                                                colors: [
+                                                    engine.isMuted ? Color.red.opacity(0.55) : Color.white.opacity(0.38),
+                                                    engine.isMuted ? Color.red.opacity(0.20) : Color.white.opacity(0.12)
+                                                ],
+                                                startPoint: .top,
+                                                endPoint: .bottom
+                                            ),
+                                            lineWidth: 1
+                                        )
                                 )
                         }
                         .buttonStyle(.plain)
@@ -188,27 +220,60 @@ public struct LiquidGlassHUD: View {
             .padding(.horizontal, 16)
         }
         .padding(.vertical, 10)
-        .frame(maxWidth: .infinity)
         .background(
             ZStack {
-                Rectangle()
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
                     .fill(.ultraThinMaterial)
                     .environment(\.colorScheme, .dark)
-                Rectangle()
-                    .fill(Color(white: 0.08, opacity: 0.70))
+
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(Color(white: 0.07, opacity: 0.65))
+
+                // Subtle internal specular refraction
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.12), Color.white.opacity(0.02)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
             }
         )
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(
+                        stops: [
+                            .init(color: Color.white.opacity(0.52), location: 0.0),
+                            .init(color: Color.white.opacity(0.22), location: 0.45),
+                            .init(color: Color.white.opacity(0.08), location: 1.0)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: 1
+                )
+        )
         .overlay(alignment: .top) {
-            Rectangle()
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .fill(
                     LinearGradient(
-                        colors: [Color.white.opacity(0.24), Color.white.opacity(0.06)],
+                        colors: [Color.white.opacity(0.28), Color.clear],
                         startPoint: .top,
                         endPoint: .bottom
                     )
                 )
-                .frame(height: 1)
+                .frame(height: 6)
+                .padding(.horizontal, 12)
+                .allowsHitTesting(false)
         }
+        .shadow(color: Color.black.opacity(0.42), radius: 24, x: 0, y: 10)
+        .shadow(color: Color.black.opacity(0.22), radius: 6, x: 0, y: 2)
+        .frame(maxWidth: 880)
+        .padding(.horizontal, 20)
+        .frame(maxWidth: .infinity, alignment: .center)
         .environment(\.colorScheme, .dark)
     }
 
@@ -235,8 +300,9 @@ public struct LiquidGlassHUD: View {
 
     private func audioSelectorButton(isNarrow: Bool) -> some View {
         let isOpen = engine.activeInspectorSheet == .audio
-        let fillBg = isOpen ? Color.white.opacity(0.25) : (isAudioHovered ? Color.white.opacity(0.18) : Color.white.opacity(0.12))
-        let strokeCol = isOpen ? Color.white.opacity(0.4) : (isAudioHovered ? Color.white.opacity(0.28) : Color.white.opacity(0.18))
+        let fillBg = isOpen ? Color.white.opacity(0.28) : (isAudioHovered ? Color.white.opacity(0.20) : Color.white.opacity(0.12))
+        let strokeTop = isOpen ? Color.white.opacity(0.60) : (isAudioHovered ? Color.white.opacity(0.45) : Color.white.opacity(0.28))
+        let strokeBottom = isOpen ? Color.white.opacity(0.25) : (isAudioHovered ? Color.white.opacity(0.18) : Color.white.opacity(0.10))
 
         return Button {
             withAnimation(.fluidSpring) {
@@ -246,7 +312,7 @@ public struct LiquidGlassHUD: View {
             HStack(spacing: 5) {
                 Image(systemName: isOpen ? "speaker.wave.2.bubble.fill" : "speaker.wave.2.bubble")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(isOpen ? Color.white : Color.white.opacity(0.9))
+                    .foregroundStyle(isOpen ? Color.white : Color.white.opacity(0.92))
                 if !isNarrow {
                     Text(audioButtonLabel)
                         .font(.system(size: 11, weight: isOpen ? .semibold : .medium))
@@ -256,15 +322,26 @@ public struct LiquidGlassHUD: View {
                         .foregroundStyle(Color.white)
                 }
             }
-            .padding(.horizontal, isNarrow ? 7 : 9)
-            .frame(height: 28)
+            .padding(.horizontal, isNarrow ? 8 : 10)
+            .frame(height: 30)
             .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(fillBg)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(fillBg)
+                    )
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .strokeBorder(strokeCol, lineWidth: 1)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [strokeTop, strokeBottom],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ),
+                        lineWidth: 1
+                    )
             )
         }
         .buttonStyle(.plain)
@@ -276,8 +353,9 @@ public struct LiquidGlassHUD: View {
     private func subtitlesSelectorButton(isNarrow: Bool) -> some View {
         let isOpen = engine.activeInspectorSheet == .subtitles
         let isSubOn = engine.selectedSubtitleTrack.id != SubtitleTrack.off.id
-        let fillBg = isOpen ? Color.accentColor.opacity(0.3) : (isSubOn ? Color.white.opacity(0.24) : (isSubtitlesHovered ? Color.white.opacity(0.18) : Color.white.opacity(0.12)))
-        let strokeCol = isOpen ? Color.accentColor.opacity(0.5) : (isSubOn ? Color.white.opacity(0.35) : (isSubtitlesHovered ? Color.white.opacity(0.28) : Color.white.opacity(0.18)))
+        let fillBg = isOpen ? Color.accentColor.opacity(0.32) : (isSubOn ? Color.white.opacity(0.25) : (isSubtitlesHovered ? Color.white.opacity(0.20) : Color.white.opacity(0.12)))
+        let strokeTop = isOpen ? Color.accentColor.opacity(0.65) : (isSubOn ? Color.white.opacity(0.50) : (isSubtitlesHovered ? Color.white.opacity(0.42) : Color.white.opacity(0.28)))
+        let strokeBottom = isOpen ? Color.accentColor.opacity(0.25) : (isSubOn ? Color.white.opacity(0.20) : (isSubtitlesHovered ? Color.white.opacity(0.16) : Color.white.opacity(0.10)))
         let subTitle = isSubOn ? engine.selectedSubtitleTrack.title : "Subtitles"
 
         return Button {
@@ -298,15 +376,26 @@ public struct LiquidGlassHUD: View {
                         .foregroundStyle(Color.white)
                 }
             }
-            .padding(.horizontal, isNarrow ? 7 : 9)
-            .frame(height: 28)
+            .padding(.horizontal, isNarrow ? 8 : 10)
+            .frame(height: 30)
             .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(fillBg)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(fillBg)
+                    )
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .strokeBorder(strokeCol, lineWidth: 1)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [strokeTop, strokeBottom],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ),
+                        lineWidth: 1
+                    )
             )
         }
         .buttonStyle(.plain)
@@ -318,8 +407,9 @@ public struct LiquidGlassHUD: View {
     private func speedSelectorButton() -> some View {
         let isOpen = engine.activeInspectorSheet == .speed
         let isNonStandard = abs(engine.playbackRate - 1.0) > 0.01
-        let fillBg = isOpen ? Color.cyan.opacity(0.3) : (isNonStandard ? Color.cyan.opacity(0.18) : (isSpeedHovered ? Color.white.opacity(0.18) : Color.white.opacity(0.12)))
-        let strokeCol = isOpen ? Color.cyan.opacity(0.6) : (isNonStandard ? Color.cyan.opacity(0.35) : (isSpeedHovered ? Color.white.opacity(0.28) : Color.white.opacity(0.18)))
+        let fillBg = isOpen ? Color.cyan.opacity(0.32) : (isNonStandard ? Color.cyan.opacity(0.20) : (isSpeedHovered ? Color.white.opacity(0.20) : Color.white.opacity(0.12)))
+        let strokeTop = isOpen ? Color.cyan.opacity(0.68) : (isNonStandard ? Color.cyan.opacity(0.48) : (isSpeedHovered ? Color.white.opacity(0.42) : Color.white.opacity(0.28)))
+        let strokeBottom = isOpen ? Color.cyan.opacity(0.25) : (isNonStandard ? Color.cyan.opacity(0.18) : (isSpeedHovered ? Color.white.opacity(0.16) : Color.white.opacity(0.10)))
 
         return Button {
             withAnimation(.fluidSpring) {
@@ -329,15 +419,26 @@ public struct LiquidGlassHUD: View {
             Text(Self.formatRate(engine.playbackRate))
                 .font(.system(size: 11, weight: .bold, design: .monospaced))
                 .foregroundStyle(isNonStandard ? Color.cyan : Color.white)
-                .padding(.horizontal, 8)
-                .frame(height: 28)
+                .padding(.horizontal, 9)
+                .frame(height: 30)
                 .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(fillBg)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(.ultraThinMaterial)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(fillBg)
+                        )
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .strokeBorder(strokeCol, lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [strokeTop, strokeBottom],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
+                            lineWidth: 1
+                        )
                 )
         }
         .buttonStyle(.plain)
@@ -349,16 +450,27 @@ public struct LiquidGlassHUD: View {
     private func dockedButton(icon: String, help: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: 12, weight: .medium))
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(Color.white)
-                .frame(width: 28, height: 28)
+                .frame(width: 30, height: 30)
                 .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Color.white.opacity(0.12))
+                    Circle()
+                        .fill(.ultraThinMaterial)
+                        .overlay(
+                            Circle()
+                                .fill(Color.white.opacity(0.14))
+                        )
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
+                    Circle()
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.38), Color.white.opacity(0.12)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
+                            lineWidth: 1
+                        )
                 )
         }
         .buttonStyle(.plain)
