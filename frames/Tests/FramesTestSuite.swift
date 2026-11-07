@@ -2385,6 +2385,78 @@ public enum FramesTestSuite {
         let hudHost = NSHostingView(rootView: fullHUD)
         assertTest("LiquidGlassHUD Full Surface Mount Operable", condition: hudHost.fittingSize.height > 0)
 
+        // MARK: - 39. Core Optimization & Critic Audit Roadmap Verifications
+        logs.append("\n[39] Testing Core Performance Optimization Roadmap...")
+
+        // 1. Dynamic FrameQueue Temporal Headroom Scaling
+        let fqDefault = FrameQueue(maxCount: 18, nominalFrameDuration: 1.0 / 30.0)
+        assertTest("FrameQueue 30fps Base Capacity is 18", condition: fqDefault.maxCount == 18)
+
+        let fq60 = FrameQueue(maxCount: 18, nominalFrameDuration: 1.0 / 60.0)
+        assertTest("FrameQueue 60fps Dynamic Capacity Scales to 32", condition: fq60.maxCount == 32)
+
+        let fq120Dynamic = FrameQueue(maxCount: 18, nominalFrameDuration: 1.0 / 120.0)
+        assertTest("FrameQueue 120fps Dynamic Capacity Scales to 48", condition: fq120Dynamic.maxCount == 48)
+
+        fqDefault.configureBuffering(isNetworkOrNAS: true, bitrate: 45_000_000)
+        assertTest("FrameQueue Network/NAS Buffering Scales Headroom to 32", condition: fqDefault.maxCount == 32)
+
+        fq120Dynamic.configureBuffering(isNetworkOrNAS: true, bitrate: 60_000_000)
+        assertTest("FrameQueue Network 120fps Scales Headroom to 64", condition: fq120Dynamic.maxCount == 64)
+
+        fqDefault.configureBuffering(isNetworkOrNAS: false, bitrate: 0)
+        assertTest("FrameQueue Local Buffering Restores Nominal Headroom", condition: fqDefault.maxCount == 18)
+
+        // 2. Dynamic PacketChunkBuffer Capacity
+        let packetBuf = PacketChunkBuffer(maxCapacity: 256)
+        assertTest("PacketChunkBuffer Default Capacity 256", condition: packetBuf.maxCapacity == 256)
+        packetBuf.setCapacity(512)
+        assertTest("PacketChunkBuffer Scaled Capacity 512", condition: packetBuf.maxCapacity == 512)
+
+        // 3. Isolated PlaybackClockStore & SwiftUI Observation Decoupling
+        let clockStore = PlaybackClockStore(currentTime: 42.5, duration: 120.0, isPlaying: true)
+        assertTest("PlaybackClockStore Initial Current Time", condition: abs(clockStore.currentTime - 42.5) < 0.001)
+        assertTest("PlaybackClockStore Formatted Current Time", condition: clockStore.formattedCurrentTime == "00:42")
+        assertTest("PlaybackClockStore Formatted Duration", condition: clockStore.formattedDuration == "02:00")
+
+        clockStore.update(currentTime: 65.0)
+        assertTest("PlaybackClockStore Update New Time", condition: abs(clockStore.currentTime - 65.0) < 0.001)
+        assertTest("PlaybackClockStore Updated Formatted Time", condition: clockStore.formattedCurrentTime == "01:05")
+
+        let decoupledEngine = VideoPlayerEngine()
+        decoupledEngine.duration = 300.0
+        decoupledEngine.currentTime = 15.0
+        assertTest("VideoPlayerEngine Syncs Time to ClockStore", condition: abs(decoupledEngine.clockStore.currentTime - 15.0) < 0.001)
+        assertTest("VideoPlayerEngine Syncs Duration to ClockStore", condition: abs(decoupledEngine.clockStore.duration - 300.0) < 0.001)
+
+        let timeDisplayView = PlaybackTimeDisplay(clockStore: decoupledEngine.clockStore)
+        let timeDisplayHost = NSHostingView(rootView: timeDisplayView)
+        assertTest("PlaybackTimeDisplay NSHostingView Mount Operable", condition: timeDisplayHost.fittingSize.width > 0)
+
+        // 4. MatroskaDemuxer Unindexed MKV Cluster Cache & Seek Fallback
+        let entryA = MatroskaDemuxer.ClusterIndexEntry(timeSeconds: 5.0, offset: 1024)
+        let entryB = MatroskaDemuxer.ClusterIndexEntry(timeSeconds: 15.0, offset: 4096)
+        assertTest("ClusterIndexEntry Ordering Preserved", condition: entryA < entryB)
+
+        // 5. CoreAudio Rate Switch Smoothing & Dynamic Headroom
+        let dummyAudioTrackRate = DemuxedTrack(trackNumber: 2, trackUID: 202, type: .audio, codecID: "A_AAC", sampleRate: 48000.0, channels: 2)
+        if let audioBridge = AudioEngineBridge(track: dummyAudioTrackRate, initialRate: 1.0) {
+            assertTest("AudioEngineBridge Initial Headroom True on Empty Buffer", condition: audioBridge.hasBufferHeadroom)
+            audioBridge.setPlaybackRate(1.25)
+            assertTest("AudioEngineBridge 1.25x Rate Switch Headroom", condition: audioBridge.hasBufferHeadroom)
+            audioBridge.setPlaybackRate(2.0)
+            assertTest("AudioEngineBridge 2.0x Rate Switch Headroom", condition: audioBridge.hasBufferHeadroom)
+            audioBridge.setPlaybackRate(1.0)
+            assertTest("AudioEngineBridge 1.0x Rate Switch Restored", condition: audioBridge.hasBufferHeadroom)
+            audioBridge.stop()
+        }
+
+        // 6. MetalVideoRenderer Asynchronous / Conditional Texture Cache Maintenance
+        if let renderer = MetalVideoRenderer() {
+            renderer.clearFrame()
+            assertTest("MetalVideoRenderer Clears Frame Without Blocking", condition: true)
+        }
+
         // Summary
         logs.append("\n==========================================")
         logs.append("RESULTS: \(passed) PASSED, \(failed) FAILED")

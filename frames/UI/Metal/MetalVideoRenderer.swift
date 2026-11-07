@@ -99,10 +99,35 @@ nonisolated public final class MetalVideoRenderer: @unchecked Sendable {
     private var frameCount: UInt64 = 0
     private var lastBufferWidth: Int = 0
     private var lastBufferHeight: Int = 0
+    private var lastPixelFormat: OSType = 0
     private var lastLayerWidth: Float = 0
     private var lastLayerHeight: Float = 0
     private var cachedAspectScale = simd_float2(1.0, 1.0)
     private var cachedColorSpaceMode: Int32 = 0
+    private var isFlushPending: Bool = false
+    private var flushLock = os_unfair_lock()
+
+    private func flushTextureCacheAsync(cache: CVMetalTextureCache) {
+        var shouldDispatch = false
+        withUnsafeMutablePointer(to: &flushLock) { ptr in
+            os_unfair_lock_lock(ptr)
+            if !isFlushPending {
+                isFlushPending = true
+                shouldDispatch = true
+            }
+            os_unfair_lock_unlock(ptr)
+        }
+        guard shouldDispatch else { return }
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            CVMetalTextureCacheFlush(cache, 0)
+            guard let self = self else { return }
+            withUnsafeMutablePointer(to: &self.flushLock) { ptr in
+                os_unfair_lock_lock(ptr)
+                self.isFlushPending = false
+                os_unfair_lock_unlock(ptr)
+            }
+        }
+    }
 
     // MARK: - Frame Submission
     
@@ -131,15 +156,17 @@ nonisolated public final class MetalVideoRenderer: @unchecked Sendable {
         self.currentPixelBuffer = nil
         self.lastBufferWidth = 0
         self.lastBufferHeight = 0
+        self.lastPixelFormat = 0
         self.lastLayerWidth = 0
         self.lastLayerHeight = 0
         self.cachedAspectScale = simd_float2(1.0, 1.0)
         self.cachedColorSpaceMode = 0
-        if let cache = textureCache {
-            CVMetalTextureCacheFlush(cache, 0)
-        }
+        let cache = textureCache
         let callback = onFrameAvailable
         renderLock.unlock()
+        if let cache = cache {
+            flushTextureCacheAsync(cache: cache)
+        }
         callback?()
     }
     
@@ -181,6 +208,11 @@ nonisolated public final class MetalVideoRenderer: @unchecked Sendable {
         let pixelFormat = CVPixelBufferGetPixelFormatType(buffer)
         let isTenBitEffective = isTenBit || (pixelFormat == kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange ||
                                             pixelFormat == kCVPixelFormatType_420YpCbCr10BiPlanarFullRange)
+
+        if lastBufferWidth > 0 && (width != lastBufferWidth || height != lastBufferHeight || pixelFormat != lastPixelFormat) {
+            flushTextureCacheAsync(cache: cache)
+        }
+        lastPixelFormat = pixelFormat
         
         let lumaFormat: MTLPixelFormat = isTenBitEffective ? .r16Unorm : .r8Unorm
         let chromaFormat: MTLPixelFormat = isTenBitEffective ? .rg16Unorm : .rg8Unorm
@@ -298,7 +330,7 @@ nonisolated public final class MetalVideoRenderer: @unchecked Sendable {
         // Periodic texture cache maintenance to release unused IOSurfaces back to system pool
         frameCount &+= 1
         if (frameCount & 0x7F) == 0 { // Every 128 frames
-            CVMetalTextureCacheFlush(cache, 0)
+            flushTextureCacheAsync(cache: cache)
         }
     }
     

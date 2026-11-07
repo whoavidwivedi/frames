@@ -70,6 +70,8 @@ nonisolated public final class AudioEngineBridge: @unchecked Sendable {
         playerNode.volume = 1.0
         timePitchNode.rate = playbackRate
         timePitchNode.pitch = 0.0
+        timePitchNode.overlap = 8.0
+        timePitchNode.bypass = (abs(playbackRate - 1.0) < 0.001)
         audioEngine.mainMixerNode.outputVolume = 1.0
         
         do {
@@ -152,8 +154,11 @@ nonisolated public final class AudioEngineBridge: @unchecked Sendable {
         let clamped = max(0.25, min(rate, 4.0))
         playbackRate = clamped
         timePitchNode.rate = clamped
+        timePitchNode.pitch = 0.0
+        timePitchNode.overlap = 8.0
+        timePitchNode.bypass = (abs(clamped - 1.0) < 0.001)
         
-        // Re-anchor clock to current playback time so future elapsed calculations scale from here
+        // Re-anchor clock cleanly to current playback time so future elapsed calculations scale from here
         if isPlaying,
            let nodeTime = playerNode.lastRenderTime,
            let playerTime = playerNode.playerTime(forNodeTime: nodeTime),
@@ -162,6 +167,9 @@ nonisolated public final class AudioEngineBridge: @unchecked Sendable {
             anchorPts = current
             anchorSampleTime = playerTime.sampleTime
             lastReportedTime = current
+            hasAnchored = true
+        } else {
+            hasAnchored = false
         }
     }
     
@@ -225,11 +233,14 @@ nonisolated public final class AudioEngineBridge: @unchecked Sendable {
         lock.lock()
         let current = isPlaying ? (lastReportedTime > 0 ? lastReportedTime : anchorPts) : anchorPts
         let scheduled = lastScheduledPTS
+        let rateScale = Double(playbackRate)
         lock.unlock()
         counterLock.lock()
         let count = scheduledBufferCount
         counterLock.unlock()
-        return scheduled < (current + 1.5) || count < 4
+        let targetAhead = max(1.5, 1.5 * rateScale)
+        let minBuffers = max(4, Int(ceil(4.0 * rateScale)))
+        return scheduled < (current + targetAhead) || count < minBuffers
     }
     
     // MARK: - Master Clock Synchronization

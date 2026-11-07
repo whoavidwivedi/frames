@@ -140,17 +140,8 @@ public struct LiquidGlassHUD: View {
                         }
                     }
 
-                    // Tabular Precision Time Display
-                    HStack(spacing: 4) {
-                        Text(TimeFormatting.format(seconds: engine.currentTime))
-                            .foregroundStyle(Color.white)
-                        Text("/")
-                            .foregroundStyle(Color.white.opacity(0.45))
-                        Text(TimeFormatting.format(seconds: engine.duration))
-                            .foregroundStyle(Color.white.opacity(0.75))
-                    }
-                    .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .padding(.leading, 4)
+                    // Tabular Precision Time Display (Decoupled Isolated Clock Store)
+                    PlaybackTimeDisplay(clockStore: engine.clockStore)
                 }
 
                 Spacer(minLength: 8)
@@ -367,5 +358,27 @@ public struct LiquidGlassHUD: View {
         if panel.runModal() == .OK, let url = panel.url {
             engine.loadExternalSubtitleFile(from: url)
         }
+    }
+}
+
+// MARK: - Decoupled Playback Time Display
+public struct PlaybackTimeDisplay: View {
+    public let clockStore: PlaybackClockStore
+
+    public init(clockStore: PlaybackClockStore) {
+        self.clockStore = clockStore
+    }
+
+    public var body: some View {
+        HStack(spacing: 4) {
+            Text(TimeFormatting.format(seconds: clockStore.currentTime))
+                .foregroundStyle(Color.white)
+            Text("/")
+                .foregroundStyle(Color.white.opacity(0.45))
+            Text(TimeFormatting.format(seconds: clockStore.duration))
+                .foregroundStyle(Color.white.opacity(0.75))
+        }
+        .font(.system(size: 11, weight: .medium, design: .monospaced))
+        .padding(.leading, 4)
     }
 }

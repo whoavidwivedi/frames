@@ -4,20 +4,75 @@ import Combine
 import CoreMedia
 import SwiftUI
 
+// MARK: - Isolated High-Frequency Playback Clock Store
+/// Decouples high-frequency presentation clock updates from VideoPlayerEngine
+/// to isolate main-thread SwiftUI view invalidations from top-level UI hierarchies.
+@MainActor
+@Observable
+public final class PlaybackClockStore {
+    public var currentTime: Double = 0.0
+    public var duration: Double = 0.0
+    public var isPlaying: Bool = false
+    public var isScrubbing: Bool = false
+
+    public init(currentTime: Double = 0.0, duration: Double = 0.0, isPlaying: Bool = false, isScrubbing: Bool = false) {
+        self.currentTime = currentTime
+        self.duration = duration
+        self.isPlaying = isPlaying
+        self.isScrubbing = isScrubbing
+    }
+
+    public func update(currentTime: Double) {
+        if abs(self.currentTime - currentTime) >= 0.001 {
+            self.currentTime = currentTime
+        }
+    }
+
+    public var formattedCurrentTime: String {
+        TimeFormatting.format(seconds: currentTime)
+    }
+
+    public var formattedDuration: String {
+        TimeFormatting.format(seconds: duration)
+    }
+}
+
 @MainActor
 @Observable
 public final class VideoPlayerEngine {
     // MARK: - Core Playback State
+    public let clockStore = PlaybackClockStore()
     public private(set) var player: AVPlayer = AVPlayer()
     public private(set) var currentURL: URL?
-    public var isPlaying: Bool = false
+    public var isPlaying: Bool = false {
+        didSet {
+            clockStore.isPlaying = isPlaying
+        }
+    }
     public var isBuffering: Bool = false
     public var hasEnded: Bool = false
     public var onPlaybackEnded: (() -> Void)?
-    public var currentTime: Double = 0.0
+
+    @ObservationIgnored
+    private var _currentTime: Double = 0.0
+
+    public var currentTime: Double {
+        get {
+            _currentTime
+        }
+        set {
+            _currentTime = newValue
+            clockStore.update(currentTime: newValue)
+        }
+    }
+
     public var lastSyncTime: Double = 0.0
     public var lastSyncDate: Date = Date()
-    public var duration: Double = 0.0
+    public var duration: Double = 0.0 {
+        didSet {
+            clockStore.duration = duration
+        }
+    }
     public var volume: Float = 1.0 {
         didSet {
             let clamped = min(max(volume, 0.0), 1.0)
@@ -71,7 +126,11 @@ public final class VideoPlayerEngine {
     }
 
     // MARK: - UI Interaction State
-    public var isScrubbing: Bool = false
+    public var isScrubbing: Bool = false {
+        didSet {
+            clockStore.isScrubbing = isScrubbing
+        }
+    }
     public var controlsVisible: Bool = true
     public var isFullscreen: Bool = false
     public var activeInspectorSheet: InspectorSheet? = nil

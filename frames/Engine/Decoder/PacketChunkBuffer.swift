@@ -31,7 +31,21 @@ nonisolated public final class PacketChunkBuffer: @unchecked Sendable {
     
     private var lock = os_unfair_lock()
     private var queue: [DemuxedPacket] = []
-    public let maxCapacity: Int
+    private var _maxCapacity: Int
+    
+    public var maxCapacity: Int {
+        os_unfair_lock_lock(&lock)
+        defer { os_unfair_lock_unlock(&lock) }
+        return _maxCapacity
+    }
+    
+    public func setCapacity(_ capacity: Int) {
+        os_unfair_lock_lock(&lock)
+        defer { os_unfair_lock_unlock(&lock) }
+        if capacity > 0 {
+            self._maxCapacity = capacity
+        }
+    }
     
     // GOP index: Maps keyframe PTS to (fileOffset, keyframePTS, endPTS)
     public struct GOPIndexEntry: Sendable, Comparable {
@@ -48,7 +62,7 @@ nonisolated public final class PacketChunkBuffer: @unchecked Sendable {
     // MARK: - Lifecycle
     
     public init(maxCapacity: Int = 256) {
-        self.maxCapacity = maxCapacity
+        self._maxCapacity = maxCapacity
     }
     
     // MARK: - Queue Operations
@@ -68,7 +82,7 @@ nonisolated public final class PacketChunkBuffer: @unchecked Sendable {
     public var hasHeadroom: Bool {
         os_unfair_lock_lock(&lock)
         defer { os_unfair_lock_unlock(&lock) }
-        return queue.count < (maxCapacity * 3 / 4)
+        return queue.count < (_maxCapacity * 3 / 4)
     }
     
     public func enqueue(_ packet: DemuxedPacket) {
@@ -76,8 +90,8 @@ nonisolated public final class PacketChunkBuffer: @unchecked Sendable {
         defer { os_unfair_lock_unlock(&lock) }
         
         queue.append(packet)
-        if queue.count > maxCapacity {
-            queue.removeFirst(queue.count - maxCapacity)
+        if queue.count > _maxCapacity {
+            queue.removeFirst(queue.count - _maxCapacity)
         }
     }
     
@@ -87,8 +101,8 @@ nonisolated public final class PacketChunkBuffer: @unchecked Sendable {
         defer { os_unfair_lock_unlock(&lock) }
         
         queue.append(contentsOf: packets)
-        if queue.count > maxCapacity {
-            queue.removeFirst(queue.count - maxCapacity)
+        if queue.count > _maxCapacity {
+            queue.removeFirst(queue.count - _maxCapacity)
         }
     }
     

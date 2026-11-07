@@ -21,7 +21,31 @@ nonisolated public final class FrameQueue: @unchecked Sendable {
     private var frames: [VideoToolboxDecoder.DecodedVideoFrame] = []
     private var minimumAcceptedPTS = -Double.infinity
     private var _nominalFrameDuration: Double = 1.0 / 30.0
-    public let maxCount: Int
+    private var baseMaxCount: Int
+    private var customMaxCount: Int? = nil
+    
+    public var maxCount: Int {
+        os_unfair_lock_lock(&lock)
+        defer { os_unfair_lock_unlock(&lock) }
+        return dynamicCapacityLocked
+    }
+    
+    private var dynamicCapacityLocked: Int {
+        if let custom = customMaxCount {
+            return custom
+        }
+        // Dynamic temporal headroom scaling:
+        // 120fps (duration <= 0.009s): scale to 48 frames (~400ms buffer)
+        // 60fps (duration <= 0.018s): scale to 32 frames (~530ms buffer)
+        // <= 30fps: baseMaxCount (default 18, ~600ms buffer)
+        if _nominalFrameDuration <= 0.009 {
+            return max(baseMaxCount, 48)
+        } else if _nominalFrameDuration <= 0.018 {
+            return max(baseMaxCount, 32)
+        } else {
+            return baseMaxCount
+        }
+    }
     
     public var nominalFrameDuration: Double {
         os_unfair_lock_lock(&lock)
@@ -30,7 +54,7 @@ nonisolated public final class FrameQueue: @unchecked Sendable {
     }
     
     public init(maxCount: Int = 18, nominalFrameDuration: Double = 1.0 / 30.0) {
-        self.maxCount = maxCount
+        self.baseMaxCount = maxCount
         self._nominalFrameDuration = max(0.001, nominalFrameDuration)
     }
     
@@ -45,6 +69,30 @@ nonisolated public final class FrameQueue: @unchecked Sendable {
         defer { os_unfair_lock_unlock(&lock) }
         if duration > 0.001 {
             self._nominalFrameDuration = duration
+        }
+    }
+    
+    public func setMaxCount(_ newMax: Int) {
+        os_unfair_lock_lock(&lock)
+        defer { os_unfair_lock_unlock(&lock) }
+        if newMax > 0 {
+            self.customMaxCount = newMax
+        }
+    }
+    
+    public func configureBuffering(isNetworkOrNAS: Bool, bitrate: Double = 0) {
+        os_unfair_lock_lock(&lock)
+        defer { os_unfair_lock_unlock(&lock) }
+        if isNetworkOrNAS || bitrate > 30_000_000 {
+            if _nominalFrameDuration <= 0.009 {
+                self.customMaxCount = 64
+            } else if _nominalFrameDuration <= 0.018 {
+                self.customMaxCount = 48
+            } else {
+                self.customMaxCount = 32
+            }
+        } else {
+            self.customMaxCount = nil
         }
     }
     
@@ -73,7 +121,7 @@ nonisolated public final class FrameQueue: @unchecked Sendable {
         }
 
         // Discard from tail only if significantly beyond capacity to preserve upcoming display frames
-        let hardLimit = maxCount + 16
+        let hardLimit = dynamicCapacityLocked + 16
         if frames.count > hardLimit {
             frames.removeLast(frames.count - hardLimit)
         }
@@ -345,6 +393,10 @@ public final class PlaybackPipeline: ObservableObject {
             }
             self.nominalFrameDuration = nominalDuration
             self.frameQueue.setNominalFrameDuration(nominalDuration)
+            let isNetworkOrNAS = url.path.hasPrefix("/Volumes/") || url.scheme == "smb" || url.scheme == "afp" || url.scheme == "nfs"
+            let estBitrate = (d.duration > 0 && d.fileSize > 0) ? (Double(d.fileSize * 8) / d.duration) : 0.0
+            self.frameQueue.configureBuffering(isNetworkOrNAS: isNetworkOrNAS, bitrate: estBitrate)
+            self.packetChunkBuffer.setCapacity(isNetworkOrNAS || estBitrate > 30_000_000 ? 512 : 256)
             
             let q = self.frameQueue
             let cache = self.scrubCache
