@@ -42,7 +42,8 @@ Download the latest pre-compiled binary from the [Releases](https://github.com/w
 
 | Release | Version | macOS Architecture | Download |
 | :--- | :--- | :--- | :--- |
-| **Latest** | **v1.3.4** | Apple Silicon (`arm64`) | [**Frames-v1.3.4-macOS.zip**](https://github.com/whoavidwivedi/frames/releases/download/v1.3.4/Frames-v1.3.4-macOS.zip) |
+| **Latest** | **v1.3.5** | Apple Silicon (`arm64`) | [**Frames-v1.3.5-macOS.zip**](https://github.com/whoavidwivedi/frames/releases/download/v1.3.5/Frames-v1.3.5-macOS.zip) |
+| Previous | v1.3.4 | Apple Silicon (`arm64`) | [Frames-v1.3.4-macOS.zip](https://github.com/whoavidwivedi/frames/releases/download/v1.3.4/Frames-v1.3.4-macOS.zip) |
 | Previous | v1.3.3 | Apple Silicon (`arm64`) | [Frames-v1.3.3-macOS.zip](https://github.com/whoavidwivedi/frames/releases/download/v1.3.3/Frames-v1.3.3-macOS.zip) |
 | Previous | v1.3.2 | Apple Silicon (`arm64`) | [Frames-v1.3.2-macOS.zip](https://github.com/whoavidwivedi/frames/releases/download/v1.3.2/Frames-v1.3.2-macOS.zip) |
 | Previous | v1.3.1 | Apple Silicon (`arm64`) | [Frames-v1.3.1-macOS.zip](https://github.com/whoavidwivedi/frames/releases/download/v1.3.1/Frames-v1.3.1-macOS.zip) |
@@ -53,7 +54,7 @@ Download the latest pre-compiled binary from the [Releases](https://github.com/w
 | Previous | v1.0.1 | Apple Silicon (`arm64`) | [Frames-v1.0.1-macOS.zip](https://github.com/whoavidwivedi/frames/releases/download/v1.0.1/Frames-v1.0.1-macOS.zip) |
 | Initial | v1.0.0 | Apple Silicon (`arm64`) | [Frames-v1.0.0-macOS.zip](https://github.com/whoavidwivedi/frames/releases/download/v1.0.0/Frames-v1.0.0-macOS.zip) |
 
-1. Download `Frames-v1.3.4-macOS.zip`.
+1. Download `Frames-v1.3.5-macOS.zip`.
 2. Move `frames.app` into your `/Applications` folder.
 3. Open Frames and enjoy fluid hardware-accelerated playback with built-in in-app OTA update support.
 

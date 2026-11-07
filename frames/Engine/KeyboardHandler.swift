@@ -203,6 +203,12 @@ public final class KeyboardHandler {
                 }
                 return nil
 
+            case 35: // P key (Picture-in-Picture)
+                Task { @MainActor in
+                    PictureInPictureManager.shared.toggle(engine: engine)
+                }
+                return nil
+
             case 1: // S key (Subtitles)
                 Task { @MainActor in
                     if engine.activeInspectorSheet == .subtitles {

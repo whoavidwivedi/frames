@@ -163,10 +163,10 @@ public struct LiquidGlassHUD: View {
 
                     // Picture-in-Picture Toggle
                     dockedButton(
-                        icon: windowManager.isPictureInPicture ? "pip.exit" : "pip.enter",
-                        help: windowManager.isPictureInPicture ? "Exit Picture in Picture" : "Enter Picture in Picture"
+                        icon: PictureInPictureManager.shared.isPictureInPicture ? "pip.exit" : "pip.enter",
+                        help: PictureInPictureManager.shared.isPictureInPicture ? "Exit Picture in Picture" : "Enter Picture in Picture (P)"
                     ) {
-                        windowManager.togglePictureInPicture()
+                        PictureInPictureManager.shared.toggle(engine: engine)
                     }
 
                     // Native Fullscreen Toggle

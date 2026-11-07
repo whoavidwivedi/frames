@@ -64,6 +64,7 @@
 		116A8477C25E9EE89DF9AE7B /* FullscreenSelectorPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86734E37B23FC50319510643 /* FullscreenSelectorPanel.swift */; };
 		C0EE0C43783051BF8C95059D /* HardwareStatsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C2386FD37BD8457BBAFDD03 /* HardwareStatsView.swift */; };
 		E2D9472E4702568CB27ABE23 /* LiquidGlassHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF6FE078CB664D6D7E574E44 /* LiquidGlassHUD.swift */; };
+		A1B2C3D4E5F60718293A4B5C /* PictureInPictureWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6E5D4C3B2A10987654321AB /* PictureInPictureWindow.swift */; };
 		56D42F94D206A768F045A455 /* ResumePlaybackOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BF2B79BBCCF3F0DCB859EA7 /* ResumePlaybackOverlay.swift */; };
 		E84C91B53727DDB5702E0047 /* SpeedSelectorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C1FB937DED86FC885C3F3D3 /* SpeedSelectorSheet.swift */; };
 		8675AE0FD534016A85414C75 /* SplashScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C1AE7D992F02C487DCFE7E7 /* SplashScreenView.swift */; };
@@ -134,6 +135,7 @@
 		86734E37B23FC50319510643 /* FullscreenSelectorPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FullscreenSelectorPanel.swift"; sourceTree = "<group>"; };
 		5C2386FD37BD8457BBAFDD03 /* HardwareStatsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HardwareStatsView.swift"; sourceTree = "<group>"; };
 		DF6FE078CB664D6D7E574E44 /* LiquidGlassHUD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LiquidGlassHUD.swift"; sourceTree = "<group>"; };
+		F6E5D4C3B2A10987654321AB /* PictureInPictureWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PictureInPictureWindow.swift"; sourceTree = "<group>"; };
 		7BF2B79BBCCF3F0DCB859EA7 /* ResumePlaybackOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ResumePlaybackOverlay.swift"; sourceTree = "<group>"; };
 		2C1FB937DED86FC885C3F3D3 /* SpeedSelectorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SpeedSelectorSheet.swift"; sourceTree = "<group>"; };
 		6C1AE7D992F02C487DCFE7E7 /* SplashScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SplashScreenView.swift"; sourceTree = "<group>"; };
@@ -355,6 +357,7 @@
 				86734E37B23FC50319510643 /* FullscreenSelectorPanel.swift */,
 				5C2386FD37BD8457BBAFDD03 /* HardwareStatsView.swift */,
 				DF6FE078CB664D6D7E574E44 /* LiquidGlassHUD.swift */,
+				F6E5D4C3B2A10987654321AB /* PictureInPictureWindow.swift */,
 				7BF2B79BBCCF3F0DCB859EA7 /* ResumePlaybackOverlay.swift */,
 				2C1FB937DED86FC885C3F3D3 /* SpeedSelectorSheet.swift */,
 				6C1AE7D992F02C487DCFE7E7 /* SplashScreenView.swift */,
@@ -498,6 +501,7 @@
 				116A8477C25E9EE89DF9AE7B /* FullscreenSelectorPanel.swift in Sources */,
 				C0EE0C43783051BF8C95059D /* HardwareStatsView.swift in Sources */,
 				E2D9472E4702568CB27ABE23 /* LiquidGlassHUD.swift in Sources */,
+				A1B2C3D4E5F60718293A4B5C /* PictureInPictureWindow.swift in Sources */,
 				56D42F94D206A768F045A455 /* ResumePlaybackOverlay.swift in Sources */,
 				E84C91B53727DDB5702E0047 /* SpeedSelectorSheet.swift in Sources */,
 				8675AE0FD534016A85414C75 /* SplashScreenView.swift in Sources */,

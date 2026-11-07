@@ -228,34 +228,10 @@ public final class WindowManager {
     }
 
     public func togglePictureInPicture(window: NSWindow? = nil) {
-        guard let win = window ?? activeWindow else { return }
-        configureWindow(win)
-
-        if isPictureInPicture {
-            win.level = .normal
-            if let saved = prePipWindowFrame {
-                win.setFrame(saved, display: true, animate: true)
-                prePipWindowFrame = nil
-            }
-            isPictureInPicture = false
-        } else {
-            if isAnyFullscreen {
-                exitAnyFullscreen()
-            }
-            prePipWindowFrame = win.frame
-            win.level = .floating
-            if let screen = win.screen ?? NSScreen.main {
-                let pipWidth: CGFloat = 460
-                let pipHeight: CGFloat = 260
-                let margin: CGFloat = 24
-                let pipX = screen.visibleFrame.maxX - pipWidth - margin
-                let pipY = screen.visibleFrame.minY + margin
-                let pipFrame = NSRect(x: pipX, y: pipY, width: pipWidth, height: pipHeight)
-                win.setFrame(pipFrame, display: true, animate: true)
-            }
-            isPictureInPicture = true
+        if PictureInPictureManager.shared.isPictureInPicture {
+            PictureInPictureManager.shared.exitPictureInPicture()
         }
-        updateLayoutState(window: win)
+        isPictureInPicture = PictureInPictureManager.shared.isPictureInPicture
     }
 
     /// Executes the standard macOS title bar double-click window management behavior:

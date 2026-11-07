@@ -140,6 +140,7 @@ public final class VideoPlayerEngine {
             LibraryManager.shared.recordPlayback(url: url, duration: duration, progress: progress)
         }
 
+        PictureInPictureManager.shared.exitPictureInPicture()
         loadGeneration &+= 1
         clearPlayerItemObservers()
 

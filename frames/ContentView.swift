@@ -33,7 +33,48 @@ struct ContentView: View {
                 // Active Video Player Surface
                 ZStack {
                     // Direct Hardware Video Surface (Zero-Copy Metal 3 HDR or AVPlayerLayer)
-                    if engine.isNativePipelineActive {
+                    if PictureInPictureManager.shared.isPictureInPicture {
+                        VStack(spacing: 16) {
+                            Image(systemName: "pip.enter")
+                                .font(.system(size: 42, weight: .light))
+                                .foregroundStyle(Color.white.opacity(0.70))
+
+                            Text("Playing in Picture-in-Picture")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(Color.white)
+
+                            Text(engine.metadata.title.isEmpty ? (engine.currentURL?.deletingPathExtension().lastPathComponent ?? "Current Media") : engine.metadata.title)
+                                .font(.system(size: 13, weight: .regular))
+                                .foregroundStyle(Color.white.opacity(0.55))
+                                .lineLimit(1)
+
+                            Button {
+                                PictureInPictureManager.shared.exitPictureInPicture()
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "pip.exit")
+                                        .font(.system(size: 12, weight: .semibold))
+                                    Text("Restore to Window")
+                                        .font(.system(size: 13, weight: .medium))
+                                }
+                                .foregroundStyle(Color.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .fill(Color.white.opacity(0.16))
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .strokeBorder(Color.white.opacity(0.24), lineWidth: 1)
+                                )
+                            }
+                            .buttonStyle(.plain)
+                            .pointingHand()
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color.black)
+                    } else if engine.isNativePipelineActive {
                         MetalVideoCanvasView(
                             renderer: engine.nativePipeline.renderer,
                             isPlaying: engine.isPlaying,
@@ -401,6 +442,7 @@ struct ContentView: View {
     }
 
     private func returnToDashboard() {
+        PictureInPictureManager.shared.exitPictureInPicture()
         if let url = engine.currentURL, !url.path.isEmpty {
             let progress = engine.hasEnded ? 1.0 : (engine.duration > 0 ? (engine.currentTime / engine.duration) : 0.0)
             library.recordPlayback(url: url, duration: engine.duration, progress: progress)

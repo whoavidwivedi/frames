@@ -2267,6 +2267,25 @@ public enum FramesTestSuite {
         assertTest("VideoPlayerEngine Playback Rate Set", condition: abs(hudEngine.playbackRate - 2.0) < 0.001)
         assertTest("VideoPlayerEngine Player Default Rate Synced", condition: abs(hudEngine.player.defaultRate - 2.0) < 0.001)
 
+        // MARK: - 37. Dedicated Picture-in-Picture Engine & Controls
+        logs.append("\n[37] Testing Dedicated Picture-in-Picture Engine & Controls...")
+
+        let pipEngine = VideoPlayerEngine()
+        let pipMgr = PictureInPictureManager.shared
+        assertTest("PictureInPictureManager Initial State Inactive", condition: !pipMgr.isPictureInPicture)
+
+        pipMgr.enterPictureInPicture(engine: pipEngine)
+        assertTest("PictureInPictureManager State Active", condition: pipMgr.isPictureInPicture)
+        assertTest("WindowManager PictureInPicture State Synced", condition: WindowManager.shared.isPictureInPicture)
+
+        let pipContentView = PictureInPictureContentView(engine: pipEngine)
+        let pipHostingView = NSHostingView(rootView: pipContentView)
+        assertTest("PictureInPictureContentView NSHostingView Mount Operable", condition: pipHostingView.fittingSize.width > 0)
+
+        pipMgr.exitPictureInPicture()
+        assertTest("PictureInPictureManager State Inactive After Exit", condition: !pipMgr.isPictureInPicture)
+        assertTest("WindowManager PictureInPicture State Inactive After Exit", condition: !WindowManager.shared.isPictureInPicture)
+
         // Summary
         logs.append("\n==========================================")
         logs.append("RESULTS: \(passed) PASSED, \(failed) FAILED")
