@@ -263,7 +263,11 @@ fi
 git tag -a "${TAG}" -m "Frames ${TAG} — Native Apple Silicon Media Engine & In-App OTA Update"
 
 echo "Pushing commits and tags to origin..."
-git push origin main
+CURRENT_BRANCH=$(git branch --show-current)
+if [[ -n "${CURRENT_BRANCH}" && "${CURRENT_BRANCH}" != "main" ]]; then
+    git push origin "${CURRENT_BRANCH}"
+fi
+git push origin HEAD:main
 git push origin "${TAG}"
 
 # ------------------------------------------------------------------------------
