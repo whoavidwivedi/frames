@@ -91,7 +91,7 @@ struct ContentView: View {
                         .transition(
                             .asymmetric(
                                 insertion: .opacity.combined(with: .offset(y: -8)),
-                                removal: .opacity.combined(with: .offset(y: -8))
+                                removal: .opacity
                             )
                         )
                     }
@@ -105,7 +105,7 @@ struct ContentView: View {
                         .transition(
                             .asymmetric(
                                 insertion: .opacity.combined(with: .offset(y: 8)),
-                                removal: .opacity.combined(with: .offset(y: 8))
+                                removal: .opacity
                             )
                         )
                     }
@@ -295,7 +295,7 @@ struct ContentView: View {
         }
         .frame(minWidth: 460, minHeight: 320)
         .animation(.fluidSpring, value: engine.currentURL != nil)
-        .animation(.fluidSpring, value: engine.controlsVisible)
+        .animation(engine.controlsVisible ? .fluidSpring : .easeInOut(duration: 0.22), value: engine.controlsVisible)
         .onChange(of: engine.controlsVisible) { _, visible in
             if !visible && engine.isPlaying {
                 NSCursor.setHiddenUntilMouseMoves(true)
@@ -443,7 +443,7 @@ struct ContentView: View {
             hideControlsTimer = Timer.scheduledTimer(withTimeInterval: 2.5, repeats: false) { _ in
                 Task { @MainActor in
                     if engine.isPlaying && !engine.hasEnded && engine.activeInspectorSheet == nil && !engine.isScrubbing {
-                        withAnimation(.fluidSmooth) {
+                        withAnimation(.easeInOut(duration: 0.22)) {
                             engine.controlsVisible = false
                         }
                         NSCursor.setHiddenUntilMouseMoves(true)

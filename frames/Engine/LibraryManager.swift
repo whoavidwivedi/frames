@@ -106,6 +106,10 @@ public final class LibraryManager {
         isSidebarVisible.toggle()
     }
 
+    public func toggleViewMode() {
+        viewMode = (viewMode == .grid) ? .list : .grid
+    }
+
     public func toggleSearch() {
         withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
             isSearchActive.toggle()

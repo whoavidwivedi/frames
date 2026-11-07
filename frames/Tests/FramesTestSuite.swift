@@ -449,11 +449,17 @@ public enum FramesTestSuite {
         assertTest("Add Video Tile Hidden in Recent", condition: DashboardContentView.shouldShowAddCard(searchQuery: "", category: .recent) == false)
         assertTest("Add Video Tile Hidden During Active Search", condition: DashboardContentView.shouldShowAddCard(searchQuery: "query", category: .allVideos) == false)
 
-        // 5. Mount DashboardContentView (Grid & List), DashboardSidebarView, and DashboardView in NSHostingView to verify view hierarchy stability
+        // 5. Mount DashboardContentView (Grid & List), DashboardSidebarView, DashboardTopBarView, and DashboardView in NSHostingView to verify view hierarchy stability
         let initialViewMode = lib.viewMode
         lib.viewMode = .grid
         let dashboardGridHost = NSHostingView(rootView: DashboardContentView(library: lib, onPlayURL: { _ in }))
         assertTest("DashboardContentView Grid Mode NSHostingView Mount", condition: dashboardGridHost.fittingSize.width >= 0)
+
+        // ViewMode 1-Click Toggle Test
+        lib.toggleViewMode()
+        assertTest("ViewMode Toggle Inverts Mode (Grid -> List)", condition: lib.viewMode == .list)
+        lib.toggleViewMode()
+        assertTest("ViewMode Toggle Restores Mode (List -> Grid)", condition: lib.viewMode == .grid)
 
         lib.viewMode = .list
         let dashboardListHost = NSHostingView(rootView: DashboardContentView(library: lib, onPlayURL: { _ in }))
@@ -462,6 +468,9 @@ public enum FramesTestSuite {
 
         let sidebarViewHost = NSHostingView(rootView: DashboardSidebarView(library: lib, width: 210, onPlayURL: { _ in }))
         assertTest("DashboardSidebarView NSHostingView Mount", condition: sidebarViewHost.fittingSize.width >= 0)
+
+        let topBarViewHost = NSHostingView(rootView: DashboardTopBarView(library: lib, onPlayURL: { _ in }))
+        assertTest("DashboardTopBarView NSHostingView Mount", condition: topBarViewHost.fittingSize.width >= 0)
 
         let dashboardViewHost = NSHostingView(rootView: DashboardView(library: lib, onPlayURL: { _ in }))
         assertTest("DashboardView NSHostingView Mount", condition: dashboardViewHost.fittingSize.width >= 0)

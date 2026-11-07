@@ -285,55 +285,32 @@ public struct DashboardTopBarView: View {
                     .pointingHand()
                     .help("Sort: \(library.sortOption.rawValue)")
 
-                    // View Mode Toggle (Grid / List)
-                    HStack(spacing: 0) {
-                        Button {
-                            withAnimation(.fluidSpring) {
-                                library.viewMode = .grid
-                            }
-                        } label: {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 0)
-                                    .fill(library.viewMode == .grid ? ShadcnTheme.accentActive : Color.black.opacity(0.0001))
-
-                                Image(systemName: "square.grid.2x2")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(library.viewMode == .grid ? ShadcnTheme.foreground : ShadcnTheme.foregroundMuted)
-                            }
-                            .frame(width: 28, height: 28)
-                            .contentShape(Rectangle())
+                    // 1-Click View Mode Toggle Button (Grid <-> List)
+                    Button {
+                        withAnimation(.fluidSpring) {
+                            library.toggleViewMode()
                         }
-                        .buttonStyle(.plain)
-                        .contentShape(Rectangle())
-                        .pointingHand()
+                    } label: {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                .fill(ShadcnTheme.card)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                        .strokeBorder(ShadcnTheme.border, lineWidth: 1)
+                                )
 
-                        Button {
-                            withAnimation(.fluidSpring) {
-                                library.viewMode = .list
-                            }
-                        } label: {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 0)
-                                    .fill(library.viewMode == .list ? ShadcnTheme.accentActive : Color.black.opacity(0.0001))
-
-                                Image(systemName: "list.bullet")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(library.viewMode == .list ? ShadcnTheme.foreground : ShadcnTheme.foregroundMuted)
-                            }
-                            .frame(width: 28, height: 28)
-                            .contentShape(Rectangle())
+                            Image(systemName: library.viewMode == .grid ? "list.bullet" : "square.grid.2x2")
+                                .font(.system(size: 11))
+                                .foregroundStyle(ShadcnTheme.foregroundSecondary)
                         }
-                        .buttonStyle(.plain)
+                        .frame(width: 28, height: 28)
                         .contentShape(Rectangle())
-                        .pointingHand()
                     }
-                    .background(ShadcnTheme.card)
-                    .clipShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                            .strokeBorder(ShadcnTheme.border, lineWidth: 1)
-                    )
-                    .help("Switch View Mode")
+                    .buttonStyle(.plain)
+                    .contentShape(Rectangle())
+                    .pointingHand()
+                    .animation(.fluidSpring, value: library.viewMode)
+                    .help(library.viewMode == .grid ? "Switch to List View" : "Switch to Grid View")
 
                     // OTA Update Available Pill Button
                     if updateManager.hasUpdate {
