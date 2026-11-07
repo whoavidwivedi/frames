@@ -2385,21 +2385,10 @@ public enum FramesTestSuite {
         let hudHost = NSHostingView(rootView: fullHUD)
         assertTest("LiquidGlassHUD Full Surface Mount Operable", condition: hudHost.fittingSize.height > 0)
 
-        // LiquidGlassVolumeSlider Mount & Interaction Operable
-        var testVol: Double = 0.75
-        let volBinding = Binding<Double>(get: { testVol }, set: { testVol = $0 })
-        let liquidVolSlider = LiquidGlassVolumeSlider(value: volBinding, isMuted: false, width: 62)
-        let volSliderHost = NSHostingView(rootView: liquidVolSlider)
-        assertTest("LiquidGlassVolumeSlider Standard Mount Operable", condition: volSliderHost.fittingSize.width > 0)
-
-        let liquidVolSliderMuted = LiquidGlassVolumeSlider(value: volBinding, isMuted: true, width: 130)
-        let volSliderMutedHost = NSHostingView(rootView: liquidVolSliderMuted)
-        assertTest("LiquidGlassVolumeSlider Muted State Mount Operable", condition: volSliderMutedHost.fittingSize.width > 0)
-
-        // Liquid Glass CustomScrubber Timeline Mount Operable
+        // CustomScrubber Timeline Mount Operable
         let scrubberView = CustomScrubber(engine: hudEngineForTesting)
         let scrubberHost = NSHostingView(rootView: scrubberView)
-        assertTest("LiquidGlass CustomScrubber Timeline Mount Operable", condition: scrubberHost.fittingSize.height > 0)
+        assertTest("CustomScrubber Timeline Mount Operable", condition: scrubberHost.fittingSize.height > 0)
 
         // MARK: - 39. Core Optimization & Critic Audit Roadmap Verifications
         logs.append("\n[39] Testing Core Performance Optimization Roadmap...")

@@ -31,175 +31,64 @@ public struct CustomScrubber: View {
                     }
                 }()
 
-                let isExpanded = isHovering || engine.isScrubbing
-                let trackHeight: CGFloat = isExpanded ? 7 : 5
-                let thumbSize: CGFloat = isExpanded ? 15 : 11
-                let thumbX = max(thumbSize / 2, min(totalWidth - thumbSize / 2, CGFloat(effectivePct) * totalWidth))
-
-                ZStack(alignment: .leading) {
-                    // Apple Liquid Glass Track Channel
-                    Capsule()
-                        .fill(.ultraThinMaterial)
-                        .environment(\.colorScheme, .dark)
-                        .frame(height: trackHeight)
-                        .overlay(
-                            Capsule()
-                                .fill(Color.white.opacity(0.18))
-                        )
-                        .overlay(
-                            Capsule()
-                                .strokeBorder(
-                                    LinearGradient(
-                                        stops: [
-                                            .init(color: Color.white.opacity(0.40), location: 0.0),
-                                            .init(color: Color.white.opacity(0.18), location: 0.5),
-                                            .init(color: Color.white.opacity(0.08), location: 1.0)
-                                        ],
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                    ),
-                                    lineWidth: 0.75
-                                )
-                        )
-
-                    // Liquid Light Progress Bar
-                    Capsule()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color.white.opacity(0.95),
-                                    Color.white.opacity(0.85)
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                        .frame(width: max(0, min(totalWidth, totalWidth * CGFloat(effectivePct))), height: trackHeight)
-                        .overlay(
-                            Capsule()
-                                .strokeBorder(Color.white.opacity(0.55), lineWidth: 0.5)
-                        )
-
-                    // Apple Liquid Glass Bead Thumb
-                    ZStack {
-                        Circle()
-                            .fill(.ultraThinMaterial)
-                        Circle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [Color.white, Color(white: 0.88)],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                        Circle()
-                            .strokeBorder(
-                                LinearGradient(
-                                    colors: [Color.white, Color.white.opacity(0.40)],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                ),
-                                lineWidth: 1.0
-                            )
-                        Ellipse()
-                            .fill(Color.white.opacity(0.90))
-                            .frame(width: thumbSize * 0.45, height: thumbSize * 0.22)
-                            .offset(y: -thumbSize * 0.22)
-                    }
-                    .frame(width: thumbSize, height: thumbSize)
-                    .shadow(color: Color.black.opacity(isExpanded ? 0.45 : 0.25), radius: 3, y: 1)
-                    .position(x: thumbX, y: proxy.size.height / 2)
-                }
-                .frame(width: totalWidth, height: proxy.size.height)
-                .contentShape(Rectangle())
-                .gesture(
-                    DragGesture(minimumDistance: 0)
-                        .onChanged { gesture in
-                            let pct = max(0.0, min(1.0, Double(gesture.location.x / totalWidth)))
-                            scrubProgress = pct
-                            if !engine.isScrubbing {
-                                engine.isScrubbing = true
-                                wasPlayingBeforeScrub = engine.isPlaying
-                                if engine.isPlaying {
-                                    engine.pause()
-                                }
-                            }
-                            engine.seek(to: pct * duration, exact: false)
-                            hoverLocationX = gesture.location.x
-                            hoverTime = pct * duration
-                            isHovering = true
+                // Fixed-height, rock-solid Native Slider (Never shifts vertically on click)
+                Slider(
+                    value: Binding(
+                        get: { effectivePct },
+                        set: { newPct in
+                            scrubProgress = newPct
+                            engine.seek(to: newPct * duration, exact: false)
                         }
-                        .onEnded { gesture in
-                            let pct = max(0.0, min(1.0, Double(gesture.location.x / totalWidth)))
-                            scrubProgress = pct
-                            engine.seek(to: pct * duration, exact: true)
+                    ),
+                    in: 0...1,
+                    onEditingChanged: { editing in
+                        engine.isScrubbing = editing
+                        if editing {
+                            wasPlayingBeforeScrub = engine.isPlaying
+                            if engine.isPlaying {
+                                engine.pause()
+                            }
+                        } else {
+                            // The scrub gesture already positioned playback; only resume.
                             engine.endScrubbing()
                             if wasPlayingBeforeScrub {
                                 engine.play()
                             }
-                            isHovering = false
                         }
+                    }
                 )
+                .tint(ShadcnTheme.primaryHighlight)
+                .frame(width: totalWidth, height: 24)
+                .contentShape(Rectangle())
+                .pointingHand()
                 .onContinuousHover { phase in
                     switch phase {
                     case .active(let location):
-                        if !engine.isScrubbing {
-                            isHovering = true
-                            hoverLocationX = location.x
-                            let pct = max(0.0, min(1.0, location.x / totalWidth))
-                            hoverTime = pct * duration
-                        }
+                        isHovering = true
+                        hoverLocationX = location.x
+                        let pct = max(0.0, min(1.0, location.x / totalWidth))
+                        hoverTime = pct * duration
                     case .ended:
-                        if !engine.isScrubbing {
-                            isHovering = false
-                        }
+                        isHovering = false
                     }
                 }
-                // Floating Liquid Glass Time Tooltip
+                // Tooltip rendered as an overlay so it NEVER alters layout height or causes vertical jump
                 .overlay(alignment: .topLeading) {
-                    if isHovering {
+                    if isHovering && !engine.isScrubbing {
                         Text(TimeFormatting.format(seconds: hoverTime))
                             .font(.system(size: 10, weight: .semibold, design: .monospaced))
                             .foregroundStyle(Color.white)
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 3.5)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
                             .background(
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                        .fill(.ultraThinMaterial)
-                                        .environment(\.colorScheme, .dark)
-                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                        .fill(Color(white: 0.08, opacity: 0.82))
-                                }
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .strokeBorder(
-                                        LinearGradient(
-                                            stops: [
-                                                .init(color: Color.white.opacity(0.45), location: 0.0),
-                                                .init(color: Color.white.opacity(0.15), location: 1.0)
-                                            ],
-                                            startPoint: .top,
-                                            endPoint: .bottom
-                                        ),
-                                        lineWidth: 0.75
+                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                    .fill(Color(white: 0.12, opacity: 0.95))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                            .strokeBorder(Color.white.opacity(0.25), lineWidth: 1)
                                     )
                             )
-                            .overlay(alignment: .top) {
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(
-                                        LinearGradient(
-                                            colors: [Color.white.opacity(0.35), Color.clear],
-                                            startPoint: .top,
-                                            endPoint: .bottom
-                                        )
-                                    )
-                                    .frame(height: 4)
-                                    .allowsHitTesting(false)
-                            }
-                            .shadow(color: Color.black.opacity(0.35), radius: 6, y: 2)
-                            .offset(x: max(6, min(totalWidth - 52, hoverLocationX - 22)), y: -26)
+                            .offset(x: max(8, min(totalWidth - 48, hoverLocationX - 18)), y: -24)
                             .allowsHitTesting(false)
                             .transition(.asymmetric(
                                 insertion: .move(edge: .bottom).combined(with: .opacity),
@@ -207,13 +96,11 @@ public struct CustomScrubber: View {
                             ))
                     }
                 }
-                .animation(.spring(response: 0.22, dampingFraction: 0.75), value: isHovering)
-                .animation(.spring(response: 0.22, dampingFraction: 0.75), value: engine.isScrubbing)
+                .animation(.fluidQuick, value: isHovering)
             }
             .frame(height: 24)
         }
         .frame(height: 24)
-        .pointingHand()
         .environment(\.colorScheme, .dark)
     }
 }
