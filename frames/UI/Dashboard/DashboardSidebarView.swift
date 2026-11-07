@@ -8,6 +8,7 @@ public struct DashboardSidebarView: View {
     @State private var hoveredFolderId: UUID? = nil
     @State private var hoveredRow: String? = nil
     @State private var windowManager = WindowManager.shared
+    @State private var updateManager = UpdateManager.shared
 
     public init(library: LibraryManager, width: CGFloat = 210, onPlayURL: @escaping (URL) -> Void) {
         self.library = library
@@ -111,11 +112,67 @@ public struct DashboardSidebarView: View {
 
             Spacer()
 
-            // Footer: Apple Silicon Hardware Badge
+            // Footer: App Version & Apple Silicon Hardware Badge
             VStack(alignment: .leading, spacing: 6) {
                 Divider()
                     .overlay(ShadcnTheme.border)
-                    .padding(.bottom, 6)
+                    .padding(.bottom, 4)
+
+                // App Version & Update Status
+                Button {
+                    updateManager.checkForUpdates(manual: true)
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "app.badge")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(ShadcnTheme.foregroundSecondary)
+
+                        Text("Frames")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(ShadcnTheme.foreground)
+
+                        Text("v\(updateManager.currentVersionString)")
+                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                            .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1.5)
+                            .background(
+                                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                    .fill(ShadcnTheme.card.opacity(0.6))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                    .strokeBorder(ShadcnTheme.border.opacity(0.7), lineWidth: 0.5)
+                            )
+
+                        Spacer()
+
+                        if updateManager.status == .checking {
+                            ProgressView()
+                                .controlSize(.mini)
+                                .scaleEffect(0.75)
+                        } else if updateManager.hasUpdate {
+                            HStack(spacing: 3) {
+                                Circle()
+                                    .fill(Color.blue)
+                                    .frame(width: 5, height: 5)
+                                Text("New")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundStyle(Color.blue)
+                            }
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(Color.blue.opacity(0.12))
+                            .clipShape(Capsule())
+                        }
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 3)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .pointingHand()
+                .help("Frames v\(updateManager.currentVersionString) • Click to check for updates")
 
                 let metrics = AppleSiliconMetrics.shared
                 HStack(spacing: 6) {
@@ -124,7 +181,7 @@ public struct DashboardSidebarView: View {
                         .frame(width: 6, height: 6)
 
                     Text(metrics.chipName.isEmpty ? "Apple Silicon" : metrics.chipName)
-                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .font(.system(size: 10.5, weight: .medium, design: .monospaced))
                         .foregroundStyle(ShadcnTheme.foregroundSecondary)
                         .lineLimit(1)
 
@@ -138,7 +195,7 @@ public struct DashboardSidebarView: View {
                     }
                 }
                 .padding(.horizontal, 14)
-                .padding(.bottom, 12)
+                .padding(.bottom, 10)
                 .animation(.fluidSpring, value: width >= 190)
             }
         }

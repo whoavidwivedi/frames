@@ -468,6 +468,7 @@ public enum FramesTestSuite {
 
         let sidebarViewHost = NSHostingView(rootView: DashboardSidebarView(library: lib, width: 210, onPlayURL: { _ in }))
         assertTest("DashboardSidebarView NSHostingView Mount", condition: sidebarViewHost.fittingSize.width >= 0)
+        assertTest("DashboardSidebarView App Version Available", condition: !UpdateManager.shared.currentVersionString.isEmpty)
 
         let topBarViewHost = NSHostingView(rootView: DashboardTopBarView(library: lib, onPlayURL: { _ in }))
         assertTest("DashboardTopBarView NSHostingView Mount", condition: topBarViewHost.fittingSize.width >= 0)
