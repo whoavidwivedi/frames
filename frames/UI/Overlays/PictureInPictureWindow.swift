@@ -133,38 +133,32 @@ public struct PictureInPictureContentView: View {
                     // Top Bar: Close (Left) & Restore (Right)
                     HStack {
                         // Close Button
-                        Button {
+                        AppleLiquidGlassButton(
+                            icon: "xmark",
+                            iconSize: 11,
+                            iconWeight: .bold,
+                            shape: .circle,
+                            tint: .standard,
+                            size: 26,
+                            helpText: "Close Picture in Picture"
+                        ) {
                             PictureInPictureManager.shared.closePictureInPicture(stopPlayback: true)
-                        } label: {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundStyle(Color.white)
-                                .frame(width: 26, height: 26)
-                                .background(Circle().fill(Color.black.opacity(0.60)))
-                                .overlay(Circle().strokeBorder(Color.white.opacity(0.20), lineWidth: 1))
                         }
-                        .buttonStyle(.plain)
-                        .pointingHand()
-                        .help("Close Picture in Picture")
 
                         Spacer()
 
                         // Go-back-to-non-picture-in-picture-mode Button
-                        Button {
+                        AppleLiquidGlassButton(
+                            icon: "pip.exit",
+                            iconSize: 11,
+                            iconWeight: .semibold,
+                            shape: .circle,
+                            tint: .standard,
+                            size: 26,
+                            helpText: "Return to Main Window"
+                        ) {
                             PictureInPictureManager.shared.exitPictureInPicture()
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: "pip.exit")
-                                    .font(.system(size: 11, weight: .semibold))
-                            }
-                            .foregroundStyle(Color.white)
-                            .frame(width: 26, height: 26)
-                            .background(Circle().fill(Color.black.opacity(0.60)))
-                            .overlay(Circle().strokeBorder(Color.white.opacity(0.20), lineWidth: 1))
                         }
-                        .buttonStyle(.plain)
-                        .pointingHand()
-                        .help("Return to Main Window")
                     }
                     .padding(.horizontal, 10)
                     .padding(.top, 10)
@@ -174,68 +168,60 @@ public struct PictureInPictureContentView: View {
                     // Center / Bottom Dock: Skip Back, Play/Pause, Skip Forward, Mute
                     HStack(spacing: 12) {
                         // 10s Backward
-                        Button {
+                        AppleLiquidGlassButton(
+                            icon: "gobackward.10",
+                            iconSize: 13,
+                            iconWeight: .semibold,
+                            shape: .circle,
+                            tint: .standard,
+                            size: 32,
+                            helpText: "Skip back 10s"
+                        ) {
                             engine.skip(seconds: -10)
                             showControlsTemporarily()
-                        } label: {
-                            Image(systemName: "gobackward.10")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(Color.white)
-                                .frame(width: 32, height: 32)
-                                .background(Circle().fill(Color.white.opacity(0.18)))
-                                .overlay(Circle().strokeBorder(Color.white.opacity(0.25), lineWidth: 1))
                         }
-                        .buttonStyle(.plain)
-                        .pointingHand()
-                        .help("Skip back 10s")
 
                         // Play / Pause Button
-                        Button {
+                        AppleLiquidGlassButton(
+                            icon: engine.isPlaying ? "pause.fill" : (engine.hasEnded ? "arrow.counterclockwise" : "play.fill"),
+                            iconSize: 15,
+                            iconWeight: .bold,
+                            shape: .circle,
+                            tint: .standard,
+                            size: 38,
+                            helpText: engine.isPlaying ? "Pause" : "Play"
+                        ) {
                             engine.togglePlayPause()
                             showControlsTemporarily()
-                        } label: {
-                            Image(systemName: engine.isPlaying ? "pause.fill" : (engine.hasEnded ? "arrow.counterclockwise" : "play.fill"))
-                                .font(.system(size: 15, weight: .bold))
-                                .foregroundStyle(Color.white)
-                                .frame(width: 38, height: 38)
-                                .background(Circle().fill(Color.white.opacity(0.24)))
-                                .overlay(Circle().strokeBorder(Color.white.opacity(0.35), lineWidth: 1))
                         }
-                        .buttonStyle(.plain)
-                        .pointingHand()
-                        .help(engine.isPlaying ? "Pause" : "Play")
 
                         // 10s Forward
-                        Button {
+                        AppleLiquidGlassButton(
+                            icon: "goforward.10",
+                            iconSize: 13,
+                            iconWeight: .semibold,
+                            shape: .circle,
+                            tint: .standard,
+                            size: 32,
+                            helpText: "Skip forward 10s"
+                        ) {
                             engine.skip(seconds: 10)
                             showControlsTemporarily()
-                        } label: {
-                            Image(systemName: "goforward.10")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(Color.white)
-                                .frame(width: 32, height: 32)
-                                .background(Circle().fill(Color.white.opacity(0.18)))
-                                .overlay(Circle().strokeBorder(Color.white.opacity(0.25), lineWidth: 1))
                         }
-                        .buttonStyle(.plain)
-                        .pointingHand()
-                        .help("Skip forward 10s")
 
                         // Mute Button
-                        Button {
+                        AppleLiquidGlassButton(
+                            icon: engine.isMuted ? "speaker.slash.fill" : (engine.volume < 0.5 ? "speaker.wave.1.fill" : "speaker.wave.2.fill"),
+                            iconSize: 13,
+                            iconWeight: .semibold,
+                            shape: .circle,
+                            tint: engine.isMuted ? .danger : .standard,
+                            size: 32,
+                            helpText: engine.isMuted ? "Unmute" : "Mute"
+                        ) {
                             engine.toggleMute()
                             showControlsTemporarily()
-                        } label: {
-                            Image(systemName: engine.isMuted ? "speaker.slash.fill" : (engine.volume < 0.5 ? "speaker.wave.1.fill" : "speaker.wave.2.fill"))
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(Color.white)
-                                .frame(width: 32, height: 32)
-                                .background(Circle().fill(Color.white.opacity(0.18)))
-                                .overlay(Circle().strokeBorder(Color.white.opacity(0.25), lineWidth: 1))
                         }
-                        .buttonStyle(.plain)
-                        .pointingHand()
-                        .help(engine.isMuted ? "Unmute" : "Mute")
                     }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 7)

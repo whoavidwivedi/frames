@@ -6,9 +6,6 @@ public struct LiquidGlassHUD: View {
     @Bindable var engine: VideoPlayerEngine
     @State private var windowManager = WindowManager.shared
     @State private var showVolumePopover = false
-    @State private var isAudioHovered = false
-    @State private var isSubtitlesHovered = false
-    @State private var isSpeedHovered = false
 
     public init(engine: VideoPlayerEngine) {
         self.engine = engine
@@ -28,63 +25,63 @@ public struct LiquidGlassHUD: View {
             // Primary Playback Controls Dock
             HStack(spacing: isNarrow ? 8 : 12) {
                 // MARK: - Left Controls Cluster
-                HStack(spacing: 6) {
+                HStack(spacing: 8) {
                     // Play / Pause / Replay
-                    Button {
+                    AppleLiquidGlassButton(
+                        icon: engine.isPlaying ? "pause.fill" : (engine.hasEnded ? "arrow.counterclockwise" : "play.fill"),
+                        iconSize: 15,
+                        iconWeight: .bold,
+                        shape: .circle,
+                        tint: .standard,
+                        size: 34,
+                        helpText: engine.isPlaying ? "Pause (Space)" : (engine.hasEnded ? "Replay (Space)" : "Play (Space)")
+                    ) {
                         engine.togglePlayPause()
-                    } label: {
-                        Image(systemName: engine.isPlaying ? "pause.fill" : (engine.hasEnded ? "arrow.counterclockwise" : "play.fill"))
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(Color.white)
-                            .frame(width: 32, height: 32)
-                            .background(
-                                Circle()
-                                    .fill(Color.white.opacity(0.18))
-                            )
-                            .overlay(
-                                Circle()
-                                    .strokeBorder(Color.white.opacity(0.22), lineWidth: 1)
-                            )
                     }
-                    .buttonStyle(.plain)
-                    .pointingHand()
-                    .help(engine.isPlaying ? "Pause (Space)" : (engine.hasEnded ? "Replay (Space)" : "Play (Space)"))
 
                     // Skip -10s
-                    dockedButton(icon: "gobackward.10", help: "Skip back 10s (← or J)") {
+                    AppleLiquidGlassButton(
+                        icon: "gobackward.10",
+                        iconSize: 13,
+                        iconWeight: .semibold,
+                        shape: .circle,
+                        tint: .standard,
+                        size: 30,
+                        helpText: "Skip back 10s (← or J)"
+                    ) {
                         engine.skip(seconds: -10)
                     }
 
                     // Skip +10s
-                    dockedButton(icon: "goforward.10", help: "Skip forward 10s (→ or L)") {
+                    AppleLiquidGlassButton(
+                        icon: "goforward.10",
+                        iconSize: 13,
+                        iconWeight: .semibold,
+                        shape: .circle,
+                        tint: .standard,
+                        size: 30,
+                        helpText: "Skip forward 10s (→ or L)"
+                    ) {
                         engine.skip(seconds: 10)
                     }
 
                     // Volume Mute Button + Interactive Slider / Popover
-                    HStack(spacing: 4) {
-                        Button {
+                    HStack(spacing: 6) {
+                        AppleLiquidGlassButton(
+                            icon: engine.isMuted ? "speaker.slash.fill" : (engine.volume < 0.5 ? "speaker.wave.1.fill" : "speaker.wave.2.fill"),
+                            iconSize: 13,
+                            iconWeight: .medium,
+                            shape: .circle,
+                            tint: engine.isMuted ? .danger : .standard,
+                            size: 30,
+                            helpText: isNarrow ? "Volume Slider" : (engine.isMuted ? "Unmute (M)" : "Mute (M)")
+                        ) {
                             if isNarrow {
                                 showVolumePopover.toggle()
                             } else {
                                 engine.toggleMute()
                             }
-                        } label: {
-                            Image(systemName: engine.isMuted ? "speaker.slash.fill" : (engine.volume < 0.5 ? "speaker.wave.1.fill" : "speaker.wave.2.fill"))
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundStyle(Color.white)
-                                .frame(width: 28, height: 28)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                        .fill(engine.isMuted ? Color.red.opacity(0.25) : Color.white.opacity(0.12))
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                        .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
-                                )
                         }
-                        .buttonStyle(.plain)
-                        .pointingHand()
-                        .help(isNarrow ? "Volume Slider" : (engine.isMuted ? "Unmute (M)" : "Mute (M)"))
                         .popover(isPresented: $showVolumePopover) {
                             VStack(spacing: 8) {
                                 HStack {
@@ -122,21 +119,34 @@ public struct LiquidGlassHUD: View {
                         }
 
                         if showVolumeSlider {
-                            Slider(
-                                value: Binding(
-                                    get: { Double(engine.volume) },
-                                    set: {
-                                        engine.volume = Float($0)
-                                        if engine.isMuted && $0 > 0 {
-                                            engine.isMuted = false
+                            HStack(spacing: 0) {
+                                Slider(
+                                    value: Binding(
+                                        get: { Double(engine.volume) },
+                                        set: {
+                                            engine.volume = Float($0)
+                                            if engine.isMuted && $0 > 0 {
+                                                engine.isMuted = false
+                                            }
                                         }
-                                    }
-                                ),
-                                in: 0...1
+                                    ),
+                                    in: 0...1
+                                )
+                                .frame(width: 58)
+                                .tint(Color.white)
+                                .pointingHand()
+                            }
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(
+                                Capsule()
+                                    .fill(.ultraThinMaterial)
+                                    .opacity(0.75)
                             )
-                            .frame(width: 58)
-                            .tint(Color.white)
-                            .pointingHand()
+                            .overlay(
+                                Capsule()
+                                    .strokeBorder(Color.white.opacity(0.18), lineWidth: 0.75)
+                            )
                         }
                     }
 
@@ -187,14 +197,23 @@ public struct LiquidGlassHUD: View {
                 Rectangle()
                     .fill(.ultraThinMaterial)
                     .environment(\.colorScheme, .dark)
-                Rectangle()
-                    .fill(Color(white: 0.08, opacity: 0.88))
+                LinearGradient(
+                    colors: [
+                        Color(white: 0.06).opacity(0.68),
+                        Color(white: 0.02).opacity(0.85)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
             }
         )
         .overlay(alignment: .top) {
-            Rectangle()
-                .fill(Color.white.opacity(0.12))
-                .frame(height: 1)
+            LinearGradient(
+                colors: [Color.white.opacity(0.22), Color.white.opacity(0.06)],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            .frame(height: 1)
         }
         .environment(\.colorScheme, .dark)
     }
@@ -222,135 +241,93 @@ public struct LiquidGlassHUD: View {
 
     private func audioSelectorButton(isNarrow: Bool) -> some View {
         let isOpen = engine.activeInspectorSheet == .audio
-        let fillBg = isOpen ? Color.white.opacity(0.25) : (isAudioHovered ? Color.white.opacity(0.18) : Color.white.opacity(0.12))
-        let strokeCol = isOpen ? Color.white.opacity(0.4) : (isAudioHovered ? Color.white.opacity(0.28) : Color.white.opacity(0.18))
 
-        return Button {
+        return AppleLiquidGlassButton(
+            shape: .roundedRectangle(cornerRadius: 7),
+            tint: isOpen ? .accent : .standard,
+            width: nil,
+            height: 30,
+            helpText: isOpen ? "Close Audio Settings" : "Select Audio Track & Channels"
+        ) {
             withAnimation(.fluidSpring) {
                 engine.activeInspectorSheet = (isOpen ? nil : .audio)
             }
-        } label: {
+        } content: {
             HStack(spacing: 5) {
                 Image(systemName: isOpen ? "speaker.wave.2.bubble.fill" : "speaker.wave.2.bubble")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(isOpen ? Color.white : Color.white.opacity(0.9))
                 if !isNarrow {
                     Text(audioButtonLabel)
                         .font(.system(size: 11, weight: isOpen ? .semibold : .medium))
                         .lineLimit(1)
                         .frame(maxWidth: 95)
                         .truncationMode(.tail)
-                        .foregroundStyle(Color.white)
                 }
             }
-            .padding(.horizontal, isNarrow ? 7 : 9)
-            .frame(height: 28)
-            .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(fillBg)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .strokeBorder(strokeCol, lineWidth: 1)
-            )
         }
-        .buttonStyle(.plain)
-        .pointingHand()
-        .onHover { isAudioHovered = $0 }
-        .help(isOpen ? "Close Audio Settings" : "Select Audio Track & Channels")
     }
 
     private func subtitlesSelectorButton(isNarrow: Bool) -> some View {
         let isOpen = engine.activeInspectorSheet == .subtitles
         let isSubOn = engine.selectedSubtitleTrack.id != SubtitleTrack.off.id
-        let fillBg = isOpen ? Color.accentColor.opacity(0.3) : (isSubOn ? Color.white.opacity(0.24) : (isSubtitlesHovered ? Color.white.opacity(0.18) : Color.white.opacity(0.12)))
-        let strokeCol = isOpen ? Color.accentColor.opacity(0.5) : (isSubOn ? Color.white.opacity(0.35) : (isSubtitlesHovered ? Color.white.opacity(0.28) : Color.white.opacity(0.18)))
         let subTitle = isSubOn ? engine.selectedSubtitleTrack.title : "Subtitles"
 
-        return Button {
+        return AppleLiquidGlassButton(
+            shape: .roundedRectangle(cornerRadius: 7),
+            tint: (isOpen || isSubOn) ? .accent : .standard,
+            width: nil,
+            height: 30,
+            helpText: isOpen ? "Close Subtitle Settings" : "Subtitles, Captions & Timing"
+        ) {
             withAnimation(.fluidSpring) {
                 engine.activeInspectorSheet = (isOpen ? nil : .subtitles)
             }
-        } label: {
+        } content: {
             HStack(spacing: 5) {
                 Image(systemName: (isOpen || isSubOn) ? "captions.bubble.fill" : "captions.bubble")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(isSubOn ? Color.accentColor : Color.white)
                 if !isNarrow {
                     Text(subTitle)
                         .font(.system(size: 11, weight: (isOpen || isSubOn) ? .semibold : .medium))
                         .lineLimit(1)
                         .frame(maxWidth: 100)
                         .truncationMode(.tail)
-                        .foregroundStyle(Color.white)
                 }
             }
-            .padding(.horizontal, isNarrow ? 7 : 9)
-            .frame(height: 28)
-            .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(fillBg)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .strokeBorder(strokeCol, lineWidth: 1)
-            )
         }
-        .buttonStyle(.plain)
-        .pointingHand()
-        .onHover { isSubtitlesHovered = $0 }
-        .help(isOpen ? "Close Subtitle Settings" : "Subtitles, Captions & Timing")
     }
 
     private func speedSelectorButton() -> some View {
         let isOpen = engine.activeInspectorSheet == .speed
         let isNonStandard = abs(engine.playbackRate - 1.0) > 0.01
-        let fillBg = isOpen ? Color.cyan.opacity(0.3) : (isNonStandard ? Color.cyan.opacity(0.18) : (isSpeedHovered ? Color.white.opacity(0.18) : Color.white.opacity(0.12)))
-        let strokeCol = isOpen ? Color.cyan.opacity(0.6) : (isNonStandard ? Color.cyan.opacity(0.35) : (isSpeedHovered ? Color.white.opacity(0.28) : Color.white.opacity(0.18)))
 
-        return Button {
+        return AppleLiquidGlassButton(
+            shape: .roundedRectangle(cornerRadius: 7),
+            tint: (isOpen || isNonStandard) ? .cyan : .standard,
+            width: nil,
+            height: 30,
+            helpText: isOpen ? "Close Speed Settings" : "Playback Speed"
+        ) {
             withAnimation(.fluidSpring) {
                 engine.activeInspectorSheet = (isOpen ? nil : .speed)
             }
-        } label: {
+        } content: {
             Text(Self.formatRate(engine.playbackRate))
                 .font(.system(size: 11, weight: .bold, design: .monospaced))
-                .foregroundStyle(isNonStandard ? Color.cyan : Color.white)
-                .padding(.horizontal, 8)
-                .frame(height: 28)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(fillBg)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .strokeBorder(strokeCol, lineWidth: 1)
-                )
         }
-        .buttonStyle(.plain)
-        .pointingHand()
-        .onHover { isSpeedHovered = $0 }
-        .help(isOpen ? "Close Speed Settings" : "Playback Speed")
     }
 
     private func dockedButton(icon: String, help: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(Color.white)
-                .frame(width: 28, height: 28)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Color.white.opacity(0.12))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
-                )
-        }
-        .buttonStyle(.plain)
-        .pointingHand()
-        .help(help)
+        AppleLiquidGlassButton(
+            icon: icon,
+            iconSize: 12,
+            iconWeight: .medium,
+            shape: .circle,
+            tint: .standard,
+            size: 30,
+            helpText: help,
+            action: action
+        )
     }
 
     private func openExternalSubtitlePicker() {

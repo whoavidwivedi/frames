@@ -2286,6 +2286,104 @@ public enum FramesTestSuite {
         assertTest("PictureInPictureManager State Inactive After Exit", condition: !pipMgr.isPictureInPicture)
         assertTest("WindowManager PictureInPicture State Inactive After Exit", condition: !WindowManager.shared.isPictureInPicture)
 
+        // MARK: - 38. Apple-Grade Liquid Glass Controls & HUD Buttons
+        logs.append("\n[38] Testing Apple-Grade Liquid Glass Controls & HUD Buttons...")
+
+        // Shapes & Tints
+        let circleShape = AppleLiquidGlassShape.circle
+        let capsuleShape = AppleLiquidGlassShape.capsule
+        let rectShape = AppleLiquidGlassShape.roundedRectangle(cornerRadius: 8)
+        assertTest("AppleLiquidGlassShape Circle Equatable", condition: circleShape == .circle)
+        assertTest("AppleLiquidGlassShape Capsule Equatable", condition: capsuleShape == .capsule)
+        assertTest("AppleLiquidGlassShape RoundedRectangle Equatable", condition: rectShape == .roundedRectangle(cornerRadius: 8))
+
+        let stdTint = AppleLiquidGlassTint.standard
+        let dangerTint = AppleLiquidGlassTint.danger
+        let accentTint = AppleLiquidGlassTint.accent
+        let cyanTint = AppleLiquidGlassTint.cyan
+        assertTest("AppleLiquidGlassTint Standard Equatable", condition: stdTint == .standard)
+        assertTest("AppleLiquidGlassTint Danger Equatable", condition: dangerTint == .danger)
+        assertTest("AppleLiquidGlassTint Accent Equatable", condition: accentTint == .accent)
+        assertTest("AppleLiquidGlassTint Cyan Equatable", condition: cyanTint == .cyan)
+
+        // Play / Pause Button Mount
+        var playClicked = false
+        let playBtn = AppleLiquidGlassButton(
+            icon: "play.fill",
+            iconSize: 15,
+            iconWeight: .bold,
+            shape: .circle,
+            tint: .standard,
+            size: 34,
+            helpText: "Play"
+        ) {
+            playClicked = true
+        }
+        let playBtnHost = NSHostingView(rootView: playBtn)
+        assertTest("AppleLiquidGlassButton Play/Pause Mount Operable", condition: playBtnHost.fittingSize.width > 0)
+
+        // 10s Skip Buttons Mount
+        var skipBackClicked = false
+        let skipBackBtn = AppleLiquidGlassButton(
+            icon: "gobackward.10",
+            iconSize: 13,
+            iconWeight: .semibold,
+            shape: .circle,
+            tint: .standard,
+            size: 30,
+            helpText: "Skip back 10s"
+        ) {
+            skipBackClicked = true
+        }
+        let skipBackHost = NSHostingView(rootView: skipBackBtn)
+        assertTest("AppleLiquidGlassButton 10s Backward Mount Operable", condition: skipBackHost.fittingSize.width > 0)
+
+        var skipFwdClicked = false
+        let skipFwdBtn = AppleLiquidGlassButton(
+            icon: "goforward.10",
+            iconSize: 13,
+            iconWeight: .semibold,
+            shape: .circle,
+            tint: .standard,
+            size: 30,
+            helpText: "Skip forward 10s"
+        ) {
+            skipFwdClicked = true
+        }
+        let skipFwdHost = NSHostingView(rootView: skipFwdBtn)
+        assertTest("AppleLiquidGlassButton 10s Forward Mount Operable", condition: skipFwdHost.fittingSize.width > 0)
+
+        // Mute Button Mount in Active and Danger States
+        let muteBtnStandard = AppleLiquidGlassButton(
+            icon: "speaker.wave.2.fill",
+            iconSize: 13,
+            iconWeight: .medium,
+            shape: .circle,
+            tint: .standard,
+            size: 30,
+            helpText: "Mute"
+        ) {}
+        let muteStdHost = NSHostingView(rootView: muteBtnStandard)
+        assertTest("AppleLiquidGlassButton Mute Standard Mount Operable", condition: muteStdHost.fittingSize.width > 0)
+
+        let muteBtnDanger = AppleLiquidGlassButton(
+            icon: "speaker.slash.fill",
+            iconSize: 13,
+            iconWeight: .medium,
+            shape: .circle,
+            tint: .danger,
+            size: 30,
+            helpText: "Unmute"
+        ) {}
+        let muteDangerHost = NSHostingView(rootView: muteBtnDanger)
+        assertTest("AppleLiquidGlassButton Mute Danger/Muted Mount Operable", condition: muteDangerHost.fittingSize.width > 0)
+
+        // LiquidGlassHUD Full Dock Mount Operable
+        let hudEngineForTesting = VideoPlayerEngine()
+        let fullHUD = LiquidGlassHUD(engine: hudEngineForTesting)
+        let hudHost = NSHostingView(rootView: fullHUD)
+        assertTest("LiquidGlassHUD Full Surface Mount Operable", condition: hudHost.fittingSize.height > 0)
+
         // Summary
         logs.append("\n==========================================")
         logs.append("RESULTS: \(passed) PASSED, \(failed) FAILED")
