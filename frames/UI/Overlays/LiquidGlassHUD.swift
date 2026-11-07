@@ -96,7 +96,7 @@ public struct LiquidGlassHUD: View {
                                         .font(.system(size: 10, weight: .medium, design: .monospaced))
                                         .foregroundStyle(Color.white.opacity(0.7))
                                 }
-                                Slider(
+                                LiquidGlassVolumeSlider(
                                     value: Binding(
                                         get: { Double(engine.volume) },
                                         set: {
@@ -104,10 +104,9 @@ public struct LiquidGlassHUD: View {
                                             if engine.isMuted && $0 > 0 { engine.isMuted = false }
                                         }
                                     ),
-                                    in: 0...1
+                                    isMuted: engine.isMuted,
+                                    width: 130
                                 )
-                                .frame(width: 120)
-                                .tint(Color.white)
 
                                 Button(engine.isMuted ? "Unmute" : "Mute") {
                                     engine.toggleMute()
@@ -116,13 +115,32 @@ public struct LiquidGlassHUD: View {
                                 .foregroundStyle(Color.white.opacity(0.9))
                                 .buttonStyle(.plain)
                             }
-                            .padding(10)
-                            .background(Color(white: 0.12))
+                            .padding(12)
+                            .background(
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        .fill(.ultraThinMaterial)
+                                        .environment(\.colorScheme, .dark)
+                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        .fill(Color(white: 0.08, opacity: 0.82))
+                                }
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .strokeBorder(
+                                        LinearGradient(
+                                            colors: [Color.white.opacity(0.35), Color.white.opacity(0.12)],
+                                            startPoint: .top,
+                                            endPoint: .bottom
+                                        ),
+                                        lineWidth: 1
+                                    )
+                            )
                             .environment(\.colorScheme, .dark)
                         }
 
                         if showVolumeSlider {
-                            Slider(
+                            LiquidGlassVolumeSlider(
                                 value: Binding(
                                     get: { Double(engine.volume) },
                                     set: {
@@ -132,11 +150,9 @@ public struct LiquidGlassHUD: View {
                                         }
                                     }
                                 ),
-                                in: 0...1
+                                isMuted: engine.isMuted,
+                                width: 62
                             )
-                            .frame(width: 58)
-                            .tint(Color.white)
-                            .pointingHand()
                         }
                     }
 
@@ -179,12 +195,18 @@ public struct LiquidGlassHUD: View {
                     .fill(.ultraThinMaterial)
                     .environment(\.colorScheme, .dark)
                 Rectangle()
-                    .fill(Color(white: 0.08, opacity: 0.88))
+                    .fill(Color(white: 0.08, opacity: 0.70))
             }
         )
         .overlay(alignment: .top) {
             Rectangle()
-                .fill(Color.white.opacity(0.12))
+                .fill(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.24), Color.white.opacity(0.06)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
                 .frame(height: 1)
         }
         .environment(\.colorScheme, .dark)
