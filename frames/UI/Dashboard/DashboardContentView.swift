@@ -104,7 +104,7 @@ public struct DashboardContentView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(ShadcnTheme.background)
             .clipped()
-            .animation(.fluidSpring, value: library.viewMode)
+            .animation(.snappy(duration: 0.2), value: library.viewMode)
             .animation(.fluidSpring, value: library.selectedCategory)
         }
     }

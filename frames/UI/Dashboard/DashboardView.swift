@@ -15,9 +15,7 @@ public struct DashboardView: View {
 
     public var body: some View {
         GeometryReader { geo in
-            let isQuarter = windowManager.isQuarterScreen
-            let isCompact = windowManager.isCompact || isQuarter || geo.size.width < 560
-            let sidebarWidth: CGFloat = isCompact ? 160 : (geo.size.width < 720 ? 180 : 210)
+            let sidebarWidth: CGFloat = 210
             VStack(spacing: 0) {
                 // Unified Top Navigation Bar (Antigravity Style: Traffic Lights + Sidebar Toggle + Back + Forward + Search + Divider + Title + Actions)
                 DashboardTopBarView(library: library, onPlayURL: onPlayURL)
@@ -42,7 +40,7 @@ public struct DashboardView: View {
                         .zIndex(0)
                 }
             }
-            .animation(.fluidSpring, value: library.isSidebarVisible)
+            .animation(.snappy(duration: 0.22), value: library.isSidebarVisible)
         }
         .frame(minWidth: 460, minHeight: 320)
         .overlay(

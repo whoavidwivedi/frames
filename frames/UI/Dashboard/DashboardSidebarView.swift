@@ -215,7 +215,7 @@ public struct DashboardSidebarView: View {
                     .frame(width: 16)
 
                 Text(title)
-                    .font(.system(size: 12, weight: isSelected ? .medium : .regular))
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
                     .lineLimit(1)
 
@@ -267,7 +267,7 @@ public struct DashboardSidebarView: View {
                 .frame(width: 16)
 
             Text(folder.name)
-                .font(.system(size: 12, weight: isSelected ? .medium : .regular))
+                .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
                 .lineLimit(1)
 

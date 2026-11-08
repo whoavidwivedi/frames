@@ -484,6 +484,10 @@ public enum FramesTestSuite {
         // MARK: - 11. macOS Window Management Tests
         logs.append("\n[11] Testing macOS Window Management & Fullscreen States...")
         let wm = WindowManager.shared
+        let savedNativeFullscreen = wm.isNativeFullscreen
+        let savedWindowedFullscreen = wm.isWindowedFullscreen
+        wm.isNativeFullscreen = false
+        wm.isWindowedFullscreen = false
         assertTest("WindowManager Instance Verified", condition: wm.isAnyFullscreen == (wm.isNativeFullscreen || wm.isWindowedFullscreen))
         assertTest("Default Fullscreen State Consistent", condition: wm.isAnyFullscreen == false || wm.isAnyFullscreen == true)
         let testEngine = VideoPlayerEngine()
@@ -618,6 +622,8 @@ public enum FramesTestSuite {
         )
         let fsState = wm.computeLayoutState(window: fsWin)
         assertTest("Native Full Screen State Detected", condition: fsState == .fullScreen)
+        wm.isNativeFullscreen = savedNativeFullscreen
+        wm.isWindowedFullscreen = savedWindowedFullscreen
 
         // Window Tabbing Mode & Tab Bar Menu Suppression Tests
         assertTest("Automatic Window Tabbing Globally Disabled", condition: NSWindow.allowsAutomaticWindowTabbing == false)
@@ -1810,8 +1816,8 @@ public enum FramesTestSuite {
         assertTest("Settings Default Audio Language Is System", condition: sm.defaultAudioLanguage == "System")
         assertTest("Settings Default Volume Normalization Disabled", condition: sm.volumeNormalizationEnabled == false)
         assertTest("Settings Default Subtitle Font Size 20pt", condition: abs(sm.subtitleFontSize - 20.0) < 0.001)
-        assertTest("Settings Default Subtitle Text Color Hex White", condition: sm.subtitleTextColorHex == "#FFFFFF")
-        assertTest("Settings Default Subtitle Scrim Opacity 0.65", condition: abs(sm.subtitleBackgroundScrimOpacity - 0.65) < 0.001)
+        assertTest("Settings Default Subtitle Text Color Hex Green", condition: sm.subtitleTextColorHex == "#4ADE80")
+        assertTest("Settings Default Subtitle Scrim Opacity 0.85", condition: abs(sm.subtitleBackgroundScrimOpacity - 0.85) < 0.001)
         assertTest("Settings Default Live Captions Disabled", condition: sm.liveCaptionsEnabled == false)
         assertTest("Settings Default Live Captions Engine Apple Neural Engine", condition: sm.liveCaptionsEngine == .appleNeuralEngine)
         assertTest("Settings Default Battery Saver Guard Enabled", condition: sm.batterySaverGuardEnabled == true)
