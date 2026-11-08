@@ -49,9 +49,28 @@ public struct UpdateAvailableOverlay: View {
 
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 6) {
-                            Text("New Update Available")
+                            Text(update.isPrerelease ? "New Beta Update Available" : "New Update Available")
                                 .font(.system(size: 14, weight: .semibold))
                                 .foregroundStyle(ShadcnTheme.foreground)
+
+                            // Channel Tag
+                            HStack(spacing: 3) {
+                                Image(systemName: update.isPrerelease ? "flame.fill" : "checkmark.shield.fill")
+                                    .font(.system(size: 8))
+                                Text(update.isPrerelease ? "BETA" : "STABLE")
+                                    .font(.system(size: 9, weight: .bold))
+                            }
+                            .foregroundStyle(update.isPrerelease ? Color(red: 249/255.0, green: 115/255.0, blue: 22/255.0) : Color.green)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(
+                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                    .fill((update.isPrerelease ? Color.orange : Color.green).opacity(0.12))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                            .strokeBorder((update.isPrerelease ? Color.orange : Color.green).opacity(0.25), lineWidth: 1)
+                                    )
+                            )
 
                             // Version Badge
                             HStack(spacing: 3) {
@@ -61,7 +80,7 @@ public struct UpdateAvailableOverlay: View {
                                     .font(.system(size: 8))
                                     .foregroundStyle(ShadcnTheme.foregroundMuted)
                                 Text("v\(update.version.displayString)")
-                                    .foregroundStyle(Color(red: 249/255.0, green: 115/255.0, blue: 22/255.0))
+                                    .foregroundStyle(update.isPrerelease ? Color(red: 249/255.0, green: 115/255.0, blue: 22/255.0) : ShadcnTheme.foreground)
                                     .fontWeight(.semibold)
                             }
                             .font(.system(size: 10, design: .monospaced))

@@ -1567,6 +1567,64 @@ public enum FramesTestSuite {
         updater.processRelease(olderRelease, manual: false)
         assertTest("UpdateManager Ignores Older Release", condition: !updater.hasUpdate && updater.availableUpdate == nil)
 
+        // 4b. Update Channels & Beta Updates Toggle
+        let settings = SettingsManager.shared
+        let initialChannel = settings.updateChannel
+
+        // Verify UpdateChannel enum
+        assertTest("UpdateChannel Stable Display Name", condition: UpdateChannel.stable.displayName == "Stable")
+        assertTest("UpdateChannel Beta Display Name", condition: UpdateChannel.beta.displayName == "Beta (Canary)")
+        assertTest("UpdateChannel Stable Short Name", condition: UpdateChannel.stable.shortName == "Stable")
+        assertTest("UpdateChannel Beta Short Name", condition: UpdateChannel.beta.shortName == "Beta")
+        assertTest("UpdateChannel Stable Icon", condition: UpdateChannel.stable.badgeIcon == "checkmark.shield.fill")
+        assertTest("UpdateChannel Beta Icon", condition: UpdateChannel.beta.badgeIcon == "flame.fill")
+
+        // Test Beta Toggle Sync with SettingsManager
+        settings.updateChannel = .beta
+        assertTest("SettingsManager Beta Channel Set", condition: settings.updateChannel == .beta)
+        assertTest("SettingsManager isBetaUpdatesEnabled Synced True", condition: settings.isBetaUpdatesEnabled)
+
+        settings.isBetaUpdatesEnabled = false
+        assertTest("SettingsManager isBetaUpdatesEnabled Set False", condition: !settings.isBetaUpdatesEnabled)
+        assertTest("SettingsManager updateChannel Synced Stable", condition: settings.updateChannel == .stable)
+
+        settings.isBetaUpdatesEnabled = true
+        assertTest("SettingsManager isBetaUpdatesEnabled Set True", condition: settings.isBetaUpdatesEnabled)
+        assertTest("SettingsManager updateChannel Synced Beta", condition: settings.updateChannel == .beta)
+
+        // Test UpdateManager Channel Switching & Endpoint Sync
+        updater.setChannel(.beta)
+        assertTest("UpdateManager Channel Beta Active", condition: updater.updateChannel == .beta)
+        assertTest("UpdateManager Beta Endpoint Points to Releases", condition: updater.apiEndpoint == updater.releasesApiEndpoint)
+
+        updater.setChannel(.stable)
+        assertTest("UpdateManager Channel Stable Active", condition: updater.updateChannel == .stable)
+        assertTest("UpdateManager Stable Endpoint Points to Latest", condition: updater.apiEndpoint == updater.latestReleaseApiEndpoint)
+
+        // Test Pre-release / Beta Processing
+        let betaRelease = GitHubRelease(
+            tagName: "v2.1.0-beta.1",
+            name: "Frames v2.1.0 Beta 1",
+            body: "Early preview build with canary features.",
+            prerelease: true,
+            assets: [
+                GitHubReleaseAsset(
+                    id: 99999,
+                    name: "Frames-v2.1.0-beta.1-macOS.zip",
+                    browserDownloadUrl: "https://example.com/Frames-v2.1.0-beta.1-macOS.zip",
+                    size: 15_000_000
+                )
+            ]
+        )
+        updater.processRelease(betaRelease, manual: false)
+        assertTest("UpdateManager Processes Beta Release", condition: updater.hasUpdate)
+        assertTest("UpdateManager Flags Pre-release True", condition: updater.availableUpdate?.isPrerelease == true)
+        assertTest("UpdateManager Beta Version Extracted", condition: updater.availableUpdate?.version.prerelease == "beta.1")
+
+        // Restore initial settings channel
+        settings.updateChannel = initialChannel
+        updater.setChannel(initialChannel)
+
         // 5. Bundle Verification & Target Resolution
         let resolvedTarget = UpdateManager.resolveTargetAppURL()
         assertTest("Target App Bundle Resolved", condition: resolvedTarget.path.hasSuffix(".app"))

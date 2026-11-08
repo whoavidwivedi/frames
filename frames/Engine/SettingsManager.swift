@@ -149,6 +149,7 @@ public final class SettingsManager {
     public static let liveCaptionsEngineKey = "frames_settings_live_captions_engine_v1"
     public static let batterySaverGuardKey = "frames_settings_battery_saver_guard_v1"
     public static let autoCheckUpdatesKey = "frames_settings_auto_check_updates_v1"
+    public static let updateChannelKey = "frames_settings_update_channel_v1"
 
     // MARK: - 1. General Settings
     public var defaultViewMode: ViewMode {
@@ -263,6 +264,21 @@ public final class SettingsManager {
     public var automaticallyCheckForUpdates: Bool {
         didSet {
             UserDefaults.standard.set(automaticallyCheckForUpdates, forKey: Self.autoCheckUpdatesKey)
+        }
+    }
+
+    public var updateChannel: UpdateChannel {
+        didSet {
+            UserDefaults.standard.set(updateChannel.rawValue, forKey: Self.updateChannelKey)
+        }
+    }
+
+    public var isBetaUpdatesEnabled: Bool {
+        get {
+            updateChannel == .beta
+        }
+        set {
+            updateChannel = newValue ? .beta : .stable
         }
     }
 
@@ -386,6 +402,13 @@ public final class SettingsManager {
             self.automaticallyCheckForUpdates = defaults.bool(forKey: Self.autoCheckUpdatesKey)
         } else {
             self.automaticallyCheckForUpdates = true
+        }
+
+        if let channelStr = defaults.string(forKey: Self.updateChannelKey),
+           let channel = UpdateChannel(rawValue: channelStr) {
+            self.updateChannel = channel
+        } else {
+            self.updateChannel = .stable
         }
     }
 

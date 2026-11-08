@@ -45,18 +45,43 @@ if [[ "$ARCH" != "arm64" ]]; then
     log_warn "Detected architecture: $ARCH. Frames is fully optimized for Apple Silicon (M1/M2/M3/M4)."
 fi
 
+CHANNEL="${CHANNEL:-stable}"
+for arg in "$@"; do
+    case "$arg" in
+        --beta|--canary)
+            CHANNEL="beta"
+            ;;
+        --stable)
+            CHANNEL="stable"
+            ;;
+        --channel=*)
+            CHANNEL="${arg#*=}"
+            ;;
+    esac
+done
+
 echo ""
 echo -e "${BOLD}┌─────────────────────────────────────────────────────────┐${RESET}"
 echo -e "${BOLD}│                   FRAMES macOS INSTALLER                │${RESET}"
 echo -e "${BOLD}│       Native Apple Silicon Video Player & Dashboard     │${RESET}"
 echo -e "${BOLD}└─────────────────────────────────────────────────────────┘${RESET}"
+echo -e "  Stream: ${BOLD}${CHANNEL}${RESET}"
 echo ""
 
-# 2. Query GitHub Releases API for Latest Version
-log_info "Fetching latest Frames release from GitHub..."
-
-REPO="whoavidwivedi/frames"
-LATEST_JSON=$(curl -fsSL -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null || true)
+# 2. Query GitHub Releases API for Version
+if [[ "${CHANNEL}" == "beta" || "${CHANNEL}" == "canary" ]]; then
+    log_info "Fetching latest Frames Beta/Canary release from GitHub..."
+    REPO="whoavidwivedi/frames"
+    LATEST_JSON=$(curl -fsSL -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/${REPO}/releases?per_page=5" 2>/dev/null || true)
+    if [[ -z "${LATEST_JSON}" ]]; then
+        # Fallback to latest endpoint
+        LATEST_JSON=$(curl -fsSL -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null || true)
+    fi
+else
+    log_info "Fetching latest Frames Stable release from GitHub..."
+    REPO="whoavidwivedi/frames"
+    LATEST_JSON=$(curl -fsSL -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null || true)
+fi
 
 if [[ -z "${LATEST_JSON}" ]]; then
     log_error "Unable to connect to GitHub API. Please check your internet connection."

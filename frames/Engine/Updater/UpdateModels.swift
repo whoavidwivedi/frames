@@ -89,6 +89,45 @@ public struct GitHubReleaseAsset: Codable, Sendable, Identifiable {
     }
 }
 
+// MARK: - Update Channel
+
+public enum UpdateChannel: String, CaseIterable, Identifiable, Codable, Sendable {
+    case stable = "stable"
+    case beta = "beta"
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .stable: return "Stable"
+        case .beta: return "Beta (Canary)"
+        }
+    }
+
+    public var shortName: String {
+        switch self {
+        case .stable: return "Stable"
+        case .beta: return "Beta"
+        }
+    }
+
+    public var subtitle: String {
+        switch self {
+        case .stable:
+            return "Production-ready releases tested and optimized for daily performance."
+        case .beta:
+            return "Get early access to preview builds, canary features, and rapid updates."
+        }
+    }
+
+    public var badgeIcon: String {
+        switch self {
+        case .stable: return "checkmark.shield.fill"
+        case .beta: return "flame.fill"
+        }
+    }
+}
+
 // MARK: - Application Update Presentation Models
 
 public struct AppUpdateInfo: Sendable, Identifiable {
@@ -100,6 +139,7 @@ public struct AppUpdateInfo: Sendable, Identifiable {
     public let releasePageURL: URL?
     public let publishedDate: Date?
     public let asset: GitHubReleaseAsset
+    public let isPrerelease: Bool
 
     public init(
         tagName: String,
@@ -108,7 +148,8 @@ public struct AppUpdateInfo: Sendable, Identifiable {
         releaseNotes: String,
         releasePageURL: URL?,
         publishedDate: Date?,
-        asset: GitHubReleaseAsset
+        asset: GitHubReleaseAsset,
+        isPrerelease: Bool = false
     ) {
         self.tagName = tagName
         self.version = version
@@ -117,6 +158,7 @@ public struct AppUpdateInfo: Sendable, Identifiable {
         self.releasePageURL = releasePageURL
         self.publishedDate = publishedDate
         self.asset = asset
+        self.isPrerelease = isPrerelease
     }
 }
 

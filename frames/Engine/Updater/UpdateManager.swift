@@ -13,8 +13,39 @@ public final class UpdateManager: NSObject {
     // MARK: - Configuration
     public let repositoryOwner = "whoavidwivedi"
     public let repositoryName = "frames"
-    public var apiEndpoint: URL {
+
+    public var releasesApiEndpoint: URL {
+        URL(string: "https://api.github.com/repos/\(repositoryOwner)/\(repositoryName)/releases?per_page=15")!
+    }
+
+    public var latestReleaseApiEndpoint: URL {
         URL(string: "https://api.github.com/repos/\(repositoryOwner)/\(repositoryName)/releases/latest")!
+    }
+
+    public var apiEndpoint: URL {
+        if updateChannel == .beta {
+            return releasesApiEndpoint
+        } else {
+            return latestReleaseApiEndpoint
+        }
+    }
+
+    public var updateChannel: UpdateChannel {
+        get {
+            SettingsManager.shared.updateChannel
+        }
+        set {
+            SettingsManager.shared.updateChannel = newValue
+        }
+    }
+
+    public func setChannel(_ channel: UpdateChannel, checkImmediately: Bool = false) {
+        updateChannel = channel
+        availableUpdate = nil
+        status = .idle
+        if checkImmediately {
+            checkForUpdates(manual: true)
+        }
     }
 
     // MARK: - Published State
@@ -78,7 +109,7 @@ public final class UpdateManager: NSObject {
 
         Task {
             do {
-                let release = try await fetchLatestRelease()
+                let release = try await self.fetchRelease(for: self.updateChannel)
                 self.lastCheckedDate = Date()
                 self.processRelease(release, manual: manual)
             } catch {
@@ -94,9 +125,48 @@ public final class UpdateManager: NSObject {
         }
     }
 
+    /// Fetches release according to target channel (Stable vs Beta).
+    public func fetchRelease(for channel: UpdateChannel) async throws -> GitHubRelease {
+        if channel == .beta {
+            let releases = try await fetchAllReleases()
+            guard let release = releases.first(where: { !($0.draft ?? false) }) else {
+                // If no specific beta release, fallback to latest stable
+                return try await fetchLatestRelease()
+            }
+            return release
+        } else {
+            return try await fetchLatestRelease()
+        }
+    }
+
+    /// Fetches recent releases from GitHub API.
+    public func fetchAllReleases() async throws -> [GitHubRelease] {
+        var request = URLRequest(url: releasesApiEndpoint)
+        request.timeoutInterval = 15
+        request.setValue("application/vnd.github.v3+json", forHTTPHeaderField: "Accept")
+        request.setValue("Frames-macOS/\(currentVersionString)", forHTTPHeaderField: "User-Agent")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NSError(domain: "FramesUpdate", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid server response."])
+        }
+
+        if httpResponse.statusCode == 404 {
+            throw NSError(domain: "FramesUpdate", code: 404, userInfo: [NSLocalizedDescriptionKey: "No published releases found."])
+        } else if httpResponse.statusCode == 403 {
+            throw NSError(domain: "FramesUpdate", code: 403, userInfo: [NSLocalizedDescriptionKey: "GitHub API rate limit exceeded. Please try again later."])
+        } else if httpResponse.statusCode != 200 {
+            throw NSError(domain: "FramesUpdate", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "Server returned error code \(httpResponse.statusCode)."])
+        }
+
+        let decoder = JSONDecoder()
+        return try decoder.decode([GitHubRelease].self, from: data)
+    }
+
     /// Fetches latest release payload from GitHub API.
     public func fetchLatestRelease() async throws -> GitHubRelease {
-        var request = URLRequest(url: apiEndpoint)
+        var request = URLRequest(url: latestReleaseApiEndpoint)
         request.timeoutInterval = 15
         request.setValue("application/vnd.github.v3+json", forHTTPHeaderField: "Accept")
         request.setValue("Frames-macOS/\(currentVersionString)", forHTTPHeaderField: "User-Agent")
@@ -164,7 +234,8 @@ public final class UpdateManager: NSObject {
                 releaseNotes: release.body ?? "General improvements and optimizations.",
                 releasePageURL: releasePageURL,
                 publishedDate: publishedDate,
-                asset: matchedAsset
+                asset: matchedAsset,
+                isPrerelease: release.prerelease ?? false
             )
 
             self.availableUpdate = update
@@ -180,7 +251,7 @@ public final class UpdateManager: NSObject {
             if manual {
                 self.manualCheckNotice = ManualCheckNotice(
                     title: "Up to Date",
-                    message: "Frames v\(currentVersion.displayString) is currently the newest version available."
+                    message: "Frames v\(currentVersion.displayString) (\(self.updateChannel.displayName) channel) is currently the newest version available."
                 )
             }
         }

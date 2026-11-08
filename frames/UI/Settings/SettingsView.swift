@@ -665,6 +665,208 @@ public struct SubtitlesSettingsTab: View {
 
 // MARK: - 5. About & Updates Settings Tab
 
+public struct SoftwareUpdatesSettingsCard: View {
+    @Bindable private var settings = SettingsManager.shared
+    private var updateManager = UpdateManager.shared
+
+    public init() {}
+
+    private var lastCheckedString: String {
+        if let date = updateManager.lastCheckedDate {
+            let formatter = RelativeDateTimeFormatter()
+            formatter.unitsStyle = .full
+            return "Last checked: \(formatter.localizedString(for: date, relativeTo: Date()))"
+        }
+        return "Automatically checks periodically"
+    }
+
+    public var body: some View {
+        let isChecking = updateManager.status == .checking
+
+        SettingsSectionCard("Software Updates") {
+            // 1. Automatic Update Check
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Check for Updates Automatically")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(ShadcnTheme.foreground)
+                    Text("Silently query GitHub Releases on launch for new updates.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                }
+                Spacer()
+                Toggle("", isOn: $settings.automaticallyCheckForUpdates)
+                    .toggleStyle(.switch)
+            }
+
+            Rectangle()
+                .fill(ShadcnTheme.borderSubtle)
+                .frame(height: 1)
+
+            // 2. Beta & Canary Updates Toggle
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text("Receive Beta & Canary Updates")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(ShadcnTheme.foreground)
+                        if settings.isBetaUpdatesEnabled {
+                            Text("BETA")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(Color.orange)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1.5)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                                        .fill(Color.orange.opacity(0.15))
+                                )
+                        }
+                    }
+                    Text("Opt into preview builds and canary features before public release.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                }
+                Spacer()
+                Toggle("", isOn: Binding(
+                    get: { settings.isBetaUpdatesEnabled },
+                    set: { newValue in
+                        settings.isBetaUpdatesEnabled = newValue
+                    }
+                ))
+                .toggleStyle(.switch)
+            }
+
+            Rectangle()
+                .fill(ShadcnTheme.borderSubtle)
+                .frame(height: 1)
+
+            // 3. Update Channel Selector
+            channelSelectorRow
+
+            Rectangle()
+                .fill(ShadcnTheme.borderSubtle)
+                .frame(height: 1)
+
+            // 4. Manual Update Check
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Manual Update Check")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(ShadcnTheme.foreground)
+                    Text("Stream: \(settings.updateChannel.displayName) • \(lastCheckedString)")
+                        .font(.system(size: 11))
+                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                }
+                Spacer()
+                ShadcnButton(
+                    isChecking ? "Checking for Updates..." : "Check for \(settings.updateChannel.shortName) Updates",
+                    icon: "arrow.triangle.2.circlepath",
+                    variant: .primary,
+                    size: .sm
+                ) {
+                    guard !isChecking else { return }
+                    updateManager.checkForUpdates(manual: true)
+                }
+                .disabled(isChecking)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var channelSelectorRow: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Update Channel")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(ShadcnTheme.foreground)
+                    Text("Select which release stream Frames downloads updates from.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                }
+                Spacer()
+
+                HStack(spacing: 2) {
+                    ForEach(UpdateChannel.allCases) { channel in
+                        ChannelButton(
+                            channel: channel,
+                            isSelected: settings.updateChannel == channel
+                        ) {
+                            settings.updateChannel = channel
+                        }
+                    }
+                }
+                .padding(2)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(ShadcnTheme.secondary)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
+                        )
+                )
+            }
+
+            ChannelInfoBanner(channel: settings.updateChannel)
+        }
+    }
+}
+
+private struct ChannelInfoBanner: View {
+    let channel: UpdateChannel
+
+    var body: some View {
+        let isBeta = channel == .beta
+        let accentColor: Color = isBeta ? Color.orange : Color.green
+
+        HStack(spacing: 6) {
+            Image(systemName: isBeta ? "info.circle.fill" : "checkmark.seal.fill")
+                .font(.system(size: 11))
+                .foregroundStyle(accentColor)
+            Text(channel.subtitle)
+                .font(.system(size: 11))
+                .foregroundStyle(ShadcnTheme.foregroundSecondary)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                .fill(accentColor.opacity(0.06))
+        )
+    }
+}
+
+private struct ChannelButton: View {
+    let channel: UpdateChannel
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: channel.badgeIcon)
+                    .font(.system(size: 10))
+                Text(channel.displayName)
+                    .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
+            }
+            .foregroundStyle(isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(
+                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                    .fill(isSelected ? ShadcnTheme.cardHover : Color.clear)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                            .strokeBorder(isSelected ? ShadcnTheme.border : Color.clear, lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .pointingHand()
+    }
+}
+
 public struct AboutSettingsTab: View {
     @Bindable private var settings = SettingsManager.shared
     private var updateManager = UpdateManager.shared
@@ -674,52 +876,10 @@ public struct AboutSettingsTab: View {
     public init() {}
 
     public var body: some View {
-        let isChecking = updateManager.status == .checking
-
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 16) {
                 // In-App OTA Updates
-                SettingsSectionCard("Software Updates") {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Check for Updates Automatically")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundStyle(ShadcnTheme.foreground)
-                            Text("Silently query GitHub Releases on launch for new updates.")
-                                .font(.system(size: 11))
-                                .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                        }
-                        Spacer()
-                        Toggle("", isOn: $settings.automaticallyCheckForUpdates)
-                            .toggleStyle(.switch)
-                    }
-
-                    Rectangle()
-                        .fill(ShadcnTheme.borderSubtle)
-                        .frame(height: 1)
-
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Manual Update Check")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundStyle(ShadcnTheme.foreground)
-                            Text(lastCheckedString)
-                                .font(.system(size: 11))
-                                .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                        }
-                        Spacer()
-                        ShadcnButton(
-                            isChecking ? "Checking for Updates..." : "Check for Updates Now...",
-                            icon: "arrow.triangle.2.circlepath",
-                            variant: .primary,
-                            size: .sm
-                        ) {
-                            guard !isChecking else { return }
-                            updateManager.checkForUpdates(manual: true)
-                        }
-                        .disabled(isChecking)
-                    }
-                }
+                SoftwareUpdatesSettingsCard()
 
                 // Application & Architecture Badges
                 SettingsSectionCard("About Frames") {
