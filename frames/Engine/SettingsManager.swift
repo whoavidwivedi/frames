@@ -269,7 +269,6 @@ public final class SettingsManager {
     // MARK: - In-App Presentation State
     public var isSettingsPresented: Bool = false
     public var selectedSettingsTab: SettingsTab = .general
-    public var openSettingsAction: (@MainActor () -> Void)?
 
     // MARK: - Initialization
     public init() {
@@ -440,7 +439,6 @@ public final class SettingsManager {
         withAnimation(.fluidSpring) {
             self.isSettingsPresented = true
         }
-        openSettingsAction?()
     }
 
     @MainActor

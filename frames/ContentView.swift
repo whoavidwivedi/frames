@@ -376,11 +376,6 @@ struct ContentView: View {
             }
         }
         .onAppear {
-            SettingsManager.shared.openSettingsAction = {
-                withAnimation(.fluidSpring) {
-                    settings.openSettings()
-                }
-            }
             keyboardHandler = KeyboardHandler(engine: engine)
             engine.onPlaybackEnded = {
                 Task { @MainActor in

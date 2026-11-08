@@ -167,7 +167,6 @@ public struct SettingsView: View {
 
 public struct InAppSettingsDialog: View {
     public var onDismiss: () -> Void
-    @State private var keyMonitor: Any? = nil
 
     public init(onDismiss: @escaping () -> Void) {
         self.onDismiss = onDismiss
@@ -192,25 +191,6 @@ public struct InAppSettingsDialog: View {
                     .shadow(color: Color.black.opacity(0.38), radius: 24, x: 0, y: 12)
             }
             .frame(width: geo.size.width, height: geo.size.height)
-        }
-        .onAppear {
-            keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-                if event.keyCode == 53 { // ESC
-                    onDismiss()
-                    return nil
-                }
-                if event.modifierFlags.contains(.command) && !event.modifierFlags.contains(.control) && event.keyCode == 43 { // ⌘,
-                    onDismiss()
-                    return nil
-                }
-                return event
-            }
-        }
-        .onDisappear {
-            if let monitor = keyMonitor {
-                NSEvent.removeMonitor(monitor)
-                keyMonitor = nil
-            }
         }
     }
 }

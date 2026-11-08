@@ -282,6 +282,10 @@ public final class KeyboardHandler {
 
             case 53: // Escape key
                 Task { @MainActor in
+                    if SettingsManager.shared.isSettingsPresented {
+                        SettingsManager.shared.closeSettings()
+                        return
+                    }
                     if engine.activeInspectorSheet != nil {
                         engine.activeInspectorSheet = nil
                     } else if engine.playbackError != nil {
