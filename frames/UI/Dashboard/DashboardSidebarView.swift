@@ -183,30 +183,7 @@ public struct DashboardSidebarView: View {
                 .buttonStyle(.plain)
                 .pointingHand()
                 .help("Frames v\(updateManager.currentVersionString) • Click to check for updates")
-
-                let metrics = AppleSiliconMetrics.shared
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(Color.green.opacity(0.8))
-                        .frame(width: 6, height: 6)
-
-                    Text(metrics.chipName.isEmpty ? "Apple Silicon" : metrics.chipName)
-                        .font(.system(size: 10.5, weight: .medium, design: .monospaced))
-                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                        .lineLimit(1)
-
-                    if width >= 190 {
-                        Spacer()
-
-                        Text("\(Int(metrics.displayRefreshRate))Hz")
-                            .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                            .foregroundStyle(ShadcnTheme.foregroundMuted)
-                            .transition(.opacity)
-                    }
-                }
-                .padding(.horizontal, 14)
-                .padding(.bottom, 10)
-                .animation(.fluidSpring, value: width >= 190)
+                .padding(.bottom, 8)
             }
         }
         .frame(width: width)

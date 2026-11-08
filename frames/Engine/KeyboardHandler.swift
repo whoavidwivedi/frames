@@ -31,13 +31,17 @@ public final class KeyboardHandler {
 
                 if event.modifierFlags.contains(.command) && !event.modifierFlags.contains(.control) && !event.modifierFlags.contains(.option) && event.keyCode == 43 {
                     Task { @MainActor in
-                        SettingsManager.shared.openSettings()
+                        SettingsManager.shared.toggleSettings()
                     }
                     return nil
                 }
 
                 if event.keyCode == 53 {
                     Task { @MainActor in
+                        if SettingsManager.shared.isSettingsPresented {
+                            SettingsManager.shared.closeSettings()
+                            return
+                        }
                         NSApp.keyWindow?.makeFirstResponder(nil)
                         LibraryManager.shared.searchQuery = ""
                     }
@@ -130,7 +134,7 @@ public final class KeyboardHandler {
             // Settings: Command + , (⌘,)
             if isCommand && !isControl && !isOption && keyCode == 43 {
                 Task { @MainActor in
-                    SettingsManager.shared.openSettings()
+                    SettingsManager.shared.toggleSettings()
                 }
                 return nil
             }

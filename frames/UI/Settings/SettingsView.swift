@@ -41,45 +41,177 @@ public struct SettingsSectionCard<Content: View>: View {
 // MARK: - Root Settings View
 
 public struct SettingsView: View {
-    @State private var selectedTab: SettingsTab = .general
-    private var settings = SettingsManager.shared
+    @Bindable private var settings = SettingsManager.shared
+    public var onDismiss: (() -> Void)? = nil
+    @State private var hoveredTab: SettingsTab? = nil
+    @State private var hoveringClose: Bool = false
 
-    public init() {}
+    public init(onDismiss: (() -> Void)? = nil) {
+        self.onDismiss = onDismiss
+    }
 
     public var body: some View {
-        TabView(selection: $selectedTab) {
-            GeneralSettingsTab()
-                .tabItem {
-                    Label(SettingsTab.general.title, systemImage: SettingsTab.general.icon)
-                }
-                .tag(SettingsTab.general)
+        VStack(spacing: 0) {
+            // Header Bar: Title + Tab Pills + Optional Close Button
+            HStack(spacing: 12) {
+                HStack(spacing: 7) {
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
 
-            PlaybackSettingsTab()
-                .tabItem {
-                    Label(SettingsTab.playback.title, systemImage: SettingsTab.playback.icon)
+                    Text("Settings")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(ShadcnTheme.foreground)
                 }
-                .tag(SettingsTab.playback)
 
-            AudioSettingsTab()
-                .tabItem {
-                    Label(SettingsTab.audio.title, systemImage: SettingsTab.audio.icon)
-                }
-                .tag(SettingsTab.audio)
+                Spacer()
 
-            SubtitlesSettingsTab()
-                .tabItem {
-                    Label(SettingsTab.subtitles.title, systemImage: SettingsTab.subtitles.icon)
-                }
-                .tag(SettingsTab.subtitles)
+                // Tab Switcher Pills
+                HStack(spacing: 3) {
+                    ForEach(SettingsTab.allCases) { tab in
+                        let isSelected = settings.selectedSettingsTab == tab
+                        Button {
+                            withAnimation(.fluidQuick) {
+                                settings.selectedSettingsTab = tab
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: tab.icon)
+                                    .font(.system(size: 10.5, weight: isSelected ? .semibold : .medium))
 
-            AboutSettingsTab()
-                .tabItem {
-                    Label(SettingsTab.about.title, systemImage: SettingsTab.about.icon)
+                                Text(tab.title)
+                                    .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
+                            }
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 4.5)
+                            .foregroundStyle(isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
+                            .background(
+                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                    .fill(isSelected ? ShadcnTheme.cardHover : (hoveredTab == tab ? ShadcnTheme.muted.opacity(0.4) : Color.clear))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                    .strokeBorder(isSelected ? ShadcnTheme.border : Color.clear, lineWidth: 1)
+                            )
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .pointingHand()
+                        .onHover { h in
+                            withAnimation(.fluidQuick) {
+                                hoveredTab = h ? tab : nil
+                            }
+                        }
+                    }
                 }
-                .tag(SettingsTab.about)
+                .padding(2)
+                .background(
+                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm + 2, style: .continuous)
+                        .fill(ShadcnTheme.secondary.opacity(0.4))
+                )
+
+                if let onDismiss = onDismiss {
+                    Button(action: onDismiss) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                .fill(hoveringClose ? ShadcnTheme.cardHover : Color.black.opacity(0.0001))
+
+                            Image(systemName: "xmark")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(hoveringClose ? ShadcnTheme.foreground : ShadcnTheme.foregroundMuted)
+                        }
+                        .frame(width: 24, height: 24)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .pointingHand()
+                    .help("Close (Esc)")
+                    .onHover { hoveringClose = $0 }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(ShadcnTheme.card)
+
+            Divider()
+                .overlay(ShadcnTheme.border)
+
+            // Active Tab Content
+            Group {
+                switch settings.selectedSettingsTab {
+                case .general:
+                    GeneralSettingsTab()
+                case .playback:
+                    PlaybackSettingsTab()
+                case .audio:
+                    AudioSettingsTab()
+                case .subtitles:
+                    SubtitlesSettingsTab()
+                case .about:
+                    AboutSettingsTab()
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(ShadcnTheme.background)
         }
-        .frame(width: 580, height: 540)
         .background(ShadcnTheme.background)
+        .clipShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusLg, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: ShadcnTheme.radiusLg, style: .continuous)
+                .strokeBorder(ShadcnTheme.border, lineWidth: 1)
+        )
+    }
+}
+
+// MARK: - In-App Settings Dialog Overlay
+
+public struct InAppSettingsDialog: View {
+    public var onDismiss: () -> Void
+    @State private var keyMonitor: Any? = nil
+
+    public init(onDismiss: @escaping () -> Void) {
+        self.onDismiss = onDismiss
+    }
+
+    public var body: some View {
+        GeometryReader { geo in
+            ZStack {
+                // Dimmed ambient backdrop with tap gesture to dismiss
+                Color.black.opacity(0.48)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        onDismiss()
+                    }
+
+                // In-app Settings Card
+                SettingsView(onDismiss: onDismiss)
+                    .frame(
+                        width: min(620, max(460, geo.size.width - 48)),
+                        height: min(560, max(360, geo.size.height - 64))
+                    )
+                    .shadow(color: Color.black.opacity(0.38), radius: 24, x: 0, y: 12)
+            }
+            .frame(width: geo.size.width, height: geo.size.height)
+        }
+        .onAppear {
+            keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+                if event.keyCode == 53 { // ESC
+                    onDismiss()
+                    return nil
+                }
+                if event.modifierFlags.contains(.command) && !event.modifierFlags.contains(.control) && event.keyCode == 43 { // ⌘,
+                    onDismiss()
+                    return nil
+                }
+                return event
+            }
+        }
+        .onDisappear {
+            if let monitor = keyMonitor {
+                NSEvent.removeMonitor(monitor)
+                keyMonitor = nil
+            }
+        }
     }
 }
 

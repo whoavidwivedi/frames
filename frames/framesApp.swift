@@ -33,7 +33,7 @@ struct framesApp: App {
 
             SwiftUI.CommandGroup(replacing: .appSettings) {
                 Button("Settings...") {
-                    SettingsManager.shared.openSettings()
+                    SettingsManager.shared.toggleSettings()
                 }
                 .keyboardShortcut(",", modifiers: .command)
             }
@@ -88,10 +88,6 @@ struct framesApp: App {
                     }
                 }
             }
-        }
-
-        Settings {
-            SettingsView()
         }
     }
 

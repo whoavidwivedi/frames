@@ -266,8 +266,10 @@ public final class SettingsManager {
         }
     }
 
+    // MARK: - In-App Presentation State
+    public var isSettingsPresented: Bool = false
+    public var selectedSettingsTab: SettingsTab = .general
     public var openSettingsAction: (@MainActor () -> Void)?
-    private var settingsWindowController: NSWindowController?
 
     // MARK: - Initialization
     public init() {
@@ -431,52 +433,27 @@ public final class SettingsManager {
     }
 
     @MainActor
-    public func openSettings() {
-        NSApp.activate(ignoringOtherApps: true)
-        if let handler = openSettingsAction {
-            handler()
-            return
+    public func openSettings(tab: SettingsTab? = nil) {
+        if let tab = tab {
+            self.selectedSettingsTab = tab
         }
-        let handled = NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-        if !handled {
-            let prefHandled = NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
-            if !prefHandled {
-                openStandaloneSettingsWindow()
-            }
+        withAnimation(.fluidSpring) {
+            self.isSettingsPresented = true
+        }
+        openSettingsAction?()
+    }
+
+    @MainActor
+    public func closeSettings() {
+        withAnimation(.fluidSpring) {
+            self.isSettingsPresented = false
         }
     }
 
     @MainActor
-    public func openStandaloneSettingsWindow() {
-        if let windowController = settingsWindowController, let window = windowController.window {
-            window.collectionBehavior = [.fullScreenAuxiliary]
-            if WindowManager.shared.isNativeFullscreen {
-                window.level = .floating
-            } else {
-                window.level = .normal
-            }
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            return
+    public func toggleSettings() {
+        withAnimation(.fluidSpring) {
+            self.isSettingsPresented.toggle()
         }
-
-        let settingsView = SettingsView()
-        let hostingController = NSHostingController(rootView: settingsView)
-        let window = NSWindow(contentViewController: hostingController)
-        window.title = "Settings"
-        window.styleMask = [.titled, .closable, .miniaturizable]
-        window.center()
-        window.isReleasedWhenClosed = false
-        window.tabbingMode = .disallowed
-        window.setContentSize(NSSize(width: 580, height: 540))
-        window.collectionBehavior = [.fullScreenAuxiliary]
-        if WindowManager.shared.isNativeFullscreen {
-            window.level = .floating
-        }
-
-        let wc = NSWindowController(window: window)
-        self.settingsWindowController = wc
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
     }
 }

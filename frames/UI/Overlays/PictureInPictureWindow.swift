@@ -30,8 +30,10 @@ public final class PictureInPictureManager {
         let pipView = PictureInPictureContentView(engine: engine)
         let hostingView = NSHostingView(rootView: pipView)
 
+        let videoSize = engine.metadata.naturalSize
+        let aspect: CGFloat = (videoSize.width > 0 && videoSize.height > 0) ? (videoSize.width / videoSize.height) : (16.0 / 9.0)
         let initialWidth: CGFloat = 460
-        let initialHeight: CGFloat = 260
+        let initialHeight: CGFloat = initialWidth / aspect
         let screen = NSScreen.main?.visibleFrame ?? NSRect(x: 100, y: 100, width: 800, height: 600)
         let margin: CGFloat = 24
         let pipX = screen.maxX - initialWidth - margin
@@ -53,9 +55,9 @@ public final class PictureInPictureManager {
         panel.backgroundColor = .black
         panel.hasShadow = true
         panel.contentView = hostingView
-        panel.minSize = NSSize(width: 280, height: 158)
-        panel.maxSize = NSSize(width: 960, height: 540)
-        panel.aspectRatio = NSSize(width: 16, height: 9)
+        panel.minSize = NSSize(width: 240, height: 240 / aspect)
+        panel.maxSize = NSSize(width: 960, height: 960 / aspect)
+        panel.aspectRatio = (videoSize.width > 0 && videoSize.height > 0) ? NSSize(width: videoSize.width, height: videoSize.height) : NSSize(width: 16, height: 9)
 
         panel.orderFrontRegardless()
         self.pipPanel = panel

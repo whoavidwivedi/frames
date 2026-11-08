@@ -110,6 +110,16 @@ public final class LibraryManager {
         viewMode = (viewMode == .grid) ? .list : .grid
     }
 
+    public func cycleSortOption() {
+        let all = SortOption.allCases
+        if let idx = all.firstIndex(of: sortOption) {
+            let nextIdx = (idx + 1) % all.count
+            sortOption = all[nextIdx]
+        } else {
+            sortOption = .dateAdded
+        }
+    }
+
     public func toggleSearch() {
         withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
             isSearchActive.toggle()

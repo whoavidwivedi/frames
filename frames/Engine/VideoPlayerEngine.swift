@@ -230,6 +230,7 @@ public final class VideoPlayerEngine {
         availableAudioTracks = []
         selectedAudioTrack = nil
         metadata = VideoMetadata()
+        nativePipeline.renderer?.preferredAspectRatio = nil
         activeInspectorSheet = nil
         updateBufferingStatus(false)
     }
@@ -825,6 +826,9 @@ public final class VideoPlayerEngine {
             // Inspect video metadata from demuxer
             if let vTrack = self.nativePipeline.demuxer?.videoTracks.first {
                 self.metadata.naturalSize = CGSize(width: vTrack.displayWidth, height: vTrack.displayHeight)
+                if vTrack.displayWidth > 0 && vTrack.displayHeight > 0 {
+                    self.nativePipeline.renderer?.preferredAspectRatio = Float(vTrack.displayWidth) / Float(vTrack.displayHeight)
+                }
                 if let fps = vTrack.estimatedFPS {
                     self.metadata.frameRate = Float(fps)
                 }
@@ -903,6 +907,9 @@ public final class VideoPlayerEngine {
            let videoTrack = videoTracks.first {
             if let size = try? await videoTrack.load(.naturalSize) {
                 meta.naturalSize = size
+                if size.width > 0 && size.height > 0 {
+                    self.nativePipeline.renderer?.preferredAspectRatio = Float(size.width / size.height)
+                }
             }
             if let rate = try? await videoTrack.load(.nominalFrameRate) {
                 meta.frameRate = rate

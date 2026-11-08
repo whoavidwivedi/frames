@@ -239,21 +239,10 @@ public struct DashboardTopBarView: View {
                             .transition(.opacity.combined(with: .scale(scale: 0.92)))
                     }
 
-                    // Unified Persistent Sort Menu (Text smoothly collapses on compact width with 0 popping)
-                    Menu {
-                        ForEach(SortOption.allCases) { opt in
-                            Button {
-                                withAnimation(.fluidQuick) {
-                                    library.sortOption = opt
-                                }
-                            } label: {
-                                HStack {
-                                    Text(opt.rawValue)
-                                    if library.sortOption == opt {
-                                        Image(systemName: "checkmark")
-                                    }
-                                }
-                            }
+                    // Dedicated Sort Button (Click to cycle, right-click for direct choice)
+                    Button {
+                        withAnimation(.fluidSpring) {
+                            library.cycleSortOption()
                         }
                     } label: {
                         HStack(spacing: 5) {
@@ -262,7 +251,7 @@ public struct DashboardTopBarView: View {
                             if !isCompactSort {
                                 Text(library.sortOption.rawValue)
                                     .font(.system(size: 11, weight: .medium))
-                                    .transition(.opacity.combined(with: .move(edge: .trailing)))
+                                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
                             }
                         }
                         .foregroundStyle(ShadcnTheme.foregroundSecondary)
@@ -279,11 +268,26 @@ public struct DashboardTopBarView: View {
                         )
                         .contentShape(Rectangle())
                     }
-                    .menuStyle(.borderlessButton)
-                    .fixedSize()
+                    .buttonStyle(.plain)
                     .contentShape(Rectangle())
                     .pointingHand()
-                    .help("Sort: \(library.sortOption.rawValue)")
+                    .contextMenu {
+                        ForEach(SortOption.allCases) { opt in
+                            Button {
+                                withAnimation(.fluidSpring) {
+                                    library.sortOption = opt
+                                }
+                            } label: {
+                                HStack {
+                                    Text(opt.rawValue)
+                                    if library.sortOption == opt {
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .help("Sort: \(library.sortOption.rawValue) (Click to cycle)")
 
                     // 1-Click View Mode Toggle Button (Grid <-> List)
                     Button {

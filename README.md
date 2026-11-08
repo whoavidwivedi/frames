@@ -36,7 +36,19 @@ The user interface adheres strictly to the **shadcn `base-luma`/`neutral`** (pre
 
 ---
 
-## ⚡️ Download & Install
+## ⚡️ Quick Install (1-Line Terminal Command)
+
+Install Frames directly on your Mac with a single command — automatically handles Gatekeeper permissions and launches immediately without any quarantine warnings:
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/whoavidwivedi/frames/main/scripts/install.sh)"
+```
+
+> **What this does**: Automatically fetches the latest release, installs `Frames.app` into `/Applications`, clears macOS quarantine attributes (`xattr -dr com.apple.quarantine`), and launches Frames.
+
+---
+
+## 📦 Manual Download & Install
 
 Download the latest pre-compiled binary from the [Releases](https://github.com/whoavidwivedi/frames/releases) page:
 

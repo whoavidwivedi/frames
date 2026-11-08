@@ -16,7 +16,6 @@ struct ContentView: View {
     @State private var pendingResumePrompt: ResumePromptData? = nil
     @State private var updateManager = UpdateManager.shared
     @State private var settings = SettingsManager.shared
-    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         ZStack {
@@ -295,6 +294,22 @@ struct ContentView: View {
                 .zIndex(150)
             }
 
+            // In-App Settings Dialog Overlay
+            if settings.isSettingsPresented {
+                InAppSettingsDialog(onDismiss: {
+                    withAnimation(.fluidSpring) {
+                        settings.closeSettings()
+                    }
+                })
+                .zIndex(155)
+                .transition(
+                    .asymmetric(
+                        insertion: .scale(scale: 0.97).combined(with: .opacity),
+                        removal: .scale(scale: 0.98).combined(with: .opacity)
+                    )
+                )
+            }
+
             // Update Available Modal Dialog
             if updateManager.isUpdatePromptPresented, let update = updateManager.availableUpdate {
                 UpdateAvailableOverlay(
@@ -362,7 +377,9 @@ struct ContentView: View {
         }
         .onAppear {
             SettingsManager.shared.openSettingsAction = {
-                openSettings()
+                withAnimation(.fluidSpring) {
+                    settings.openSettings()
+                }
             }
             keyboardHandler = KeyboardHandler(engine: engine)
             engine.onPlaybackEnded = {

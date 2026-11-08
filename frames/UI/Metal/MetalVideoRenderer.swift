@@ -97,6 +97,15 @@ nonisolated public final class MetalVideoRenderer: @unchecked Sendable {
     }
     
     private var frameCount: UInt64 = 0
+    public var preferredAspectRatio: Float? = nil {
+        didSet {
+            renderLock.lock()
+            cachedAspectScale = simd_float2(1.0, 1.0)
+            lastBufferWidth = 0
+            renderLock.unlock()
+        }
+    }
+    private var lastPreferredAspectRatio: Float? = nil
     private var lastBufferWidth: Int = 0
     private var lastBufferHeight: Int = 0
     private var lastPixelFormat: OSType = 0
@@ -155,6 +164,7 @@ nonisolated public final class MetalVideoRenderer: @unchecked Sendable {
         self.lastPixelFormat = 0
         self.lastLayerWidth = 0
         self.lastLayerHeight = 0
+        self.lastPreferredAspectRatio = nil
         self.cachedAspectScale = simd_float2(1.0, 1.0)
         self.cachedColorSpaceMode = 0
         let cache = textureCache
@@ -251,28 +261,40 @@ nonisolated public final class MetalVideoRenderer: @unchecked Sendable {
         let layerHeight = Float(layer.drawableSize.height)
         var aspectScale = cachedAspectScale
 
-        if width != lastBufferWidth || height != lastBufferHeight || layerWidth != lastLayerWidth || layerHeight != lastLayerHeight {
+        if width != lastBufferWidth || height != lastBufferHeight || layerWidth != lastLayerWidth || layerHeight != lastLayerHeight || preferredAspectRatio != lastPreferredAspectRatio {
             lastBufferWidth = width
             lastBufferHeight = height
             lastLayerWidth = layerWidth
             lastLayerHeight = layerHeight
+            lastPreferredAspectRatio = preferredAspectRatio
 
-        if layerWidth > 0 && layerHeight > 0 && width > 0 && height > 0 {
-            var par: Float = 1.0
-            if let parDict = CVBufferCopyAttachment(buffer, kCVImageBufferPixelAspectRatioKey, nil) as? [String: Any] {
-                let hSpacing = (parDict[kCVImageBufferPixelAspectRatioHorizontalSpacingKey as String] as? NSNumber)?.floatValue ?? 1.0
-                let vSpacing = (parDict[kCVImageBufferPixelAspectRatioVerticalSpacingKey as String] as? NSNumber)?.floatValue ?? 1.0
-                if vSpacing > 0 {
-                    par = hSpacing / vSpacing
+            if layerWidth > 0 && layerHeight > 0 && width > 0 && height > 0 {
+                var par: Float = 1.0
+                if let parDict = CVBufferCopyAttachment(buffer, kCVImageBufferPixelAspectRatioKey, nil) as? [String: Any] {
+                    let hSpacing = (parDict[kCVImageBufferPixelAspectRatioHorizontalSpacingKey as String] as? NSNumber)?.floatValue ?? 1.0
+                    let vSpacing = (parDict[kCVImageBufferPixelAspectRatioVerticalSpacingKey as String] as? NSNumber)?.floatValue ?? 1.0
+                    if vSpacing > 0 {
+                        par = hSpacing / vSpacing
+                    }
                 }
-            }
-            let viewAspect = layerWidth / layerHeight
-            let videoAspect = (Float(width) * par) / Float(height)
-            if viewAspect > videoAspect {
-                aspectScale = simd_float2(videoAspect / viewAspect, 1.0)
-            } else {
-                aspectScale = simd_float2(1.0, viewAspect / videoAspect)
-            }
+                let viewAspect = layerWidth / layerHeight
+                let videoAspect: Float
+                if let preferred = preferredAspectRatio, preferred > 0 {
+                    videoAspect = preferred
+                } else if let clapDict = CVBufferCopyAttachment(buffer, kCVImageBufferCleanApertureKey, nil) as? [String: Any],
+                          let clapW = (clapDict[kCVImageBufferCleanApertureWidthKey as String] as? NSNumber)?.floatValue,
+                          let clapH = (clapDict[kCVImageBufferCleanApertureHeightKey as String] as? NSNumber)?.floatValue,
+                          clapW > 0 && clapH > 0 {
+                    videoAspect = (clapW * par) / clapH
+                } else {
+                    videoAspect = (Float(width) * par) / Float(height)
+                }
+
+                if viewAspect > videoAspect {
+                    aspectScale = simd_float2(videoAspect / viewAspect, 1.0)
+                } else {
+                    aspectScale = simd_float2(1.0, viewAspect / videoAspect)
+                }
                 cachedAspectScale = aspectScale
             }
 
