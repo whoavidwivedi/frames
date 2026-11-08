@@ -26,6 +26,10 @@ public final class TitleBarDragNSView: NSView {
     }
 
 
+    public override var mouseDownCanMoveWindow: Bool {
+        true
+    }
+
     public override func mouseDown(with event: NSEvent) {
         // Double-click / double-tap the top bar: match the macOS title bar action
         // (Zoom to fill, then restore the previous frame; or Minimize per System Settings).

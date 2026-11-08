@@ -14,6 +14,9 @@ public struct DashboardTopBarView: View {
         case back
         case forward
         case search
+        case sort
+        case viewMode
+        case theme
     }
 
     public init(library: LibraryManager, onPlayURL: @escaping (URL) -> Void) {
@@ -29,141 +32,135 @@ public struct DashboardTopBarView: View {
             let isUltraNarrow = isCompact || geo.size.width < 500
             let showBadge = !isCompact && geo.size.width >= 660
             let isCompactSort = isCompact || geo.size.width < 580
-            let trafficSpacerWidth: CGFloat = isUltraNarrow ? 66 : (isNarrow ? 70 : 76)
+            let trafficSpacerWidth: CGFloat = isUltraNarrow ? 66 : (isNarrow ? 70 : 74)
 
             HStack(spacing: isNarrow ? 6 : 8) {
-                // Standard macOS traffic lights spacer
+                // Standard macOS traffic lights spacer & double-click area
                 Color.clear
-                    .frame(width: trafficSpacerWidth, height: 1)
+                    .frame(width: trafficSpacerWidth, height: 32)
+                    .contentShape(Rectangle())
+                    .onTapGesture(count: 2) {
+                        WindowManager.shared.performTitleBarDoubleClickAction()
+                    }
 
-                // MARK: - Navigation & Sidebar Toolbar Controls (Antigravity Style)
+                // MARK: - Navigation & Sidebar Toolbar Controls (Antigravity Style: Icon-Only)
                 HStack(spacing: 4) {
-                    // 1. Sidebar Toggle Button
+                    // 1. Sidebar Toggle Icon
                     Button {
-                        library.toggleSidebar()
+                        withAnimation(.snappy(duration: 0.2)) {
+                            library.toggleSidebar()
+                        }
                     } label: {
                         ZStack {
-                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                .fill(hoveredButton == .sidebar ? ShadcnTheme.cardHover : (library.isSidebarVisible ? ShadcnTheme.accentActive : Color.black.opacity(0.0001)))
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                .fill(hoveredButton == .sidebar ? ShadcnTheme.cardHover : Color.black.opacity(0.0001))
 
                             Image(systemName: "sidebar.leading")
-                                .font(.system(size: 13, weight: .regular))
-                                .foregroundStyle(library.isSidebarVisible ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
+                                .font(.system(size: 12, weight: .regular))
+                                .foregroundStyle(library.isSidebarVisible ? ShadcnTheme.foreground : ShadcnTheme.foregroundMuted)
                         }
-                        .frame(width: 28, height: 28)
+                        .frame(width: 20, height: 20)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .contentShape(Rectangle())
                     .pointingHand()
                     .help("Toggle Sidebar (⌘B)")
                     .onHover { h in
-                        withAnimation(.fluidQuick) {
-                            hoveredButton = h ? .sidebar : nil
-                        }
+                        hoveredButton = h ? .sidebar : nil
                     }
 
-                    // 2. Back Arrow Button
+                    // 2. Back Arrow Icon
                     Button {
                         library.goBack()
                     } label: {
                         ZStack {
-                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
                                 .fill(hoveredButton == .back && library.canGoBack ? ShadcnTheme.cardHover : Color.black.opacity(0.0001))
 
                             Image(systemName: "arrow.left")
-                                .font(.system(size: 13, weight: .regular))
+                                .font(.system(size: 11, weight: .regular))
                                 .foregroundStyle(library.canGoBack ? ShadcnTheme.foreground : ShadcnTheme.foregroundMuted.opacity(0.35))
                         }
-                        .frame(width: 28, height: 28)
+                        .frame(width: 20, height: 20)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .disabled(!library.canGoBack)
-                    .contentShape(Rectangle())
                     .pointingHand()
                     .help("Back (⌘[)")
                     .onHover { h in
-                        withAnimation(.fluidQuick) {
-                            hoveredButton = h ? .back : nil
-                        }
+                        hoveredButton = h ? .back : nil
                     }
 
-                    // 3. Forward Arrow Button (hide when disabled in ultra-narrow)
+                    // 3. Forward Arrow Icon (hide when disabled in ultra-narrow)
                     if !isUltraNarrow || library.canGoForward {
                         Button {
                             library.goForward()
                         } label: {
                             ZStack {
-                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                RoundedRectangle(cornerRadius: 4, style: .continuous)
                                     .fill(hoveredButton == .forward && library.canGoForward ? ShadcnTheme.cardHover : Color.black.opacity(0.0001))
 
                                 Image(systemName: "arrow.right")
-                                    .font(.system(size: 13, weight: .regular))
+                                    .font(.system(size: 11, weight: .regular))
                                     .foregroundStyle(library.canGoForward ? ShadcnTheme.foreground : ShadcnTheme.foregroundMuted.opacity(0.35))
                             }
-                            .frame(width: 28, height: 28)
+                            .frame(width: 20, height: 20)
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .disabled(!library.canGoForward)
-                        .contentShape(Rectangle())
                         .pointingHand()
                         .help("Forward (⌘])")
                         .onHover { h in
-                            withAnimation(.fluidQuick) {
-                                hoveredButton = h ? .forward : nil
-                            }
+                            hoveredButton = h ? .forward : nil
                         }
                         .transition(.opacity.combined(with: .scale(scale: 0.9)))
                     }
 
-                    // 4. Search & Command Menu (⌘K, ⌘F)
+                    // 4. Search & Command Menu (⌘K, ⌘F) Icon
                     Button {
                         CommandPaletteManager.shared.toggle()
                     } label: {
                         ZStack {
-                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                .fill(hoveredButton == .search ? ShadcnTheme.cardHover : (CommandPaletteManager.shared.isPresented ? ShadcnTheme.accentActive : Color.black.opacity(0.0001)))
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                .fill(hoveredButton == .search || CommandPaletteManager.shared.isPresented ? ShadcnTheme.cardHover : Color.black.opacity(0.0001))
 
                             Image(systemName: "magnifyingglass")
-                                .font(.system(size: 13, weight: .regular))
+                                .font(.system(size: 11, weight: .regular))
                                 .foregroundStyle(hoveredButton == .search || CommandPaletteManager.shared.isPresented ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
                         }
-                        .frame(width: 28, height: 28)
+                        .frame(width: 20, height: 20)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .contentShape(Rectangle())
                     .pointingHand()
                     .help("Search Videos & Commands (⌘K, ⌘F)")
                     .onHover { h in
-                        withAnimation(.fluidQuick) {
-                            hoveredButton = h ? .search : nil
-                        }
+                        hoveredButton = h ? .search : nil
                     }
                 }
 
                 // Vertical hairline separator between toolbar buttons and app title
                 Rectangle()
                     .fill(ShadcnTheme.border)
-                    .frame(width: 1, height: 16)
-                    .padding(.horizontal, 3)
+                    .frame(width: 1, height: 12)
+                    .padding(.horizontal, 2)
 
                 // MARK: - App Wordmark / Breadcrumb (hide in ultra-narrow when search is active)
                 if !isUltraNarrow || (!library.isSearchActive && library.searchQuery.isEmpty) {
                     HStack(spacing: 5) {
                         Text("frames")
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(ShadcnTheme.foreground)
 
                         if !isNarrow && library.selectedCategory != .allVideos {
                             Text("/")
-                                .font(.system(size: 12))
+                                .font(.system(size: 11))
                                 .foregroundStyle(ShadcnTheme.foregroundMuted)
 
                             Text(library.selectedCategoryTitle)
-                                .font(.system(size: 12, weight: .medium))
+                                .font(.system(size: 11, weight: .medium))
                                 .foregroundStyle(ShadcnTheme.foregroundSecondary)
                                 .lineLimit(1)
                                 .truncationMode(.tail)
@@ -176,7 +173,7 @@ public struct DashboardTopBarView: View {
                 // MARK: - Expandable Search Field
                 if library.isSearchActive || !library.searchQuery.isEmpty {
                     let searchWidth: CGFloat = isUltraNarrow ? 95 : (isNarrow ? 120 : 160)
-                    HStack(spacing: 5) {
+                    HStack(spacing: 4) {
                         Image(systemName: "magnifyingglass")
                             .font(.system(size: 10))
                             .foregroundStyle(ShadcnTheme.foregroundMuted)
@@ -193,28 +190,24 @@ public struct DashboardTopBarView: View {
                                     library.searchQuery = ""
                                 }
                             } label: {
-                                ZStack {
-                                    Color.black.opacity(0.0001)
-                                    Image(systemName: "xmark.circle.fill")
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(ShadcnTheme.foregroundMuted)
-                                }
-                                .frame(width: 20, height: 20)
-                                .contentShape(Rectangle())
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(ShadcnTheme.foregroundMuted)
+                                    .frame(width: 16, height: 16)
                             }
                             .buttonStyle(.plain)
-                            .contentShape(Rectangle())
                             .pointingHand()
                             .transition(.opacity.combined(with: .scale(scale: 0.9)))
                         }
                     }
                     .padding(.horizontal, 6)
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 2)
+                    .frame(height: 20)
                     .background(
-                        RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
                             .fill(ShadcnTheme.card)
                             .overlay(
-                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                RoundedRectangle(cornerRadius: 4, style: .continuous)
                                     .strokeBorder(ShadcnTheme.borderActive, lineWidth: 1)
                             )
                     )
@@ -226,7 +219,12 @@ public struct DashboardTopBarView: View {
                     )
                 }
 
+                // MARK: - Central Draggable Spacer & Title Bar Double-Click Area
                 Spacer(minLength: 4)
+                    .contentShape(Rectangle())
+                    .onTapGesture(count: 2) {
+                        WindowManager.shared.performTitleBarDoubleClickAction()
+                    }
 
                 // MARK: - Trailing Controls (Count, Sort, View Mode, Theme)
                 HStack(spacing: isNarrow ? 6 : 8) {
@@ -242,40 +240,38 @@ public struct DashboardTopBarView: View {
 
                         // Dedicated Sort Button (Click to cycle, right-click for direct choice)
                         Button {
-                            withAnimation(.fluidSpring) {
+                            withAnimation(.snappy(duration: 0.15)) {
                                 library.cycleSortOption()
                             }
                         } label: {
-                            HStack(spacing: 5) {
+                            HStack(spacing: 4) {
                                 Image(systemName: "arrow.up.arrow.down")
-                                    .font(.system(size: isCompactSort ? 11 : 10))
+                                    .font(.system(size: 10, weight: .medium))
                                 if !isCompactSort {
                                     Text(library.sortOption.rawValue)
                                         .font(.system(size: 11, weight: .medium))
-                                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                                        .lineLimit(1)
+                                        .fixedSize()
                                 }
                             }
                             .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                            .padding(.horizontal, isCompactSort ? 7 : 8)
-                            .padding(.vertical, 5)
-                            .frame(minHeight: 28)
+                            .frame(width: isCompactSort ? 20 : 92, height: 20)
                             .background(
-                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                    .fill(ShadcnTheme.card)
+                                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                    .fill(hoveredButton == .sort ? ShadcnTheme.cardHover : ShadcnTheme.card)
                                     .overlay(
-                                        RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                        RoundedRectangle(cornerRadius: 4, style: .continuous)
                                             .strokeBorder(ShadcnTheme.border, lineWidth: 1)
                                     )
                             )
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .contentShape(Rectangle())
                         .pointingHand()
                         .contextMenu {
                             ForEach(SortOption.allCases) { opt in
                                 Button {
-                                    withAnimation(.fluidSpring) {
+                                    withAnimation(.snappy(duration: 0.15)) {
                                         library.sortOption = opt
                                     }
                                 } label: {
@@ -289,61 +285,62 @@ public struct DashboardTopBarView: View {
                             }
                         }
                         .help("Sort: \(library.sortOption.rawValue) (Click to cycle)")
+                        .onHover { h in
+                            hoveredButton = h ? .sort : nil
+                        }
 
-                        // 1-Click View Mode Toggle Button (Grid <-> List)
+                        // 1-Click View Mode Toggle Button (Grid <-> List) - Icon-Only
                         Button {
-                            withAnimation(.fluidSpring) {
+                            withAnimation(.snappy(duration: 0.18)) {
                                 library.toggleViewMode()
                             }
                         } label: {
                             ZStack {
-                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                    .fill(ShadcnTheme.card)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                            .strokeBorder(ShadcnTheme.border, lineWidth: 1)
-                                    )
+                                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                    .fill(hoveredButton == .viewMode ? ShadcnTheme.cardHover : Color.black.opacity(0.0001))
 
                                 Image(systemName: library.viewMode == .grid ? "list.bullet" : "square.grid.2x2")
-                                    .font(.system(size: 11))
+                                    .font(.system(size: 11, weight: .medium))
                                     .foregroundStyle(ShadcnTheme.foregroundSecondary)
                             }
-                            .frame(width: 28, height: 28)
+                            .frame(width: 20, height: 20)
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .contentShape(Rectangle())
                         .pointingHand()
-                        .animation(.fluidSpring, value: library.viewMode)
+                        .animation(.snappy(duration: 0.18), value: library.viewMode)
                         .help(library.viewMode == .grid ? "Switch to List View" : "Switch to Grid View")
+                        .onHover { h in
+                            hoveredButton = h ? .viewMode : nil
+                        }
                     }
 
                     // OTA Update Available Pill Button
                     if updateManager.hasUpdate {
                         Button {
-                            withAnimation(.fluidSpring) {
+                            withAnimation(.snappy(duration: 0.18)) {
                                 updateManager.presentUpdatePrompt()
                             }
                         } label: {
-                            HStack(spacing: 5) {
+                            HStack(spacing: 4) {
                                 Circle()
                                     .fill(Color(red: 249/255.0, green: 115/255.0, blue: 22/255.0))
-                                    .frame(width: 6, height: 6)
+                                    .frame(width: 5, height: 5)
 
                                 if !isNarrow {
-                                    Text("Update Available")
-                                        .font(.system(size: 11, weight: .medium))
+                                    Text("Update")
+                                        .font(.system(size: 10, weight: .medium))
                                         .foregroundStyle(ShadcnTheme.foreground)
                                 }
                             }
-                            .padding(.horizontal, isNarrow ? 6 : 8)
-                            .padding(.vertical, 5)
-                            .frame(minHeight: 28)
+                            .padding(.horizontal, isNarrow ? 5 : 7)
+                            .padding(.vertical, 2)
+                            .frame(height: 20)
                             .background(
-                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                RoundedRectangle(cornerRadius: 4, style: .continuous)
                                     .fill(ShadcnTheme.card)
                                     .overlay(
-                                        RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                        RoundedRectangle(cornerRadius: 4, style: .continuous)
                                             .strokeBorder(Color(red: 249/255.0, green: 115/255.0, blue: 22/255.0).opacity(0.4), lineWidth: 1)
                                     )
                             )
@@ -355,42 +352,45 @@ public struct DashboardTopBarView: View {
                         .transition(.opacity.combined(with: .scale(scale: 0.9)))
                     }
 
-                    // 1-Click Theme Toggle Button (Apple Native System Appearance Icon)
+                    // 1-Click Theme Toggle Button - Changed from whole button to just icon
                     Button {
-                        withAnimation(.fluidSmooth) {
+                        withAnimation(.snappy(duration: 0.2)) {
                             themeManager.toggleTheme()
                         }
                     } label: {
                         ZStack {
-                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                .fill(ShadcnTheme.card)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                        .strokeBorder(ShadcnTheme.border, lineWidth: 1)
-                                )
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                .fill(hoveredButton == .theme ? ShadcnTheme.cardHover : Color.black.opacity(0.0001))
 
                             Image(systemName: "circle.righthalf.filled")
-                                .font(.system(size: 12))
+                                .font(.system(size: 12, weight: .regular))
                                 .foregroundStyle(ShadcnTheme.foregroundSecondary)
                                 .rotationEffect(.degrees(themeManager.isDark ? 180 : 0))
                         }
-                        .frame(width: 28, height: 28)
+                        .frame(width: 20, height: 20)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .contentShape(Rectangle())
                     .pointingHand()
-                    .animation(.fluidSpring, value: themeManager.isDark)
+                    .animation(.snappy(duration: 0.2), value: themeManager.isDark)
                     .help(themeManager.isDark ? "Switch to Light Mode" : "Switch to Dark Mode")
+                    .onHover { h in
+                        hoveredButton = h ? .theme : nil
+                    }
                 }
                 .padding(.trailing, isNarrow ? 10 : 16)
             }
-            .frame(width: geo.size.width, height: 38)
-            .background(ShadcnTheme.background)
-            .animation(.fluidSpring, value: library.isSearchActive)
-            .animation(.fluidSpring, value: library.viewMode)
+            .frame(width: geo.size.width, height: 32)
+            .background(
+                ZStack {
+                    ShadcnTheme.background
+                    TitleBarDragArea()
+                }
+            )
+            .animation(.snappy(duration: 0.2), value: library.isSearchActive)
+            .animation(.snappy(duration: 0.2), value: library.viewMode)
         }
-        .frame(height: 38)
+        .frame(height: 32)
         .macOSDefaultTitleBar()
     }
 }
