@@ -46,16 +46,13 @@ public struct SubtitleOverlayView: View {
                     .foregroundStyle(activeTextColor)
                     .multilineTextAlignment(.center)
                     .lineSpacing(3)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 7)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
                     .background(
                         RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
                             .fill(Color.black.opacity(activeScrimOpacity))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
-                                    .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
-                            )
                     )
+                    .shadow(color: Color.black.opacity(0.40), radius: 6, x: 0, y: 3)
                     .padding(.horizontal, 28)
                     .transition(.opacity.animation(.fluidQuick))
             }

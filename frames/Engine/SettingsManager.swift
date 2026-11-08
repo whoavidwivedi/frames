@@ -229,10 +229,10 @@ public final class SettingsManager {
 
     public var subtitleTextColor: Color {
         get {
-            Color(hex: subtitleTextColorHex) ?? .white
+            Color(hex: subtitleTextColorHex) ?? Color(red: 0.29, green: 0.87, blue: 0.50)
         }
         set {
-            subtitleTextColorHex = newValue.toHex() ?? "#FFFFFF"
+            subtitleTextColorHex = newValue.toHex() ?? "#4ADE80"
         }
     }
 
@@ -370,12 +370,12 @@ public final class SettingsManager {
             self.subtitleFontSize = 20.0
         }
 
-        self.subtitleTextColorHex = defaults.string(forKey: Self.subtitleTextColorHexKey) ?? "#FFFFFF"
+        self.subtitleTextColorHex = defaults.string(forKey: Self.subtitleTextColorHexKey) ?? "#4ADE80"
 
         if defaults.object(forKey: Self.subtitleScrimOpacityKey) != nil {
             self.subtitleBackgroundScrimOpacity = defaults.double(forKey: Self.subtitleScrimOpacityKey)
         } else {
-            self.subtitleBackgroundScrimOpacity = 0.65
+            self.subtitleBackgroundScrimOpacity = 0.85
         }
 
         if defaults.object(forKey: Self.liveCaptionsEnabledKey) != nil {
@@ -457,8 +457,8 @@ public final class SettingsManager {
         defaultAudioLanguage = "System"
         volumeNormalizationEnabled = false
         subtitleFontSize = 20.0
-        subtitleTextColorHex = "#FFFFFF"
-        subtitleBackgroundScrimOpacity = 0.65
+        subtitleTextColorHex = "#4ADE80"
+        subtitleBackgroundScrimOpacity = 0.85
         liveCaptionsEnabled = false
         liveCaptionsEngine = .appleNeuralEngine
         batterySaverGuardEnabled = true
