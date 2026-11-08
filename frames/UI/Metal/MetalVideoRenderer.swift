@@ -116,6 +116,10 @@ nonisolated public final class MetalVideoRenderer: @unchecked Sendable {
     private var isFlushPending: Bool = false
     private let flushLock = NSLock()
 
+    private struct TextureCacheBox: @unchecked Sendable {
+        let cache: CVMetalTextureCache
+    }
+
     private func flushTextureCacheAsync(cache: CVMetalTextureCache) {
         flushLock.lock()
         if isFlushPending {
@@ -125,8 +129,9 @@ nonisolated public final class MetalVideoRenderer: @unchecked Sendable {
         isFlushPending = true
         flushLock.unlock()
 
+        let cacheBox = TextureCacheBox(cache: cache)
         DispatchQueue.global(qos: .utility).async { [weak self] in
-            CVMetalTextureCacheFlush(cache, 0)
+            CVMetalTextureCacheFlush(cacheBox.cache, 0)
             guard let self = self else { return }
             self.flushLock.lock()
             self.isFlushPending = false
