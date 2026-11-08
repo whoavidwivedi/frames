@@ -134,6 +134,9 @@ public final class KeyboardHandler {
             // Settings: Command + , (⌘,)
             if isCommand && !isControl && !isOption && keyCode == 43 {
                 Task { @MainActor in
+                    if engine.currentURL != nil {
+                        NotificationCenter.default.post(name: .returnToDashboardNotification, object: nil)
+                    }
                     SettingsManager.shared.toggleSettings()
                 }
                 return nil

@@ -159,38 +159,6 @@ public struct SettingsView: View {
     }
 }
 
-// MARK: - In-App Settings Dialog Overlay
-
-public struct InAppSettingsDialog: View {
-    public var onDismiss: () -> Void
-
-    public init(onDismiss: @escaping () -> Void) {
-        self.onDismiss = onDismiss
-    }
-
-    public var body: some View {
-        GeometryReader { geo in
-            ZStack {
-                // Dimmed ambient backdrop with tap gesture to dismiss
-                Color.black.opacity(0.48)
-                    .ignoresSafeArea()
-                    .onTapGesture {
-                        onDismiss()
-                    }
-
-                // In-app Settings Card
-                SettingsView(onDismiss: onDismiss)
-                    .frame(
-                        width: min(620, max(460, geo.size.width - 48)),
-                        height: min(560, max(360, geo.size.height - 64))
-                    )
-                    .shadow(color: Color.black.opacity(0.38), radius: 24, x: 0, y: 12)
-            }
-            .frame(width: geo.size.width, height: geo.size.height)
-        }
-    }
-}
-
 // MARK: - 1. General Settings Tab
 
 public struct GeneralSettingsTab: View {

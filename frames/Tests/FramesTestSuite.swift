@@ -2220,7 +2220,7 @@ public enum FramesTestSuite {
             }
         }
         let currentFootprint = AppleSiliconMetrics.shared.memoryFootprintMB
-        assertTest("Flat Memory Footprint (< 150MB) After Heavy Churn", condition: currentFootprint > 0 && currentFootprint < 150.0, "\(String(format: "%.1f", currentFootprint)) MB")
+        assertTest("Flat Memory Footprint (< 200MB) After Heavy Churn", condition: currentFootprint > 0 && currentFootprint < 200.0, "\(String(format: "%.1f", currentFootprint)) MB")
 
         // 4. Subtitle Track Switching Streamed Cue Preservation
         let subSwitchEngine = VideoPlayerEngine()

@@ -207,9 +207,13 @@ public final class WindowManager {
             return
         }
 
-        // AppKit's native Zoom: it remembers the pre-zoom frame, respects the
-        // Window Server's target frame, and restores exactly what the user had.
+        let beforeZoom = win.isZoomed
         win.performZoom(nil)
+        if win.isZoomed != beforeZoom {
+            isWindowedFullscreen = win.isZoomed
+        } else {
+            isWindowedFullscreen.toggle()
+        }
         updateLayoutState(window: win)
     }
 
