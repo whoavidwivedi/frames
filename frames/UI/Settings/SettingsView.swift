@@ -42,17 +42,13 @@ public struct SettingsSectionCard<Content: View>: View {
 
 public struct SettingsView: View {
     @Bindable private var settings = SettingsManager.shared
-    public var onDismiss: (() -> Void)? = nil
     @State private var hoveredTab: SettingsTab? = nil
-    @State private var hoveringClose: Bool = false
 
-    public init(onDismiss: (() -> Void)? = nil) {
-        self.onDismiss = onDismiss
-    }
+    public init() {}
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Header Bar: Title + Tab Pills + Optional Close Button
+            // Header Bar: Title + Tab Pills
             HStack(spacing: 12) {
                 HStack(spacing: 7) {
                     Image(systemName: "gearshape.fill")
@@ -109,25 +105,6 @@ public struct SettingsView: View {
                     RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm + 2, style: .continuous)
                         .fill(ShadcnTheme.secondary.opacity(0.4))
                 )
-
-                if let onDismiss = onDismiss {
-                    Button(action: onDismiss) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                .fill(hoveringClose ? ShadcnTheme.cardHover : Color.black.opacity(0.0001))
-
-                            Image(systemName: "xmark")
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundStyle(hoveringClose ? ShadcnTheme.foreground : ShadcnTheme.foregroundMuted)
-                        }
-                        .frame(width: 24, height: 24)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .pointingHand()
-                    .help("Close (Esc)")
-                    .onHover { hoveringClose = $0 }
-                }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)

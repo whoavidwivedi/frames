@@ -40,11 +40,9 @@ public struct DashboardContentView: View {
 
             Group {
                 if library.selectedCategory == .settings {
-                    SettingsView {
-                        library.goBack()
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .transition(.opacity)
+                    SettingsView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .transition(.opacity)
                 } else if library.filteredVideos.isEmpty {
                     emptyStateView(isNarrow: isNarrow)
                         .transition(.opacity.combined(with: .scale(scale: 0.98)))
