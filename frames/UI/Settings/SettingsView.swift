@@ -368,6 +368,25 @@ public struct PlaybackSettingsTab: View {
                         Toggle("", isOn: $settings.hardwareAccelerationEnabled)
                             .toggleStyle(.switch)
                     }
+
+                    Rectangle()
+                        .fill(ShadcnTheme.borderSubtle)
+                        .frame(height: 1)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "cpu")
+                                .font(.system(size: 11))
+                                .foregroundStyle(ShadcnTheme.primary)
+                            Text(AppleSiliconMetrics.shared.chipName)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(ShadcnTheme.foreground)
+                            BadgeView(text: "\(AppleSiliconMetrics.shared.physicalMemoryGB) GB Unified Memory", icon: "memorychip")
+                        }
+                        Text(AppleSiliconMetrics.shared.gpuFamilyName + " • " + (AppleSiliconMetrics.shared.supportsHardwareAV1Decode ? "AV1 HW ASIC • " : "") + (AppleSiliconMetrics.shared.supportsHardwareProRes ? "ProRes HW ASIC • " : "") + "HEVC & H.264 Hardware Engines")
+                            .font(.system(size: 11))
+                            .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                    }
                 }
 
                 // Display & Refresh
@@ -788,7 +807,7 @@ public struct AboutSettingsTab: View {
                                 .foregroundStyle(ShadcnTheme.foregroundSecondary)
 
                             HStack(spacing: 6) {
-                                BadgeView(text: "Apple Silicon Native", icon: "cpu")
+                                BadgeView(text: AppleSiliconMetrics.shared.generation.displayName, icon: "cpu")
                                 BadgeView(text: "VideoToolbox ASIC", icon: "bolt.fill")
                                 BadgeView(text: "Metal 3 HDR", icon: "sparkles")
                             }

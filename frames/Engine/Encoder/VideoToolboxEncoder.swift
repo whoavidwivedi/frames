@@ -105,7 +105,7 @@ nonisolated public final class VideoToolboxEncoder: @unchecked Sendable {
         ]
         
         var compressionSession: VTCompressionSession?
-        let status = VTCompressionSessionCreate(
+        var status = VTCompressionSessionCreate(
             allocator: kCFAllocatorDefault,
             width: width,
             height: height,
@@ -117,6 +117,25 @@ nonisolated public final class VideoToolboxEncoder: @unchecked Sendable {
             refcon: nil,
             compressionSessionOut: &compressionSession
         )
+
+        // Fallback to enable-only if hardware require fails (e.g. ProRes on base M1 or constrained hardware)
+        if status != noErr {
+            let fallbackSpec: [CFString: Any] = [
+                kVTVideoEncoderSpecification_EnableHardwareAcceleratedVideoEncoder: kCFBooleanTrue as Any
+            ]
+            status = VTCompressionSessionCreate(
+                allocator: kCFAllocatorDefault,
+                width: width,
+                height: height,
+                codecType: codec.codecType,
+                encoderSpecification: fallbackSpec as CFDictionary,
+                imageBufferAttributes: sourceImageBufferAttributes as CFDictionary,
+                compressedDataAllocator: kCFAllocatorDefault,
+                outputCallback: nil,
+                refcon: nil,
+                compressionSessionOut: &compressionSession
+            )
+        }
         
         guard status == noErr, let session = compressionSession else {
             return nil

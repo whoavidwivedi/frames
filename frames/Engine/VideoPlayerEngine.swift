@@ -1068,9 +1068,11 @@ public final class VideoPlayerEngine {
         case "avc1", "h264": return "H.264 / AVC (Apple Silicon HW)"
         case "hvc1", "hev1": return "HEVC / H.265 (Apple Silicon HW)"
         case "dvh1", "dvhe": return "Dolby Vision HEVC (Apple Silicon HW)"
-        case "apch", "apcn", "apcs", "apco", "ap4h", "ap4x": return "Apple ProRes (Apple Silicon HW)"
-        case "av01": return "AV1 (Apple Silicon HW)"
-        case "vp09": return "VP9"
+        case "apch", "apcn", "apcs", "apco", "ap4h", "ap4x":
+            return AppleSiliconMetrics.shared.supportsHardwareProRes ? "Apple ProRes (Hardware ASIC)" : "Apple ProRes (Apple Silicon)"
+        case "av01":
+            return AppleSiliconMetrics.shared.supportsHardwareAV1Decode ? "AV1 (Apple Silicon HW ASIC)" : "AV1 (Apple Silicon Accelerated)"
+        case "vp09": return "VP9 (Apple Silicon Accelerated)"
         default: return fourCC.uppercased()
         }
     }

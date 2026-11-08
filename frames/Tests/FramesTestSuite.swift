@@ -93,6 +93,11 @@ public enum FramesTestSuite {
         assertTest("Apple Silicon Detected", condition: !metrics.chipName.isEmpty)
         assertTest("Active CPU Cores", condition: metrics.activeCores >= 1, "Active cores: \(metrics.activeCores)")
         assertTest("Physical Memory Detected", condition: metrics.physicalMemoryGB >= 4, "Memory: \(metrics.physicalMemoryGB) GB")
+        assertTest("Apple Silicon Architecture Verified", condition: metrics.isAppleSilicon, "Chip: \(metrics.chipName)")
+        assertTest("Chip Generation Identified", condition: !metrics.generation.displayName.isEmpty, "Generation: \(metrics.generation.displayName)")
+        assertTest("Metal GPU Family Detected", condition: !metrics.gpuFamilyName.isEmpty, "GPU: \(metrics.gpuFamilyName)")
+        assertTest("Hardware Summary Available", condition: !metrics.hardwareSummary.isEmpty, "Summary: \(metrics.hardwareSummary)")
+        assertTest("Recommended Buffer Sizing Valid", condition: metrics.recommendedPlaybackBufferCapacity >= 4)
         assertTest("Display Refresh Rate Valid", condition: metrics.displayRefreshRate >= 50, "Display rate: \(metrics.displayRefreshRate) Hz")
         assertTest("Low Memory Footprint (< 200MB)", condition: metrics.memoryFootprintMB > 0 && metrics.memoryFootprintMB < 200, "Current RAM: \(metrics.memoryFootprintMB) MB")
 

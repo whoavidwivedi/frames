@@ -12,10 +12,10 @@
   <a href="https://github.com/whoavidwivedi/frames/releases/latest"><img src="https://img.shields.io/github/v/release/whoavidwivedi/frames?style=flat-square&color=black&label=Release" alt="Latest Release"></a>
   <a href="https://github.com/whoavidwivedi/frames/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/whoavidwivedi/frames/ci.yml?branch=main&style=flat-square&color=black&label=CI" alt="CI Status"></a>
   <img src="https://img.shields.io/badge/Platform-macOS%2014.0%2B-black?style=flat-square&logo=apple" alt="Platform: macOS 14.0+">
-  <img src="https://img.shields.io/badge/Apple%20Silicon-ARM64-black?style=flat-square&logo=apple" alt="Apple Silicon ARM64">
+  <img src="https://img.shields.io/badge/Apple%20Silicon-M1%20%7C%20M2%20%7C%20M3%20%7C%20M4%2B-black?style=flat-square&logo=apple" alt="Apple Silicon M1 to Latest">
   <img src="https://img.shields.io/badge/Language-Swift%206-black?style=flat-square&logo=swift" alt="Swift 6">
   <img src="https://img.shields.io/badge/Design-shadcn%20base--luma%20%2F%20neutral-black?style=flat-square" alt="shadcn base-luma / neutral">
-  <img src="https://img.shields.io/badge/Tests-458%20Passed%20(0%20warnings)-black?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-542%20Passed%20(0%20warnings)-black?style=flat-square" alt="Tests">
   <a href="https://github.com/whoavidwivedi/frames/pulls"><img src="https://img.shields.io/badge/PRs-Welcome-black?style=flat-square" alt="PRs Welcome"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/whoavidwivedi/frames?style=flat-square&color=black" alt="License: MIT"></a>
 </p>
@@ -28,7 +28,7 @@
 
 ## Overview
 
-**Frames** is an ultra-fast, zero-bloat video player and media management dashboard built from the ground up for macOS and Apple Silicon. 
+**Frames** is an ultra-fast, zero-bloat video player and media management dashboard built from the ground up for macOS and Apple Silicon, supporting all M-series hardware from M1 to the latest (M1, M1 Pro, M1 Max, M1 Ultra, M2, M2 Pro, M2 Max, M2 Ultra, M3, M3 Pro, M3 Max, M4, M4 Pro, M4 Max, and beyond).
 
 Traditional desktop video players are often weighed down by multi-hundred-megabyte Electron wrappers or legacy codebases dating back decades. Frames is written in pure **Swift 6 and SwiftUI**, leveraging Apple Silicon's dedicated **VideoToolbox** media decoders and Unified Memory architecture to deliver fluid 60fps / 120fps playback, buttery timeline scrubbing, and sub-second cold starts with minimal battery drain.
 
@@ -44,7 +44,7 @@ Install Frames directly on your Mac with a single command — automatically hand
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/whoavidwivedi/frames/main/scripts/install.sh)"
 ```
 
-> **What this does**: Automatically fetches the latest release, installs `Frames.app` into `/Applications`, clears macOS quarantine attributes (`xattr -dr com.apple.quarantine`), and launches Frames.
+> **What this does**: Automatically fetches the latest release, installs `Frames.app` into `/Applications`, clears macOS quarantine attributes (`xattr -dr com.apple.quarantine`), self-signs the local bundle, and launches Frames.
 
 ---
 
@@ -54,7 +54,9 @@ Download the latest pre-compiled binary from the [Releases](https://github.com/w
 
 | Release | Version | macOS Architecture | Download |
 | :--- | :--- | :--- | :--- |
-| **Latest** | **v1.3.5** | Apple Silicon (`arm64`) | [**Frames-v1.3.5-macOS.zip**](https://github.com/whoavidwivedi/frames/releases/download/v1.3.5/Frames-v1.3.5-macOS.zip) |
+| **Latest** | **v1.3.15** | Apple Silicon (`arm64` M1–M4+) | [**Frames-v1.3.15-macOS.zip**](https://github.com/whoavidwivedi/frames/releases/download/v1.3.15/Frames-v1.3.15-macOS.zip) |
+| Previous | v1.3.14 | Apple Silicon (`arm64`) | [Frames-v1.3.14-macOS.zip](https://github.com/whoavidwivedi/frames/releases/download/v1.3.14/Frames-v1.3.14-macOS.zip) |
+| Previous | v1.3.5 | Apple Silicon (`arm64`) | [Frames-v1.3.5-macOS.zip](https://github.com/whoavidwivedi/frames/releases/download/v1.3.5/Frames-v1.3.5-macOS.zip) |
 | Previous | v1.3.4 | Apple Silicon (`arm64`) | [Frames-v1.3.4-macOS.zip](https://github.com/whoavidwivedi/frames/releases/download/v1.3.4/Frames-v1.3.4-macOS.zip) |
 | Previous | v1.3.3 | Apple Silicon (`arm64`) | [Frames-v1.3.3-macOS.zip](https://github.com/whoavidwivedi/frames/releases/download/v1.3.3/Frames-v1.3.3-macOS.zip) |
 | Previous | v1.3.2 | Apple Silicon (`arm64`) | [Frames-v1.3.2-macOS.zip](https://github.com/whoavidwivedi/frames/releases/download/v1.3.2/Frames-v1.3.2-macOS.zip) |
