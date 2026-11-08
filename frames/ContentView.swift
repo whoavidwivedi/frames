@@ -317,7 +317,7 @@ struct ContentView: View {
                         updateManager.dismissNotice()
                     }
                 }
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
                 .zIndex(170)
             }
 

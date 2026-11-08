@@ -112,6 +112,20 @@ public struct DashboardSidebarView: View {
 
             Spacer()
 
+            // Settings Button
+            VStack(alignment: .leading, spacing: 2) {
+                sidebarRow(
+                    title: "Settings",
+                    icon: "gearshape",
+                    isSelected: false
+                ) {
+                    SettingsManager.shared.openSettings()
+                }
+                .help("Settings (⌘,)")
+            }
+            .padding(.horizontal, 12)
+            .padding(.bottom, 4)
+
             // Footer: App Version & Apple Silicon Hardware Badge
             VStack(alignment: .leading, spacing: 6) {
                 Divider()
@@ -123,10 +137,6 @@ public struct DashboardSidebarView: View {
                     updateManager.checkForUpdates(manual: true)
                 } label: {
                     HStack(spacing: 6) {
-                        Image(systemName: "app.badge")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(ShadcnTheme.foregroundSecondary)
-
                         Text("Frames")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(ShadcnTheme.foreground)
