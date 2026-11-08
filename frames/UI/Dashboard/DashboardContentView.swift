@@ -39,7 +39,13 @@ public struct DashboardContentView: View {
             let contentPadding: CGFloat = isNarrow ? 12 : 20
 
             Group {
-                if library.filteredVideos.isEmpty {
+                if library.selectedCategory == .settings {
+                    SettingsView {
+                        library.goBack()
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .transition(.opacity)
+                } else if library.filteredVideos.isEmpty {
                     emptyStateView(isNarrow: isNarrow)
                         .transition(.opacity.combined(with: .scale(scale: 0.98)))
                 } else {
@@ -111,7 +117,7 @@ public struct DashboardContentView: View {
         switch category {
         case .allVideos, .folder:
             return true
-        case .recent, .favorites:
+        case .recent, .favorites, .settings:
             return false
         }
     }
@@ -285,7 +291,7 @@ public struct DashboardContentView: View {
                     favoritesEmptyState
                 case .recent:
                     recentEmptyState
-                case .allVideos, .folder:
+                case .allVideos, .folder, .settings:
                     genericLibraryEmptyState
                 }
             }

@@ -230,91 +230,93 @@ public struct DashboardTopBarView: View {
 
                 // MARK: - Trailing Controls (Count, Sort, View Mode, Theme)
                 HStack(spacing: isNarrow ? 6 : 8) {
-                    // Video Count Badge (visible when sufficient room)
-                    if showBadge {
-                        Text("\(library.filteredVideos.count) \(library.filteredVideos.count == 1 ? "video" : "videos")")
-                            .font(.system(size: 11, design: .monospaced))
-                            .foregroundStyle(ShadcnTheme.foregroundMuted)
-                            .padding(.trailing, 2)
-                            .transition(.opacity.combined(with: .scale(scale: 0.92)))
-                    }
+                    if library.selectedCategory != .settings {
+                        // Video Count Badge (visible when sufficient room)
+                        if showBadge {
+                            Text("\(library.filteredVideos.count) \(library.filteredVideos.count == 1 ? "video" : "videos")")
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundStyle(ShadcnTheme.foregroundMuted)
+                                .padding(.trailing, 2)
+                                .transition(.opacity.combined(with: .scale(scale: 0.92)))
+                        }
 
-                    // Dedicated Sort Button (Click to cycle, right-click for direct choice)
-                    Button {
-                        withAnimation(.fluidSpring) {
-                            library.cycleSortOption()
-                        }
-                    } label: {
-                        HStack(spacing: 5) {
-                            Image(systemName: "arrow.up.arrow.down")
-                                .font(.system(size: isCompactSort ? 11 : 10))
-                            if !isCompactSort {
-                                Text(library.sortOption.rawValue)
-                                    .font(.system(size: 11, weight: .medium))
-                                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                        // Dedicated Sort Button (Click to cycle, right-click for direct choice)
+                        Button {
+                            withAnimation(.fluidSpring) {
+                                library.cycleSortOption()
                             }
-                        }
-                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                        .padding(.horizontal, isCompactSort ? 7 : 8)
-                        .padding(.vertical, 5)
-                        .frame(minHeight: 28)
-                        .background(
-                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                .fill(ShadcnTheme.card)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                        .strokeBorder(ShadcnTheme.border, lineWidth: 1)
-                                )
-                        )
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .contentShape(Rectangle())
-                    .pointingHand()
-                    .contextMenu {
-                        ForEach(SortOption.allCases) { opt in
-                            Button {
-                                withAnimation(.fluidSpring) {
-                                    library.sortOption = opt
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: "arrow.up.arrow.down")
+                                    .font(.system(size: isCompactSort ? 11 : 10))
+                                if !isCompactSort {
+                                    Text(library.sortOption.rawValue)
+                                        .font(.system(size: 11, weight: .medium))
+                                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
                                 }
-                            } label: {
-                                HStack {
-                                    Text(opt.rawValue)
-                                    if library.sortOption == opt {
-                                        Image(systemName: "checkmark")
+                            }
+                            .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                            .padding(.horizontal, isCompactSort ? 7 : 8)
+                            .padding(.vertical, 5)
+                            .frame(minHeight: 28)
+                            .background(
+                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                    .fill(ShadcnTheme.card)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                            .strokeBorder(ShadcnTheme.border, lineWidth: 1)
+                                    )
+                            )
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .contentShape(Rectangle())
+                        .pointingHand()
+                        .contextMenu {
+                            ForEach(SortOption.allCases) { opt in
+                                Button {
+                                    withAnimation(.fluidSpring) {
+                                        library.sortOption = opt
+                                    }
+                                } label: {
+                                    HStack {
+                                        Text(opt.rawValue)
+                                        if library.sortOption == opt {
+                                            Image(systemName: "checkmark")
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
-                    .help("Sort: \(library.sortOption.rawValue) (Click to cycle)")
+                        .help("Sort: \(library.sortOption.rawValue) (Click to cycle)")
 
-                    // 1-Click View Mode Toggle Button (Grid <-> List)
-                    Button {
-                        withAnimation(.fluidSpring) {
-                            library.toggleViewMode()
-                        }
-                    } label: {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                .fill(ShadcnTheme.card)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                        .strokeBorder(ShadcnTheme.border, lineWidth: 1)
-                                )
+                        // 1-Click View Mode Toggle Button (Grid <-> List)
+                        Button {
+                            withAnimation(.fluidSpring) {
+                                library.toggleViewMode()
+                            }
+                        } label: {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                    .fill(ShadcnTheme.card)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                            .strokeBorder(ShadcnTheme.border, lineWidth: 1)
+                                    )
 
-                            Image(systemName: library.viewMode == .grid ? "list.bullet" : "square.grid.2x2")
-                                .font(.system(size: 11))
-                                .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                                Image(systemName: library.viewMode == .grid ? "list.bullet" : "square.grid.2x2")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                            }
+                            .frame(width: 28, height: 28)
+                            .contentShape(Rectangle())
                         }
-                        .frame(width: 28, height: 28)
+                        .buttonStyle(.plain)
                         .contentShape(Rectangle())
+                        .pointingHand()
+                        .animation(.fluidSpring, value: library.viewMode)
+                        .help(library.viewMode == .grid ? "Switch to List View" : "Switch to Grid View")
                     }
-                    .buttonStyle(.plain)
-                    .contentShape(Rectangle())
-                    .pointingHand()
-                    .animation(.fluidSpring, value: library.viewMode)
-                    .help(library.viewMode == .grid ? "Switch to List View" : "Switch to Grid View")
 
                     // OTA Update Available Pill Button
                     if updateManager.hasUpdate {

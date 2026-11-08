@@ -267,7 +267,18 @@ public final class SettingsManager {
     }
 
     // MARK: - In-App Presentation State
-    public var isSettingsPresented: Bool = false
+    public var isSettingsPresented: Bool {
+        get {
+            LibraryManager.shared.selectedCategory == .settings
+        }
+        set {
+            if newValue {
+                LibraryManager.shared.navigate(to: .settings)
+            } else if LibraryManager.shared.selectedCategory == .settings {
+                LibraryManager.shared.goBack()
+            }
+        }
+    }
     public var selectedSettingsTab: SettingsTab = .general
 
     // MARK: - Initialization
@@ -436,22 +447,22 @@ public final class SettingsManager {
         if let tab = tab {
             self.selectedSettingsTab = tab
         }
-        withAnimation(.fluidSpring) {
-            self.isSettingsPresented = true
-        }
+        LibraryManager.shared.navigate(to: .settings)
     }
 
     @MainActor
     public func closeSettings() {
-        withAnimation(.fluidSpring) {
-            self.isSettingsPresented = false
+        if LibraryManager.shared.selectedCategory == .settings {
+            LibraryManager.shared.goBack()
         }
     }
 
     @MainActor
     public func toggleSettings() {
-        withAnimation(.fluidSpring) {
-            self.isSettingsPresented.toggle()
+        if LibraryManager.shared.selectedCategory == .settings {
+            LibraryManager.shared.goBack()
+        } else {
+            LibraryManager.shared.navigate(to: .settings)
         }
     }
 }

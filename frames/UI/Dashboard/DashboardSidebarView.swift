@@ -117,9 +117,9 @@ public struct DashboardSidebarView: View {
                 sidebarRow(
                     title: "Settings",
                     icon: "gearshape",
-                    isSelected: false
+                    isSelected: library.selectedCategory == .settings
                 ) {
-                    SettingsManager.shared.openSettings()
+                    library.navigate(to: .settings)
                 }
                 .help("Settings (⌘,)")
             }

@@ -34,6 +34,7 @@ public enum SidebarCategory: Hashable {
     case recent
     case favorites
     case folder(id: UUID)
+    case settings
 }
 
 public enum ViewMode: String, CaseIterable, Identifiable {
@@ -162,6 +163,8 @@ public final class LibraryManager {
             if let folder = folders.first(where: { $0.id == id }) {
                 result = result.filter { $0.url.path.hasPrefix(folder.path) }
             }
+        case .settings:
+            return []
         }
 
         // Search query filter
@@ -199,6 +202,8 @@ public final class LibraryManager {
             return "Favorites"
         case .folder(let id):
             return folders.first(where: { $0.id == id })?.name ?? "Folder"
+        case .settings:
+            return "Settings"
         }
     }
 

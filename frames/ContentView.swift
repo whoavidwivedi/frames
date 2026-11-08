@@ -294,21 +294,7 @@ struct ContentView: View {
                 .zIndex(150)
             }
 
-            // In-App Settings Dialog Overlay
-            if settings.isSettingsPresented {
-                InAppSettingsDialog(onDismiss: {
-                    withAnimation(.fluidSpring) {
-                        settings.closeSettings()
-                    }
-                })
-                .zIndex(155)
-                .transition(
-                    .asymmetric(
-                        insertion: .scale(scale: 0.97).combined(with: .opacity),
-                        removal: .scale(scale: 0.98).combined(with: .opacity)
-                    )
-                )
-            }
+
 
             // Update Available Modal Dialog
             if updateManager.isUpdatePromptPresented, let update = updateManager.availableUpdate {

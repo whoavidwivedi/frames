@@ -155,11 +155,7 @@ public struct SettingsView: View {
             .background(ShadcnTheme.background)
         }
         .background(ShadcnTheme.background)
-        .clipShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusLg, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: ShadcnTheme.radiusLg, style: .continuous)
-                .strokeBorder(ShadcnTheme.border, lineWidth: 1)
-        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 

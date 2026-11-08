@@ -1846,8 +1846,8 @@ public enum FramesTestSuite {
         sm.closeSettings()
         assertTest("In-App Settings Close State", condition: sm.isSettingsPresented == false)
 
-        let dialogHost = NSHostingView(rootView: InAppSettingsDialog(onDismiss: {}))
-        assertTest("InAppSettingsDialog NSHostingView Mount Operable", condition: dialogHost.fittingSize.width >= 0)
+        let dialogHost = NSHostingView(rootView: SettingsView())
+        assertTest("SettingsView NSHostingView Mount Operable", condition: dialogHost.fittingSize.width >= 0)
         let invalidHexColor = Color(hex: "invalid-hex-string")
         assertTest("Color Hex Parser Invalid Hex Guard", condition: invalidHexColor == nil)
         assertTest("Color To Hex Roundtrip", condition: validHexColor?.toHex() == "#FF5500")
