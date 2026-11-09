@@ -405,8 +405,9 @@ nonisolated public final class VideoToolboxDecoder: @unchecked Sendable {
                 }
             }
             
-            // Configure decode flags: allow silent reference picture decoding during preroll
-            var decodeFlags: VTDecodeFrameFlags = [._EnableAsynchronousDecompression]
+            // Configure decode flags: enable asynchronous decompression and temporal processing
+            // to ensure B-frames and out-of-order references are emitted strictly ordered by PTS.
+            var decodeFlags: VTDecodeFrameFlags = [._EnableAsynchronousDecompression, ._EnableTemporalProcessing]
             if doNotOutput {
                 decodeFlags.insert(._DoNotOutputFrame)
             }

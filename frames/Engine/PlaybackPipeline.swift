@@ -14,19 +14,40 @@ import QuartzCore
 import Combine
 import os.lock
 
-// MARK: - High-Throughput Unfair-Lock Frame Queue
+// MARK: - Lock-Free Cache-Aligned SPSC Frame Queue (128-byte Apple Silicon Cache Lines)
 
 nonisolated public final class FrameQueue: @unchecked Sendable {
-    private var lock = os_unfair_lock()
-    private var frames: [VideoToolboxDecoder.DecodedVideoFrame] = []
-    private var minimumAcceptedPTS = -Double.infinity
-    private var _nominalFrameDuration: Double = 1.0 / 30.0
+    // Apple Silicon M-series L1/L2 cache line size is 128 bytes
+    private static let cacheLineSize = 128
+    private static let ringCapacity = 256
+    private static let ringMask = 255
+    
+    // Aligned ring buffer storage (256 slots)
+    private let rawStorage: UnsafeMutableRawPointer
+    private let storage: UnsafeMutablePointer<VideoToolboxDecoder.DecodedVideoFrame?>
+    
+    // Separate 128-byte cache lines for Producer and Consumer to eliminate false sharing:
+    // Offset 0..<128:   PRODUCER CACHE LINE (head: UInt64, lastPTS: Double, cachedTail: UInt64)
+    // Offset 128..<256: CONSUMER CACHE LINE (tail: UInt64, cachedHead: UInt64)
+    private let rawControl: UnsafeMutableRawPointer
+    private let producerHead: UnsafeMutablePointer<UInt64>
+    private let producerLastPTS: UnsafeMutablePointer<Double>
+    private let producerCachedTail: UnsafeMutablePointer<UInt64>
+    
+    private let consumerTail: UnsafeMutablePointer<UInt64>
+    private let consumerCachedHead: UnsafeMutablePointer<UInt64>
+    
+    private var configLock = os_unfair_lock()
     private var baseMaxCount: Int
     private var customMaxCount: Int? = nil
+    private var _nominalFrameDuration: Double = 1.0 / 30.0
+    private var minimumAcceptedPTS = -Double.infinity
+    
+    public var onHeadroomAvailable: (@Sendable () -> Void)?
     
     public var maxCount: Int {
-        os_unfair_lock_lock(&lock)
-        defer { os_unfair_lock_unlock(&lock) }
+        os_unfair_lock_lock(&configLock)
+        defer { os_unfair_lock_unlock(&configLock) }
         return dynamicCapacityLocked
     }
     
@@ -48,41 +69,73 @@ nonisolated public final class FrameQueue: @unchecked Sendable {
     }
     
     public var nominalFrameDuration: Double {
-        os_unfair_lock_lock(&lock)
-        defer { os_unfair_lock_unlock(&lock) }
+        os_unfair_lock_lock(&configLock)
+        defer { os_unfair_lock_unlock(&configLock) }
         return _nominalFrameDuration
     }
     
     public init(maxCount: Int = 18, nominalFrameDuration: Double = 1.0 / 30.0) {
         self.baseMaxCount = maxCount
         self._nominalFrameDuration = max(0.001, nominalFrameDuration)
+        
+        var sPtr: UnsafeMutableRawPointer? = nil
+        let stride = MemoryLayout<VideoToolboxDecoder.DecodedVideoFrame?>.stride
+        posix_memalign(&sPtr, Self.cacheLineSize, Self.ringCapacity * stride)
+        self.rawStorage = sPtr!
+        self.storage = rawStorage.bindMemory(to: VideoToolboxDecoder.DecodedVideoFrame?.self, capacity: Self.ringCapacity)
+        self.storage.initialize(repeating: nil, count: Self.ringCapacity)
+        
+        var cPtr: UnsafeMutableRawPointer? = nil
+        posix_memalign(&cPtr, Self.cacheLineSize, 256)
+        self.rawControl = cPtr!
+        
+        // Cache Line 0 (Producer: bytes 0..<128)
+        self.producerHead = rawControl.advanced(by: 0).bindMemory(to: UInt64.self, capacity: 1)
+        self.producerHead.initialize(to: 0)
+        self.producerLastPTS = rawControl.advanced(by: 8).bindMemory(to: Double.self, capacity: 1)
+        self.producerLastPTS.initialize(to: 0.0)
+        self.producerCachedTail = rawControl.advanced(by: 16).bindMemory(to: UInt64.self, capacity: 1)
+        self.producerCachedTail.initialize(to: 0)
+        
+        // Cache Line 1 (Consumer: bytes 128..<256)
+        self.consumerTail = rawControl.advanced(by: 128).bindMemory(to: UInt64.self, capacity: 1)
+        self.consumerTail.initialize(to: 0)
+        self.consumerCachedHead = rawControl.advanced(by: 136).bindMemory(to: UInt64.self, capacity: 1)
+        self.consumerCachedHead.initialize(to: 0)
+    }
+    
+    deinit {
+        removeAll()
+        storage.deinitialize(count: Self.ringCapacity)
+        free(rawStorage)
+        free(rawControl)
     }
     
     public var count: Int {
-        os_unfair_lock_lock(&lock)
-        defer { os_unfair_lock_unlock(&lock) }
-        return frames.count
+        let head = producerHead.pointee
+        let tail = consumerTail.pointee
+        return head >= tail ? Int(head - tail) : 0
     }
     
     public func setNominalFrameDuration(_ duration: Double) {
-        os_unfair_lock_lock(&lock)
-        defer { os_unfair_lock_unlock(&lock) }
+        os_unfair_lock_lock(&configLock)
+        defer { os_unfair_lock_unlock(&configLock) }
         if duration > 0.001 {
             self._nominalFrameDuration = duration
         }
     }
     
     public func setMaxCount(_ newMax: Int) {
-        os_unfair_lock_lock(&lock)
-        defer { os_unfair_lock_unlock(&lock) }
+        os_unfair_lock_lock(&configLock)
+        defer { os_unfair_lock_unlock(&configLock) }
         if newMax > 0 {
             self.customMaxCount = newMax
         }
     }
     
     public func configureBuffering(isNetworkOrNAS: Bool, bitrate: Double = 0) {
-        os_unfair_lock_lock(&lock)
-        defer { os_unfair_lock_unlock(&lock) }
+        os_unfair_lock_lock(&configLock)
+        defer { os_unfair_lock_unlock(&configLock) }
         if isNetworkOrNAS || bitrate > 30_000_000 {
             if _nominalFrameDuration <= 0.009 {
                 self.customMaxCount = 64
@@ -97,91 +150,168 @@ nonisolated public final class FrameQueue: @unchecked Sendable {
     }
     
     public func enqueue(_ frame: VideoToolboxDecoder.DecodedVideoFrame) {
-        os_unfair_lock_lock(&lock)
-        defer { os_unfair_lock_unlock(&lock) }
-        guard frame.pts >= minimumAcceptedPTS else { return }
-
+        os_unfair_lock_lock(&configLock)
+        let minPTS = minimumAcceptedPTS
+        let nominal = _nominalFrameDuration
+        os_unfair_lock_unlock(&configLock)
+        
+        guard frame.pts >= minPTS else { return }
+        
+        let head = producerHead.pointee
+        
         // Dynamically track nominal frame duration if reported by frame or consecutive delta
-        if frame.duration > 0.001 && abs(_nominalFrameDuration - (1.0 / 30.0)) < 0.0001 {
+        if frame.duration > 0.001 && abs(nominal - (1.0 / 30.0)) < 0.0001 {
+            os_unfair_lock_lock(&configLock)
             _nominalFrameDuration = frame.duration
-        } else if let last = frames.last, abs(_nominalFrameDuration - (1.0 / 30.0)) < 0.0001 {
-            let delta = frame.pts - last.pts
+            os_unfair_lock_unlock(&configLock)
+        } else if head > 0 && abs(nominal - (1.0 / 30.0)) < 0.0001 {
+            let lastPTS = producerLastPTS.pointee
+            let delta = frame.pts - lastPTS
             if delta > 0.001 && delta < 0.25 {
+                os_unfair_lock_lock(&configLock)
                 _nominalFrameDuration = delta
+                os_unfair_lock_unlock(&configLock)
             }
         }
-
-        // Fast path for monotonic presentation order
-        if let last = frames.last, frame.pts >= last.pts {
-            frames.append(frame)
-        } else if let idx = frames.firstIndex(where: { $0.pts > frame.pts }) {
-            frames.insert(frame, at: idx)
-        } else {
-            frames.append(frame)
+        producerLastPTS.pointee = frame.pts
+        
+        var cachedTail = producerCachedTail.pointee
+        
+        // Handle buffer full condition without mutating consumer state
+        if head >= cachedTail + UInt64(Self.ringCapacity) {
+            cachedTail = consumerTail.pointee
+            producerCachedTail.pointee = cachedTail
+            
+            if head >= cachedTail + UInt64(Self.ringCapacity) {
+                // Buffer is completely full (256 slots). Drop incoming frame to preserve
+                // SPSC single-writer invariant and prevent race condition on consumer tail.
+                return
+            }
         }
-
-        // Discard from tail only if significantly beyond capacity to preserve upcoming display frames
-        let hardLimit = dynamicCapacityLocked + 16
-        if frames.count > hardLimit {
-            frames.removeLast(frames.count - hardLimit)
-        }
+        
+        let slot = Int(head & UInt64(Self.ringMask))
+        storage[slot] = frame
+        
+        // Release barrier: ensure frame data is visible before publishing new head cursor
+        OSMemoryBarrier()
+        producerHead.pointee = head + 1
     }
     
     public func firstFrame() -> CVPixelBuffer? {
-        os_unfair_lock_lock(&lock)
-        defer { os_unfair_lock_unlock(&lock) }
-        return frames.first?.pixelBuffer
+        let tail = consumerTail.pointee
+        let head = producerHead.pointee
+        guard head > tail else { return nil }
+        let slot = Int(tail & UInt64(Self.ringMask))
+        return storage[slot]?.pixelBuffer
     }
     
     public func frameClosest(to targetPTS: Double) -> (buffer: CVPixelBuffer, pts: Double)? {
-        os_unfair_lock_lock(&lock)
-        defer { os_unfair_lock_unlock(&lock) }
-        guard !frames.isEmpty else { return nil }
-        var bestIndex = 0
+        let tail = consumerTail.pointee
+        let head = producerHead.pointee
+        guard head > tail else { return nil }
+        
+        var bestFrame: VideoToolboxDecoder.DecodedVideoFrame? = nil
         var bestDiff = Double.infinity
-        for (i, f) in frames.enumerated() {
-            let diff = abs(f.pts - targetPTS)
-            if diff < bestDiff {
-                bestDiff = diff
-                bestIndex = i
+        
+        var curr = tail
+        while curr < head {
+            let slot = Int(curr & UInt64(Self.ringMask))
+            if let f = storage[slot] {
+                let diff = abs(f.pts - targetPTS)
+                if diff < bestDiff {
+                    bestDiff = diff
+                    bestFrame = f
+                }
             }
+            curr += 1
         }
-        let matched = frames[bestIndex]
-        return (matched.pixelBuffer, matched.pts)
-    }
-    
-    public func dequeueNext(forMasterClock masterClock: Double, frameDuration: Double? = nil) -> (buffer: CVPixelBuffer, pts: Double)? {
-        os_unfair_lock_lock(&lock)
-        defer { os_unfair_lock_unlock(&lock) }
         
-        let duration = (frameDuration ?? _nominalFrameDuration) > 0.001 ? (frameDuration ?? _nominalFrameDuration) : (1.0 / 30.0)
-        let lagThreshold = max(0.033, 2.0 * duration)
-        
-        // Discard stale frames lagging behind masterClock by more than dynamic frame-rate-aware threshold
-        while frames.count > 1 && frames[0].pts < masterClock - lagThreshold {
-            frames.removeFirst()
-        }
-        guard let candidate = frames.first else { return nil }
-        // Deliver frame if due within dynamic display cadence window (scaled for high refresh rates)
-        let deliveryTolerance = min(0.020, max(0.005, duration * 0.75))
-        if candidate.pts <= masterClock + deliveryTolerance {
-            frames.removeFirst()
-            return (candidate.pixelBuffer, candidate.pts)
+        if let matched = bestFrame {
+            return (matched.pixelBuffer, matched.pts)
         }
         return nil
     }
     
+    public func dequeueNext(forMasterClock masterClock: Double, frameDuration: Double? = nil) -> (buffer: CVPixelBuffer, pts: Double)? {
+        os_unfair_lock_lock(&configLock)
+        let nominal = _nominalFrameDuration
+        os_unfair_lock_unlock(&configLock)
+        
+        let duration = (frameDuration ?? nominal) > 0.001 ? (frameDuration ?? nominal) : (1.0 / 30.0)
+        let lagThreshold = max(0.033, 2.0 * duration)
+        
+        var tail = consumerTail.pointee
+        var head = consumerCachedHead.pointee
+        
+        if tail >= head {
+            head = producerHead.pointee
+            consumerCachedHead.pointee = head
+        }
+        
+        guard head > tail else { return nil }
+        
+        // Acquire barrier: read producer data after reading head
+        OSMemoryBarrier()
+        
+        // Discard stale frames lagging behind masterClock by dynamic frame-rate-aware threshold
+        var dropped = false
+        while (head > tail) && ((head - tail) > 1) {
+            let slot = Int(tail & UInt64(Self.ringMask))
+            guard let candidate = storage[slot] else { break }
+            if candidate.pts < masterClock - lagThreshold {
+                storage[slot] = nil
+                tail += 1
+                dropped = true
+            } else {
+                break
+            }
+        }
+        
+        if dropped {
+            OSMemoryBarrier()
+            consumerTail.pointee = tail
+            onHeadroomAvailable?()
+        }
+        
+        guard head > tail else { return nil }
+        
+        let slot = Int(tail & UInt64(Self.ringMask))
+        guard let candidate = storage[slot] else { return nil }
+        
+        // Deliver frame if due within dynamic display cadence window
+        let deliveryTolerance = min(0.020, max(0.005, duration * 0.75))
+        if candidate.pts <= masterClock + deliveryTolerance {
+            storage[slot] = nil
+            OSMemoryBarrier()
+            consumerTail.pointee = tail + 1
+            onHeadroomAvailable?()
+            return (candidate.pixelBuffer, candidate.pts)
+        }
+        
+        return nil
+    }
+    
     public func removeAll() {
-        os_unfair_lock_lock(&lock)
-        defer { os_unfair_lock_unlock(&lock) }
-        frames.removeAll()
+        let head = producerHead.pointee
+        var curr = consumerTail.pointee
+        while curr < head {
+            let slot = Int(curr & UInt64(Self.ringMask))
+            storage[slot] = nil
+            curr += 1
+        }
+        OSMemoryBarrier()
+        consumerTail.pointee = head
+        consumerCachedHead.pointee = head
+        producerCachedTail.pointee = head
+        producerLastPTS.pointee = -1.0
+        onHeadroomAvailable?()
     }
 
     public func reset(forSeek target: Double) {
-        os_unfair_lock_lock(&lock)
-        defer { os_unfair_lock_unlock(&lock) }
-        frames.removeAll()
-        minimumAcceptedPTS = max(0.0, target - 0.25)
+        os_unfair_lock_lock(&configLock)
+        minimumAcceptedPTS = target > 0.0 ? max(0.0, target - 0.25) : -Double.infinity
+        os_unfair_lock_unlock(&configLock)
+        removeAll()
     }
 }
 
@@ -258,6 +388,50 @@ nonisolated private final class ActiveMediaRouting: @unchecked Sendable {
     }
 }
 
+// MARK: - POSIX Thread QoS Configuration
+
+@inline(__always)
+public func pthread_set_qos_class_np(_ thread: pthread_t, _ qosClass: qos_class_t, _ relativePriority: Int32 = 0) -> Int32 {
+    return pthread_set_qos_class_self_np(qosClass, relativePriority)
+}
+
+// MARK: - Dedicated E-Core Feeder Thread Controller
+
+nonisolated private final class FeederTaskController: @unchecked Sendable {
+    private var _isCancelled: Bool = false
+    private var cancelLock = os_unfair_lock()
+    private let semaphore = DispatchSemaphore(value: 0)
+    public let generation: Int
+    
+    init(generation: Int) {
+        self.generation = generation
+    }
+    
+    var isCancelled: Bool {
+        os_unfair_lock_lock(&cancelLock)
+        defer { os_unfair_lock_unlock(&cancelLock) }
+        return _isCancelled
+    }
+    
+    func cancel() {
+        os_unfair_lock_lock(&cancelLock)
+        _isCancelled = true
+        os_unfair_lock_unlock(&cancelLock)
+        semaphore.signal()
+    }
+    
+    func signalHeadroom() {
+        semaphore.signal()
+    }
+    
+    func waitForHeadroom(timeoutMs: Int = 50) {
+        // Drain any stale accumulated signals from unblocked dequeues so we actually sleep for new headroom
+        while semaphore.wait(timeout: .now()) == .success {}
+        guard !isCancelled else { return }
+        _ = semaphore.wait(timeout: .now() + .milliseconds(timeoutMs))
+    }
+}
+
 // MARK: - Playback Pipeline
 
 @MainActor
@@ -283,7 +457,9 @@ public final class PlaybackPipeline: ObservableObject {
     @Published public private(set) var playbackRate: Float = 1.0
     
     // Engine Subsystems
-    public private(set) var demuxer: MatroskaDemuxer?
+    public private(set) var demuxer: (any MediaDemuxer)?
+    public var matroskaDemuxer: MatroskaDemuxer? { demuxer as? MatroskaDemuxer }
+    public var mp4Demuxer: MP4Demuxer? { demuxer as? MP4Demuxer }
     private var videoDecoder: VideoToolboxDecoder?
     private var audioEngine: AudioEngineBridge?
     public let renderer: MetalVideoRenderer?
@@ -299,6 +475,41 @@ public final class PlaybackPipeline: ObservableObject {
     @Published public private(set) var activeAudioTrackNumber: UInt64?
     @Published public private(set) var activeSubtitleTrackNumber: UInt64?
     public var onSubtitleCue: (@MainActor @Sendable (SubtitleCue) -> Void)?
+
+    public enum ContainerType: Sendable {
+        case matroska
+        case mp4
+    }
+
+    public static func probeContainerType(at url: URL) -> ContainerType {
+        // 1. Sniff magic bytes
+        if let handle = try? FileHandle(forReadingFrom: url) {
+            defer { try? handle.close() }
+            let header = handle.readData(ofLength: 16)
+            if header.count >= 4 {
+                // EBML Header: 0x1A 0x45 0xDF 0xA3
+                if header[0] == 0x1A && header[1] == 0x45 && header[2] == 0xDF && header[3] == 0xA3 {
+                    return .matroska
+                }
+                // ISO BMFF: bytes 4..<8 are 'ftyp', 'moov', 'wide', 'mdat', 'free', 'skip'
+                if header.count >= 8 {
+                    let fourCCData = header.subdata(in: 4..<8)
+                    if let fourCC = String(data: fourCCData, encoding: .ascii) {
+                        if ["ftyp", "moov", "wide", "mdat", "free", "skip"].contains(fourCC) {
+                            return .mp4
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Fallback to path extension
+        let ext = url.pathExtension.lowercased()
+        if ["mp4", "mov", "m4v", "m4a", "3gp", "3g2"].contains(ext) {
+            return .mp4
+        }
+        return .matroska
+    }
     
     // Decoded Frame Ring Buffer & Scrub Frame Cache
     private let frameQueue = FrameQueue(maxCount: 18)
@@ -316,7 +527,8 @@ public final class PlaybackPipeline: ObservableObject {
     
     // Concurrency & Feeder Task
     private let seekToken = SeekToken()
-    private var feederTask: Task<Void, Never>?
+    private let feederQueue = DispatchQueue(label: "com.frames.playback.feeder", qos: .utility)
+    private var feederTask: FeederTaskController?
     private var scrubTask: Task<Void, Never>?
     private var pendingScrubTarget: Double?
     private var isScrubbingActive: Bool = false
@@ -360,9 +572,19 @@ public final class PlaybackPipeline: ObservableObject {
         transition(to: .loading)
         self.currentURL = url
         
-        // 1. Initialize pure Swift streaming Matroska demuxer
+        // 1. Initialize pure Swift streaming demuxer (MP4/MOV or Matroska/WebM)
         do {
-            let d = try MatroskaDemuxer(url: url)
+            let containerType = Self.probeContainerType(at: url)
+            let d: any MediaDemuxer
+            if containerType == .mp4 {
+                d = try MP4Demuxer(url: url)
+            } else {
+                do {
+                    d = try MatroskaDemuxer(url: url)
+                } catch {
+                    d = try MP4Demuxer(url: url)
+                }
+            }
             self.demuxer = d
             self.duration = d.duration
             
@@ -699,7 +921,7 @@ public final class PlaybackPipeline: ObservableObject {
 
     // MARK: - Dedicated Scrubbing Worker (Ultra-Smooth Apple Silicon Native Scrub)
 
-    private func startScrubTask(demuxer: MatroskaDemuxer) {
+    private func startScrubTask(demuxer: any MediaDemuxer) {
         scrubTask?.cancel()
         scrubGeneration &+= 1
         let generation = scrubGeneration
@@ -876,7 +1098,7 @@ public final class PlaybackPipeline: ObservableObject {
     
     // MARK: - Dedicated Feeder Task
     
-    private func startFeederTask(demuxer: MatroskaDemuxer, targetSeekTime: Double? = nil, generation: Int) {
+    private func startFeederTask(demuxer: any MediaDemuxer, targetSeekTime: Double? = nil, generation: Int) {
         feederTask?.cancel()
         
         let token = self.seekToken
@@ -890,11 +1112,19 @@ public final class PlaybackPipeline: ObservableObject {
         let targetPTS = targetSeekTime ?? 0.0
         let onSubCue = self.onSubtitleCue
         
-        feederTask = Task.detached(priority: .userInitiated) { [weak demuxer] in
+        let controller = FeederTaskController(generation: generation)
+        self.feederTask = controller
+        
+        q.onHeadroomAvailable = { [weak controller] in
+            controller?.signalHeadroom()
+        }
+        
+        feederQueue.async { [weak demuxer] in
+            _ = pthread_set_qos_class_np(pthread_self(), QOS_CLASS_UTILITY, 0)
             guard let demuxer = demuxer else { return }
             
             func isCurrentGen() -> Bool {
-                return token.isCurrent(generation) && !Task.isCancelled
+                return token.isCurrent(generation) && !controller.isCancelled
             }
             
             // Mode A: Precision Seek Preroll (Decodes keyframe and intermediate frames up to target PTS)
@@ -972,8 +1202,9 @@ public final class PlaybackPipeline: ObservableObject {
 
                 // Throttle feeding if decoded frame queue and audio buffer have sufficient headroom
                 // Also throttle if packetBuffer has accumulated enough deferred video packets
+                // Event-based backpressure: sleep until headroom becomes available or cancelled
                 if videoBuffered && (audioBuffered || packetBuffer.count >= packetBuffer.maxCapacity) {
-                    try? await Task.sleep(nanoseconds: 15_000_000) // 15ms sleep
+                    controller.waitForHeadroom(timeoutMs: 50)
                     continue
                 }
 
@@ -1030,7 +1261,7 @@ public final class PlaybackPipeline: ObservableObject {
                 }
 
                 if shouldSleepAfterEOF {
-                    try? await Task.sleep(nanoseconds: 30_000_000)
+                    controller.waitForHeadroom(timeoutMs: 30)
                 }
             }
         }

@@ -98,7 +98,7 @@ nonisolated public final class NativeAudioDecoder: @unchecked Sendable {
         } else if codec == "A_AC3" || codec == "AC-3" {
             formatID = kAudioFormatAC3
             framesPerPacket = 1536
-        } else if codec == "A_AAC" || codec.contains("AAC") {
+        } else if codec == "A_AAC" || codec.contains("AAC") || codec == "MP4A" {
             formatID = kAudioFormatMPEG4AAC
             framesPerPacket = 1024
         } else if codec == "A_OPUS" || codec.contains("OPUS") {
@@ -107,7 +107,7 @@ nonisolated public final class NativeAudioDecoder: @unchecked Sendable {
         } else if codec == "A_MPEG/L3" || codec.contains("MP3") {
             formatID = kAudioFormatMPEGLayer3
             framesPerPacket = 1152
-        } else if codec == "A_ALAC" || codec.contains("ALAC") {
+        } else if codec == "A_ALAC" || codec.contains("ALAC") || codec == "ALAC" {
             formatID = kAudioFormatAppleLossless
             framesPerPacket = 4096
         } else if codec == "A_FLAC" || codec.contains("FLAC") {

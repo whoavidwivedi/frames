@@ -48,6 +48,12 @@ nonisolated public final class MetalVideoRenderer: @unchecked Sendable {
     private var currentColorSpaceMode: Int32 = 0
     private var is10Bit: Bool = false
     public var onFrameAvailable: (@Sendable () -> Void)?
+
+    public var currentBuffer: CVPixelBuffer? {
+        renderLock.lock()
+        defer { renderLock.unlock() }
+        return currentPixelBuffer
+    }
     
     // MARK: - Lifecycle
     

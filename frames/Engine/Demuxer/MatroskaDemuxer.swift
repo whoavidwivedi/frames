@@ -2,7 +2,7 @@ import Foundation
 import Darwin
 
 /// Pure Swift 6 zero-dependency streaming Matroska (.mkv) and WebM (.webm) demuxer.
-nonisolated public final class MatroskaDemuxer: @unchecked Sendable {
+nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxer {
     public let fileURL: URL
     private var fileDescriptor: Int32 = -1
     public let fileSize: UInt64
@@ -61,6 +61,24 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable {
     private var cachedClusters: [ClusterIndexEntry] = []
     private var backgroundIndexTask: Task<Void, Never>?
     private let clusterLock = NSLock()
+
+    public static let burstChunkSize: Int = 16 * 1024 * 1024 // 16MB burst chunk (16MB - 32MB)
+    public private(set) var burstPrefetchCount: Int = 0
+    private var lastBurstPrefetchOffset: UInt64 = UInt64.max
+    public private(set) var mappedRegion: MappedFileRegion?
+
+    /// Advises kernel to burst-read 16MB-32MB chunks via MADV_WILLNEED into physical page cache
+    /// so the NVMe PCIe storage controller can quickly return to ASPM L1.2 low-power sleep.
+    @discardableResult
+    public func adviseBurstPrefetch(offset: UInt64, length: Int = MatroskaDemuxer.burstChunkSize) -> Bool {
+        guard let region = mappedRegion else { return false }
+        let success = region.adviseBurst(offset: offset, length: length)
+        if success {
+            burstPrefetchCount += 1
+            lastBurstPrefetchOffset = offset
+        }
+        return success
+    }
 
     public func recordCluster(timeSeconds: Double, offset: UInt64) {
         clusterLock.lock()
@@ -229,9 +247,14 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable {
             self.fileSize = (attr?[.size] as? UInt64) ?? 0
         }
 
+        if self.fileSize > 0 {
+            self.mappedRegion = MappedFileRegion(fd: fd, size: self.fileSize)
+        }
+
         do {
             try parseMetadata()
         } catch {
+            self.mappedRegion = nil
             Darwin.close(fd)
             self.fileDescriptor = -1
             throw error
@@ -243,6 +266,7 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable {
         backgroundIndexTask = nil
         ioLock.lock()
         defer { ioLock.unlock() }
+        self.mappedRegion = nil
         if fileDescriptor >= 0 {
             Darwin.close(fileDescriptor)
             fileDescriptor = -1
@@ -825,6 +849,12 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable {
             }
 
             while currentOffset < fileSize {
+                // Race-to-sleep burst storage I/O optimization: advise next 16MB-32MB chunk into page cache
+                if currentOffset < lastBurstPrefetchOffset ||
+                   currentOffset >= lastBurstPrefetchOffset + UInt64(Self.burstChunkSize) / 2 {
+                    adviseBurstPrefetch(offset: currentOffset, length: Self.burstChunkSize)
+                }
+
                 guard let elem = readElement(at: currentOffset) else {
                     // If not at EOF, attempt resynchronization to the nearest cluster
                     if currentOffset < fileSize, let nextCluster = resyncToCluster(from: currentOffset) {
@@ -1143,6 +1173,9 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable {
         pendingPackets.removeAll()
         buffer = Data()
         bufferFileOffset = 0
+
+        // Race-to-sleep burst storage I/O optimization: advise keyframe cluster into page cache
+        adviseBurstPrefetch(offset: self.currentOffset, length: Self.burstChunkSize)
     }
 
     /// Scans forward from an offset to locate the 4-byte Matroska cluster element signature (0x1F43B675).
@@ -1211,6 +1244,22 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable {
     private func readBytes(offset: UInt64, length: Int) throws -> Data {
         return autoreleasepool {
             guard length > 0, offset + UInt64(length) <= fileSize else { return Data() }
+
+            if length >= Self.burstChunkSize {
+                adviseBurstPrefetch(offset: offset, length: length)
+            }
+
+            // True hardware zero-copy slicing backed by mapped virtual memory
+            if let region = mappedRegion {
+                let start = Int(offset)
+                let end = start + length
+                if start >= 0 && end <= region.size {
+                    let ptr = region.pointer.advanced(by: start)
+                    return Data(bytesNoCopy: ptr, count: length, deallocator: .custom { [region] _, _ in
+                        _ = region
+                    })
+                }
+            }
 
             // If requested region is inside current buffer, slice directly without disk I/O
             if offset >= bufferFileOffset && (offset + UInt64(length)) <= (bufferFileOffset + UInt64(buffer.count)) {

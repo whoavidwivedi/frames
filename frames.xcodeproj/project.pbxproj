@@ -22,6 +22,8 @@
 		F9C7FA8DECCB930D65566E18 /* EBMLID.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83E0F5D0AAF823168B0F8EA6 /* EBMLID.swift */; };
 		0727194102E6A3C4C81EC2F0 /* EBMLVint.swift in Sources */ = {isa = PBXBuildFile; fileRef = A34634AC3CDDE59A77BB7BC1 /* EBMLVint.swift */; };
 		B6693F741CD6CE57B617B0E9 /* MatroskaDemuxer.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACE5F605D892EF1C6A3B3D3F /* MatroskaDemuxer.swift */; };
+		2A3B4C5D6E7F8091A2B3C4D6 /* MediaDemuxer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A2B3C4D5E6F708192A3B4C5 /* MediaDemuxer.swift */; };
+		4C5D6E7F8091A2B3C4D5E6F8 /* MP4Demuxer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B4C5D6E7F8091A2B3C4D5E7 /* MP4Demuxer.swift */; };
 		B870E19C222D69CEE77E1D1B /* VideoToolboxEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8B0766AEE618C3FE178896 /* VideoToolboxEncoder.swift */; };
 		F06491E0AC2B826CEE710AAA /* KeyboardHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = C512032DA5E3A32B58036A23 /* KeyboardHandler.swift */; };
 		2BB807C927CCAF86607BE560 /* LibraryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B809D143C17488282B447C8B /* LibraryManager.swift */; };
@@ -93,6 +95,8 @@
 		83E0F5D0AAF823168B0F8EA6 /* EBMLID.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EBMLID.swift"; sourceTree = "<group>"; };
 		A34634AC3CDDE59A77BB7BC1 /* EBMLVint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EBMLVint.swift"; sourceTree = "<group>"; };
 		ACE5F605D892EF1C6A3B3D3F /* MatroskaDemuxer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MatroskaDemuxer.swift"; sourceTree = "<group>"; };
+		1A2B3C4D5E6F708192A3B4C5 /* MediaDemuxer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MediaDemuxer.swift"; sourceTree = "<group>"; };
+		3B4C5D6E7F8091A2B3C4D5E7 /* MP4Demuxer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MP4Demuxer.swift"; sourceTree = "<group>"; };
 		5A8B0766AEE618C3FE178896 /* VideoToolboxEncoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VideoToolboxEncoder.swift"; sourceTree = "<group>"; };
 		C512032DA5E3A32B58036A23 /* KeyboardHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "KeyboardHandler.swift"; sourceTree = "<group>"; };
 		B809D143C17488282B447C8B /* LibraryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryManager.swift"; sourceTree = "<group>"; };
@@ -238,6 +242,8 @@
 				83E0F5D0AAF823168B0F8EA6 /* EBMLID.swift */,
 				A34634AC3CDDE59A77BB7BC1 /* EBMLVint.swift */,
 				ACE5F605D892EF1C6A3B3D3F /* MatroskaDemuxer.swift */,
+				1A2B3C4D5E6F708192A3B4C5 /* MediaDemuxer.swift */,
+				3B4C5D6E7F8091A2B3C4D5E7 /* MP4Demuxer.swift */,
 			);
 			path = "Demuxer";
 			sourceTree = "<group>";
@@ -459,6 +465,8 @@
 				F9C7FA8DECCB930D65566E18 /* EBMLID.swift in Sources */,
 				0727194102E6A3C4C81EC2F0 /* EBMLVint.swift in Sources */,
 				B6693F741CD6CE57B617B0E9 /* MatroskaDemuxer.swift in Sources */,
+				2A3B4C5D6E7F8091A2B3C4D6 /* MediaDemuxer.swift in Sources */,
+				4C5D6E7F8091A2B3C4D5E6F8 /* MP4Demuxer.swift in Sources */,
 				B870E19C222D69CEE77E1D1B /* VideoToolboxEncoder.swift in Sources */,
 				F06491E0AC2B826CEE710AAA /* KeyboardHandler.swift in Sources */,
 				2BB807C927CCAF86607BE560 /* LibraryManager.swift in Sources */,

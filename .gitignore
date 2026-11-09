@@ -16,6 +16,7 @@ Icon\r\r
 # Xcode & DerivedData
 build/
 DerivedData/
+frames.app
 *.pbxuser
 !default.pbxuser
 *.mode1v3

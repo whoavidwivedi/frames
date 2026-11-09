@@ -77,7 +77,8 @@ struct ContentView: View {
                         MetalVideoCanvasView(
                             renderer: engine.nativePipeline.renderer,
                             isPlaying: engine.isPlaying,
-                            videoFrameRate: engine.metadata.frameRate > 0 ? engine.metadata.frameRate : 60.0
+                            videoFrameRate: engine.metadata.frameRate > 0 ? engine.metadata.frameRate : 60.0,
+                            isDecoupledFullscreen: WindowManager.shared.isAnyFullscreen
                         ) {
                             engine.nativePipeline.nextFrameForDisplay()
                         }
@@ -104,14 +105,16 @@ struct ContentView: View {
                         .ignoresSafeArea()
                     }
 
-                    // Subtitle Display
-                    SubtitleOverlayView(
-                        text: engine.activeSubtitleText
-                    )
-                    .padding(.bottom, engine.controlsVisible ? 84 : 24)
+                    // Subtitle Display (unmounted when empty to decouple overlay for direct hardware scanout)
+                    if !engine.activeSubtitleText.isEmpty {
+                        SubtitleOverlayView(
+                            text: engine.activeSubtitleText
+                        )
+                        .padding(.bottom, engine.controlsVisible ? 84 : 24)
+                    }
 
-                    // Top window drag & title bar management strip (when controls hidden)
-                    if !engine.controlsVisible {
+                    // Top window drag & title bar management strip (when controls hidden in windowed mode)
+                    if !engine.controlsVisible && !WindowManager.shared.isAnyFullscreen {
                         VStack {
                             Color.clear
                                 .frame(height: 38)

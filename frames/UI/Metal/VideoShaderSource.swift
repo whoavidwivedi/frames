@@ -52,57 +52,57 @@ nonisolated public enum VideoShaderSource: Sendable {
         return out;
     }
 
-    // MARK: - HDR Optical Transfer Functions
+    // MARK: - HDR Optical Transfer Functions (FP16 Half Precision)
 
     // SMPTE ST 2084 (Perceptual Quantizer / PQ) EOTF
-    float3 pq_to_linear(float3 pq) {
-        const float m1 = 2610.0 / 16384.0;
-        const float m2 = 2523.0 / 4096.0 * 128.0;
-        const float c1 = 3424.0 / 4096.0;
-        const float c2 = 2413.0 / 4096.0 * 32.0;
-        const float c3 = 2392.0 / 4096.0 * 32.0;
+    half3 pq_to_linear(half3 pq) {
+        const half m1 = 2610.0h / 16384.0h;
+        const half m2 = 2523.0h / 4096.0h * 128.0h;
+        const half c1 = 3424.0h / 4096.0h;
+        const half c2 = 2413.0h / 4096.0h * 32.0h;
+        const half c3 = 2392.0h / 4096.0h * 32.0h;
 
-        float3 num = max(pow(pq, 1.0 / m2) - c1, 0.0);
-        float3 den = c2 - c3 * pow(pq, 1.0 / m2);
-        float3 linearSignal = pow(num / den, 1.0 / m1);
+        half3 num = max(pow(pq, half3(1.0h / m2)) - c1, half3(0.0h));
+        half3 den = c2 - c3 * pow(pq, half3(1.0h / m2));
+        half3 linearSignal = pow(num / den, half3(1.0h / m1));
         
-        return linearSignal * (10000.0 / 100.0);
+        return linearSignal * (10000.0h / 100.0h);
     }
 
     // ARIB STD-B67 (Hybrid Log-Gamma / HLG) EOTF
-    float3 hlg_to_linear(float3 hlg) {
-        const float a = 0.17883277;
-        const float b = 1.0 - 4.0 * a;
-        const float c = 0.5 - a * log(4.0 * a);
+    half3 hlg_to_linear(half3 hlg) {
+        const half a = 0.17883277h;
+        const half b = 1.0h - 4.0h * a;
+        const half c = 0.5h - a * log(4.0h * a);
         
-        float3 linearVal;
+        half3 linearVal;
         for (int i = 0; i < 3; ++i) {
-            float e = hlg[i];
-            if (e <= 0.5) {
-                linearVal[i] = (e * e) / 3.0;
+            half e = hlg[i];
+            if (e <= 0.5h) {
+                linearVal[i] = (e * e) / 3.0h;
             } else {
-                linearVal[i] = (exp((e - c) / a) + b) / 12.0;
+                linearVal[i] = (exp((e - c) / a) + b) / 12.0h;
             }
         }
         
-        return linearVal * (1000.0 / 100.0);
+        return linearVal * (1000.0h / 100.0h);
     }
 
-    // MARK: - Fragment Shader
+    // MARK: - Fragment Shader (FP16 Half-Precision ALU)
 
-    fragment float4 videoFragmentShader(
+    fragment half4 videoFragmentShader(
         VertexOutput in [[stage_in]],
-        texture2d<float, access::sample> lumaTexture [[texture(0)]],
-        texture2d<float, access::sample> chromaTexture [[texture(1)]],
+        texture2d<half, access::sample> lumaTexture [[texture(0)]],
+        texture2d<half, access::sample> chromaTexture [[texture(1)]],
         constant VideoShaderUniforms &uniforms [[buffer(0)]]
     ) {
         constexpr sampler s(address::clamp_to_edge, filter::linear);
         
-        float y = lumaTexture.sample(s, in.texCoords).r;
-        float2 cbcr = chromaTexture.sample(s, in.texCoords).rg;
+        half y = lumaTexture.sample(s, in.texCoords).r;
+        half2 cbcr = chromaTexture.sample(s, in.texCoords).rg;
         
-        float3 yuv = float3(y, cbcr) + uniforms.yuvOffset;
-        float3 rgb = max(uniforms.colorMatrix * yuv, 0.0);
+        half3 yuv = half3(y, cbcr) + half3(uniforms.yuvOffset);
+        half3 rgb = max(half3x3(uniforms.colorMatrix) * yuv, half3(0.0h));
         
         if (uniforms.colorSpaceMode == 2) {
             rgb = pq_to_linear(rgb);
@@ -110,7 +110,7 @@ nonisolated public enum VideoShaderSource: Sendable {
             rgb = hlg_to_linear(rgb);
         }
         
-        return float4(rgb, 1.0);
+        return half4(rgb, 1.0h);
     }
     """
 }

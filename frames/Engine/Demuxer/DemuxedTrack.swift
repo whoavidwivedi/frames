@@ -97,43 +97,47 @@ nonisolated public struct DemuxedTrack: Sendable, Identifiable {
 
     // MARK: - Codec Identification
     public var isH264: Bool {
-        codecID == "V_MPEG4/ISO/AVC" || codecID == "V_MS/VFW/FOURCC"
+        codecID == "V_MPEG4/ISO/AVC" || codecID == "V_MS/VFW/FOURCC" || codecID == "avc1" || codecID == "avc3"
     }
 
     public var isHEVC: Bool {
-        codecID == "V_MPEGH/ISO/HEVC"
+        codecID == "V_MPEGH/ISO/HEVC" || codecID == "hvc1" || codecID == "hev1"
     }
 
     public var isVP9: Bool {
-        codecID == "V_VP9"
+        codecID == "V_VP9" || codecID == "vp09"
     }
 
     public var isAV1: Bool {
-        codecID == "V_AV1"
+        codecID == "V_AV1" || codecID == "av01"
     }
 
     public var isProRes: Bool {
-        codecID.starts(with: "V_PRORES")
+        codecID.starts(with: "V_PRORES") || codecID.starts(with: "ap")
     }
 
     public var isAAC: Bool {
-        codecID == "A_AAC" || codecID.starts(with: "A_AAC")
+        codecID == "A_AAC" || codecID.starts(with: "A_AAC") || codecID == "mp4a"
     }
 
     public var isFLAC: Bool {
-        codecID == "A_FLAC"
+        codecID == "A_FLAC" || codecID == "flac" || codecID == "fLaC"
     }
 
     public var isOpus: Bool {
-        codecID == "A_OPUS"
+        codecID == "A_OPUS" || codecID == "Opus" || codecID == "opus"
     }
 
     public var isAC3: Bool {
-        codecID == "A_AC3"
+        codecID == "A_AC3" || codecID == "ac-3"
     }
 
     public var isEAC3: Bool {
-        codecID == "A_EAC3"
+        codecID == "A_EAC3" || codecID == "ec-3"
+    }
+
+    public var isALAC: Bool {
+        codecID == "A_ALAC" || codecID == "alac"
     }
 
     public var isDTS: Bool {

@@ -29,6 +29,30 @@ public enum AutoResumeMode: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+public enum VideoPresentationEngine: String, CaseIterable, Identifiable, Sendable {
+    case auto = "auto"
+    case directHardwareScanout = "directHardwareScanout"
+    case metalShaders = "metalShaders"
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .auto: return "Auto (Direct Hardware Scanout / Metal Adaptive)"
+        case .directHardwareScanout: return "Direct Hardware Scanout (0% GPU DCP)"
+        case .metalShaders: return "Metal 3 Shaders (CAMetalLayer FP16)"
+        }
+    }
+
+    public var icon: String {
+        switch self {
+        case .auto: return "sparkles"
+        case .directHardwareScanout: return "display"
+        case .metalShaders: return "cpu"
+        }
+    }
+}
+
 public enum HDRToneMappingMode: String, CaseIterable, Identifiable, Sendable {
     case auto = "auto"
     case sdrOnly = "sdrOnly"
@@ -136,6 +160,9 @@ public final class SettingsManager {
     public static let autoResumeModeKey = "frames_settings_auto_resume_mode_v1"
     public static let showAddVideoTileKey = "frames_settings_show_add_video_tile_v1"
     public nonisolated static let hardwareAccelerationKey = "frames_settings_hardware_acceleration_v1"
+    public static let videoPresentationEngineKey = "frames_settings_video_presentation_engine_v1"
+    public static let animeDebandingKey = "frames_settings_anime_debanding_v1"
+    public static let customVideoAdjustmentsKey = "frames_settings_custom_video_adjustments_v1"
     public static let hdrToneMappingKey = "frames_settings_hdr_tone_mapping_v1"
     public static let proMotionSyncKey = "frames_settings_promotion_sync_v1"
     public static let defaultSkipIntervalKey = "frames_settings_default_skip_interval_v1"
@@ -171,6 +198,39 @@ public final class SettingsManager {
     }
 
     // MARK: - 2. Playback & Video Settings
+    public var videoPresentationEngine: VideoPresentationEngine {
+        didSet {
+            UserDefaults.standard.set(videoPresentationEngine.rawValue, forKey: Self.videoPresentationEngineKey)
+        }
+    }
+
+    public var animeDebandingEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(animeDebandingEnabled, forKey: Self.animeDebandingKey)
+        }
+    }
+
+    public var customVideoAdjustmentsEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(customVideoAdjustmentsEnabled, forKey: Self.customVideoAdjustmentsKey)
+        }
+    }
+
+    public var isCustomPostProcessingActive: Bool {
+        return (hdrToneMapping == .sdrOnly) || animeDebandingEnabled || customVideoAdjustmentsEnabled
+    }
+
+    public var effectivePresentationEngine: VideoPresentationEngine {
+        switch videoPresentationEngine {
+        case .directHardwareScanout:
+            return .directHardwareScanout
+        case .metalShaders:
+            return .metalShaders
+        case .auto:
+            return isCustomPostProcessingActive ? .metalShaders : .directHardwareScanout
+        }
+    }
+
     public var hardwareAccelerationEnabled: Bool {
         didSet {
             UserDefaults.standard.set(hardwareAccelerationEnabled, forKey: Self.hardwareAccelerationKey)
@@ -323,6 +383,25 @@ public final class SettingsManager {
         }
 
         // Playback
+        if let engStr = defaults.string(forKey: Self.videoPresentationEngineKey),
+           let eng = VideoPresentationEngine(rawValue: engStr) {
+            self.videoPresentationEngine = eng
+        } else {
+            self.videoPresentationEngine = .auto
+        }
+
+        if defaults.object(forKey: Self.animeDebandingKey) != nil {
+            self.animeDebandingEnabled = defaults.bool(forKey: Self.animeDebandingKey)
+        } else {
+            self.animeDebandingEnabled = false
+        }
+
+        if defaults.object(forKey: Self.customVideoAdjustmentsKey) != nil {
+            self.customVideoAdjustmentsEnabled = defaults.bool(forKey: Self.customVideoAdjustmentsKey)
+        } else {
+            self.customVideoAdjustmentsEnabled = false
+        }
+
         if defaults.object(forKey: Self.hardwareAccelerationKey) != nil {
             self.hardwareAccelerationEnabled = defaults.bool(forKey: Self.hardwareAccelerationKey)
         } else {
@@ -449,6 +528,9 @@ public final class SettingsManager {
         LibraryManager.shared.viewMode = .grid
         autoResumeMode = .ask
         showAddVideoTile = true
+        videoPresentationEngine = .auto
+        animeDebandingEnabled = false
+        customVideoAdjustmentsEnabled = false
         hardwareAccelerationEnabled = true
         hdrToneMapping = .auto
         proMotionSyncEnabled = true

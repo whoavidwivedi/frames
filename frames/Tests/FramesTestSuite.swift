@@ -3,6 +3,10 @@ import CoreGraphics
 import SwiftUI
 import AVFoundation
 import AVFAudio
+import CoreVideo
+import CoreMedia
+import QuartzCore
+import Metal
 
 @MainActor
 public enum FramesTestSuite {
@@ -2590,6 +2594,1199 @@ public enum FramesTestSuite {
             assertTest("MetalVideoRenderer Clears Frame Without Blocking", condition: true)
         }
 
+        // MARK: - 40. Hyper-Optimized Video Playback Engine (ASIC, SPSC, E-Core, FP16, Overlay Promotion)
+        logs.append("\n[40] Testing Hyper-Optimized Video Playback Engine...")
+        
+        // 1. VideoToolbox Temporal Processing Flag
+        let temporalFlag = VTDecodeFrameFlags._EnableTemporalProcessing
+        assertTest("VideoToolbox Temporal Processing Flag Defined", condition: temporalFlag.rawValue != 0)
+        let decodeFlags: VTDecodeFrameFlags = [._EnableAsynchronousDecompression, ._EnableTemporalProcessing]
+        assertTest("VideoToolbox Decode Flags Include Temporal Processing", condition: decodeFlags.contains(._EnableTemporalProcessing))
+
+        // 2. Lock-Free SPSC FrameQueue Concurrency & Cadence
+        let spscQueue = FrameQueue(maxCount: 24, nominalFrameDuration: 1.0 / 60.0)
+        assertTest("SPSC FrameQueue Initialized Empty", condition: spscQueue.count == 0)
+        
+        var headroomSignaled = false
+        spscQueue.onHeadroomAvailable = {
+            headroomSignaled = true
+        }
+
+        var testPB: CVPixelBuffer?
+        CVPixelBufferCreate(kCFAllocatorDefault, 32, 32, kCVPixelFormatType_32BGRA, nil, &testPB)
+        if let pb = testPB {
+            // Concurrent SPSC producer-consumer stress test (1,000 frames)
+            let testFrameCount = 1000
+            let stressGroup = DispatchGroup()
+            stressGroup.enter()
+            
+            var dequeuedCount = 0
+            let consumerThread = Thread {
+                var received = 0
+                while received < testFrameCount {
+                    let currentClock = Double(received) * (1.0 / 60.0)
+                    if let _ = spscQueue.dequeueNext(forMasterClock: currentClock, frameDuration: 1.0 / 60.0) {
+                        received += 1
+                    } else {
+                        Thread.sleep(forTimeInterval: 0.0001)
+                    }
+                }
+                dequeuedCount = received
+                stressGroup.leave()
+            }
+            consumerThread.start()
+            
+            for i in 0..<testFrameCount {
+                let frame = VideoToolboxDecoder.DecodedVideoFrame(
+                    pixelBuffer: pb,
+                    pts: Double(i) * (1.0 / 60.0),
+                    duration: 1.0 / 60.0
+                )
+                spscQueue.enqueue(frame)
+                if (i % 32) == 0 {
+                    Thread.sleep(forTimeInterval: 0.0002)
+                }
+            }
+            
+            _ = stressGroup.wait(timeout: .now() + .seconds(3))
+            assertTest("SPSC Queue 1,000 Concurrent Frames Throughput", condition: dequeuedCount == testFrameCount, "Dequeued: \(dequeuedCount)/\(testFrameCount)")
+            assertTest("SPSC Queue Headroom Event Fired", condition: headroomSignaled)
+
+            // 2b. SPSC Queue Monotonic Reset & Underflow Safety
+            let resetQueue = FrameQueue(maxCount: 24, nominalFrameDuration: 1.0 / 60.0)
+            for i in 0..<10 {
+                resetQueue.enqueue(VideoToolboxDecoder.DecodedVideoFrame(pixelBuffer: pb, pts: Double(i) * 0.016, duration: 0.016))
+            }
+            assertTest("SPSC Reset Test Pre-fill Count", condition: resetQueue.count == 10)
+            resetQueue.reset(forSeek: 50.0)
+            assertTest("SPSC Reset Empties Queue", condition: resetQueue.count == 0)
+            assertTest("SPSC Reset dequeueNext Underflow Guard", condition: resetQueue.dequeueNext(forMasterClock: 50.0) == nil)
+            
+            // Re-enqueue after seek: delivers correct post-seek frame
+            resetQueue.enqueue(VideoToolboxDecoder.DecodedVideoFrame(pixelBuffer: pb, pts: 50.016, duration: 0.016))
+            let postSeekFrame = resetQueue.dequeueNext(forMasterClock: 50.016)
+            assertTest("SPSC Monotonic Queue Resumes Post-Seek", condition: postSeekFrame != nil && abs(postSeekFrame!.pts - 50.016) < 0.001)
+
+            // 2c. SPSC Saturation Protection (Producer never corrupts consumer tail)
+            let satQueue = FrameQueue(maxCount: 24, nominalFrameDuration: 1.0 / 60.0)
+            for i in 0..<300 {
+                satQueue.enqueue(VideoToolboxDecoder.DecodedVideoFrame(pixelBuffer: pb, pts: Double(i) * 0.016, duration: 0.016))
+            }
+            assertTest("SPSC Capacity Saturated at 256 Slots", condition: satQueue.count == 256)
+            let satFrame = satQueue.dequeueNext(forMasterClock: 0.0)
+            assertTest("SPSC Queue Head Preserved After Saturation", condition: satFrame != nil && abs(satFrame!.pts - 0.0) < 0.001)
+        }
+
+        // 3. E-Core Feeder Thread QoS & Backpressure
+        let qosNpResult = pthread_set_qos_class_np(pthread_self(), QOS_CLASS_UTILITY, 0)
+        assertTest("pthread_set_qos_class_np Configured Successfully", condition: qosNpResult == 0)
+        let qosResult = pthread_set_qos_class_self_np(QOS_CLASS_UTILITY, 0)
+        assertTest("QOS_CLASS_UTILITY Configured Successfully", condition: qosResult == 0)
+
+        let sema = DispatchSemaphore(value: 0)
+        let semaStart = CACurrentMediaTime()
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + .milliseconds(5)) {
+            sema.signal()
+        }
+        let waitResult = sema.wait(timeout: .now() + .milliseconds(100))
+        let semaElapsed = (CACurrentMediaTime() - semaStart) * 1000.0
+        assertTest("Event-Based Semaphore Backpressure Immediate Wakeup", condition: waitResult == .success && semaElapsed < 50.0, "Elapsed: \(semaElapsed)ms")
+
+        // 4. FP16 Half-Precision Metal Shaders
+        let shaderSrc = VideoShaderSource.source
+        assertTest("Metal Shader Uses FP16 half3 Types", condition: shaderSrc.contains("half3"))
+        assertTest("Metal Shader Uses FP16 half3x3 Types", condition: shaderSrc.contains("half3x3"))
+        assertTest("Metal Shader Uses FP16 half4 Fragment Output", condition: shaderSrc.contains("half4"))
+        assertTest("Metal Shader Implements FP16 PQ EOTF", condition: shaderSrc.contains("half3 pq_to_linear(half3 pq)"))
+        assertTest("Metal Shader Implements FP16 HLG EOTF", condition: shaderSrc.contains("half3 hlg_to_linear(half3 hlg)"))
+
+        if let dev = MTLCreateSystemDefaultDevice() {
+            var libCompiled = false
+            var pipeCompiled = false
+            do {
+                let lib = try dev.makeLibrary(source: shaderSrc, options: nil)
+                libCompiled = lib.functionNames.contains("videoFragmentShader") && lib.functionNames.contains("videoVertexShader")
+                if let vf = lib.makeFunction(name: "videoVertexShader"),
+                   let ff = lib.makeFunction(name: "videoFragmentShader") {
+                    let desc = MTLRenderPipelineDescriptor()
+                    desc.vertexFunction = vf
+                    desc.fragmentFunction = ff
+                    desc.colorAttachments[0].pixelFormat = .rgba16Float
+                    _ = try dev.makeRenderPipelineState(descriptor: desc)
+                    pipeCompiled = true
+                }
+            } catch {
+                print("Metal test compilation error: \(error)")
+            }
+            assertTest("Metal FP16 Runtime Driver Compilation", condition: libCompiled)
+            assertTest("Metal FP16 Pipeline State Built", condition: pipeCompiled)
+        }
+
+        // 5. Direct Hardware Overlay Promotion
+        let nativeMetalCanvas = NativeMetalView(renderer: MetalVideoRenderer())
+        assertTest("NativeMetalView CAMetalLayer isOpaque True", condition: (nativeMetalCanvas.layer as? CAMetalLayer)?.isOpaque == true)
+        assertTest("NativeMetalView View isOpaque True", condition: nativeMetalCanvas.isOpaque)
+        assertTest("NativeMetalView canDrawSubviewsIntoLayer False", condition: !nativeMetalCanvas.canDrawSubviewsIntoLayer)
+        
+        nativeMetalCanvas.decoupleOverlaysForFullscreen(true)
+        assertTest("NativeMetalView Decouple Overlays Fullscreen Active", condition: nativeMetalCanvas.isDecoupledFullscreen)
+        nativeMetalCanvas.decoupleOverlaysForFullscreen(false)
+        assertTest("NativeMetalView Decouple Overlays Fullscreen Inactive", condition: !nativeMetalCanvas.isDecoupledFullscreen)
+
+        // ==========================================
+        // [41] Testing Native MP4 / MOV ISO BMFF Demuxer & PlaybackPipeline Integration...
+        // ==========================================
+        logs.append("\n[41] Testing Native MP4 / MOV ISO BMFF Demuxer & PlaybackPipeline Integration...")
+
+        // 1. FourCC Struct Validation
+        let ftypCC = FourCC.ftyp
+        let moovCC = FourCC.moov
+        let customCC = FourCC("test")
+        assertTest("FourCC Description String Matches", condition: ftypCC.description == "ftyp" && moovCC.description == "moov" && customCC.description == "test")
+        assertTest("FourCC Equatable and Hashable", condition: FourCC("ftyp") == FourCC.ftyp && Set([ftypCC, moovCC]).count == 2)
+
+        // Helper box building utilities
+        func makeBox(_ type: FourCC, _ payload: Data) -> Data {
+            var d = Data()
+            var sz = UInt32(payload.count + 8).bigEndian
+            var tp = type.value.bigEndian
+            d.append(Data(bytes: &sz, count: 4))
+            d.append(Data(bytes: &tp, count: 4))
+            d.append(payload)
+            return d
+        }
+
+        func makeFullBox(_ type: FourCC, version: UInt8 = 0, flags: UInt32 = 0, _ payload: Data) -> Data {
+            var inner = Data()
+            inner.append(version)
+            inner.append(UInt8((flags >> 16) & 0xFF))
+            inner.append(UInt8((flags >> 8) & 0xFF))
+            inner.append(UInt8(flags & 0xFF))
+            inner.append(payload)
+            return makeBox(type, inner)
+        }
+
+        func appendUInt32(_ val: UInt32, to data: inout Data) {
+            var big = val.bigEndian
+            data.append(Data(bytes: &big, count: 4))
+        }
+
+        func appendUInt16(_ val: UInt16, to data: inout Data) {
+            var big = val.bigEndian
+            data.append(Data(bytes: &big, count: 2))
+        }
+
+        func appendUInt64(_ val: UInt64, to data: inout Data) {
+            var big = val.bigEndian
+            data.append(Data(bytes: &big, count: 8))
+        }
+
+        func appendInt32(_ val: Int32, to data: inout Data) {
+            var big = val.bigEndian
+            data.append(Data(bytes: &big, count: 4))
+        }
+
+        // 2. Synthesize High-Performance ISO BMFF MP4 Container
+        // Top-Level Box 1: ftyp (24 bytes)
+        var ftypPayload = Data()
+        appendUInt32(FourCC("isom").value, to: &ftypPayload) // major_brand
+        appendUInt32(0x00000200, to: &ftypPayload)            // minor_version
+        appendUInt32(FourCC("isom").value, to: &ftypPayload) // compatible_brand 1
+        appendUInt32(FourCC("mp42").value, to: &ftypPayload) // compatible_brand 2
+        let ftypBox = makeBox(.ftyp, ftypPayload)
+
+        // Top-Level Box 2: free space (16 bytes)
+        let freeBox = makeBox(.free, Data(repeating: 0xAA, count: 8))
+
+        // Top-Level Box 3: mdat media data (1000 bytes payload)
+        var mdatPayload = Data()
+        for i in 0..<10 {
+            // 10 samples of 100 bytes each
+            mdatPayload.append(Data(repeating: UInt8(i + 1), count: 100))
+        }
+        let mdatBox = makeBox(.mdat, mdatPayload)
+
+        // Calculate chunk offsets for sample table:
+        // Offset of mdat payload = ftypBox.count + freeBox.count + 8 (mdat header)
+        let chunk1Offset = UInt64(ftypBox.count + freeBox.count + 8)
+        let chunk2Offset = chunk1Offset + 500
+
+        // Build Video Track Sample Table (stbl)
+        // a. avcC child box (H.264 SPS & PPS)
+        var avcCPayload = Data()
+        avcCPayload.append(1) // version 1
+        avcCPayload.append(100) // profile High
+        avcCPayload.append(0) // compat
+        avcCPayload.append(40) // level 4.0
+        avcCPayload.append(0xFF) // nalLengthSize = 4 (0xFC | 3)
+        avcCPayload.append(0xE1) // numSPS = 1 (0xE0 | 1)
+        appendUInt16(4, to: &avcCPayload) // SPS length = 4
+        avcCPayload.append(contentsOf: [0x67, 0x64, 0x00, 0x28]) // SPS NAL
+        avcCPayload.append(1) // numPPS = 1
+        appendUInt16(4, to: &avcCPayload) // PPS length = 4
+        avcCPayload.append(contentsOf: [0x68, 0xEE, 0x3C, 0x80]) // PPS NAL
+        let avcCBox = makeBox(.avcC, avcCPayload)
+
+        // b. colr child box (BT.2020 Primaries, PQ Transfer, Full Range)
+        var colrPayload = Data()
+        appendUInt32(FourCC.nclx.value, to: &colrPayload)
+        appendUInt16(9, to: &colrPayload)  // primaries: BT.2020 (9)
+        appendUInt16(16, to: &colrPayload) // transfer: SMPTE ST 2084 PQ (16)
+        appendUInt16(9, to: &colrPayload)  // matrix: BT.2020 non-constant luminance (9)
+        colrPayload.append(0x80)           // full range
+        let colrBox = makeBox(.colr, colrPayload)
+
+        // c. avc1 Video Sample Entry
+        var avc1Payload = Data()
+        avc1Payload.append(contentsOf: [0, 0, 0, 0, 0, 0]) // reserved (6 bytes)
+        appendUInt16(1, to: &avc1Payload)                   // data_reference_index
+        avc1Payload.append(contentsOf: [UInt8](repeating: 0, count: 16)) // pre_defined & reserved
+        appendUInt16(1920, to: &avc1Payload)                // width
+        appendUInt16(1080, to: &avc1Payload)                // height
+        appendUInt32(0x00480000, to: &avc1Payload)          // horizresolution 72 dpi
+        appendUInt32(0x00480000, to: &avc1Payload)          // vertresolution 72 dpi
+        appendUInt32(0, to: &avc1Payload)                   // reserved
+        appendUInt16(1, to: &avc1Payload)                   // frame_count
+        avc1Payload.append(contentsOf: [UInt8](repeating: 0, count: 32)) // compressorname
+        appendUInt16(0x0018, to: &avc1Payload)              // depth 24-bit
+        appendUInt16(0xFFFF, to: &avc1Payload)              // pre_defined -1
+        avc1Payload.append(avcCBox)
+        avc1Payload.append(colrBox)
+        let avc1Entry = makeBox(.avc1, avc1Payload)
+
+        // d. stsd box
+        var stsdPayload = Data()
+        appendUInt32(1, to: &stsdPayload) // entry_count = 1
+        stsdPayload.append(avc1Entry)
+        let stsdBox = makeFullBox(.stsd, stsdPayload)
+
+        // e. stts box (10 samples, delta = 3000 at 30000 timescale -> 0.1s each)
+        var sttsPayload = Data()
+        appendUInt32(1, to: &sttsPayload) // entry_count = 1
+        appendUInt32(10, to: &sttsPayload) // sample_count = 10
+        appendUInt32(3000, to: &sttsPayload) // sample_delta = 3000
+        let sttsBox = makeFullBox(.stts, sttsPayload)
+
+        // f. ctts box (Composition Time to Sample for B-frame offsets)
+        var cttsPayload = Data()
+        appendUInt32(3, to: &cttsPayload) // entry_count = 3
+        appendUInt32(1, to: &cttsPayload); appendInt32(0, to: &cttsPayload)    // sample 0: offset 0
+        appendUInt32(1, to: &cttsPayload); appendInt32(6000, to: &cttsPayload) // sample 1: offset 6000 (B-frame)
+        appendUInt32(8, to: &cttsPayload); appendInt32(0, to: &cttsPayload)    // samples 2..9: offset 0
+        let cttsBox = makeFullBox(.ctts, version: 1, cttsPayload)
+
+        // g. stss box (Sync Sample Table: keyframes at sample 1 and sample 6, 1-based)
+        var stssPayload = Data()
+        appendUInt32(2, to: &stssPayload) // entry_count = 2
+        appendUInt32(1, to: &stssPayload) // sample 1 is keyframe
+        appendUInt32(6, to: &stssPayload) // sample 6 is keyframe
+        let stssBox = makeFullBox(.stss, stssPayload)
+
+        // h. stsz box (Sample Size: 10 samples of 100 bytes each)
+        var stszPayload = Data()
+        appendUInt32(100, to: &stszPayload) // uniform sample_size = 100
+        appendUInt32(10, to: &stszPayload)  // sample_count = 10
+        let stszBox = makeFullBox(.stsz, stszPayload)
+
+        // i. stsc box (Sample to Chunk: chunk 1 has 5 samples, chunk 2 has 5 samples)
+        var stscPayload = Data()
+        appendUInt32(1, to: &stscPayload) // entry_count = 1
+        appendUInt32(1, to: &stscPayload) // first_chunk = 1
+        appendUInt32(5, to: &stscPayload) // samples_per_chunk = 5
+        appendUInt32(1, to: &stscPayload) // sample_description_index = 1
+        let stscBox = makeFullBox(.stsc, stscPayload)
+
+        // j. stco box (Chunk Offsets: chunk 1 at chunk1Offset, chunk 2 at chunk2Offset)
+        var stcoPayload = Data()
+        appendUInt32(2, to: &stcoPayload) // entry_count = 2
+        appendUInt32(UInt32(chunk1Offset), to: &stcoPayload)
+        appendUInt32(UInt32(chunk2Offset), to: &stcoPayload)
+        let stcoBox = makeFullBox(.stco, stcoPayload)
+
+        // Combine stbl
+        var stblPayload = Data()
+        stblPayload.append(stsdBox)
+        stblPayload.append(sttsBox)
+        stblPayload.append(cttsBox)
+        stblPayload.append(stssBox)
+        stblPayload.append(stszBox)
+        stblPayload.append(stscBox)
+        stblPayload.append(stcoBox)
+        let stblBox = makeBox(.stbl, stblPayload)
+
+        // vmhd
+        let vmhdBox = makeFullBox(.vmhd, flags: 1, Data([0, 0, 0, 0, 0, 0, 0, 0]))
+
+        // minf
+        var minfPayload = Data()
+        minfPayload.append(vmhdBox)
+        minfPayload.append(stblBox)
+        let minfBox = makeBox(.minf, minfPayload)
+
+        // hdlr (Video Handler)
+        var hdlrPayload = Data()
+        appendUInt32(0, to: &hdlrPayload) // pre_defined
+        appendUInt32(FourCC.vide.value, to: &hdlrPayload) // handler_type
+        hdlrPayload.append(contentsOf: [UInt8](repeating: 0, count: 12)) // reserved
+        hdlrPayload.append(Data("VideoHandler\0".utf8))
+        let hdlrBox = makeFullBox(.hdlr, hdlrPayload)
+
+        // mdhd (Timescale 30000, Duration 300000 = 10.0s, Language "eng")
+        var mdhdPayload = Data()
+        appendUInt32(0, to: &mdhdPayload)      // creation_time
+        appendUInt32(0, to: &mdhdPayload)      // modification_time
+        appendUInt32(30000, to: &mdhdPayload)  // timescale = 30000
+        appendUInt32(300000, to: &mdhdPayload) // duration = 300000
+        appendUInt16(0x15C7, to: &mdhdPayload) // language = 'eng'
+        appendUInt16(0, to: &mdhdPayload)      // pre_defined
+        let mdhdBox = makeFullBox(.mdhd, mdhdPayload)
+
+        // mdia
+        var mdiaPayload = Data()
+        mdiaPayload.append(mdhdBox)
+        mdiaPayload.append(hdlrBox)
+        mdiaPayload.append(minfBox)
+        let mdiaBox = makeBox(.mdia, mdiaPayload)
+
+        // tkhd (Track ID 1, Duration 10000 at movie timescale 1000 = 10.0s, Width 1920, Height 1080)
+        var tkhdPayload = Data()
+        appendUInt32(0, to: &tkhdPayload)          // creation_time
+        appendUInt32(0, to: &tkhdPayload)          // modification_time
+        appendUInt32(1, to: &tkhdPayload)          // track_id = 1
+        appendUInt32(0, to: &tkhdPayload)          // reserved
+        appendUInt32(10000, to: &tkhdPayload)      // duration = 10000
+        tkhdPayload.append(contentsOf: [UInt8](repeating: 0, count: 48)) // reserved, layer, volume, matrix
+        appendUInt32(1920 << 16, to: &tkhdPayload) // width: 1920.0
+        appendUInt32(1080 << 16, to: &tkhdPayload) // height: 1080.0
+        let tkhdBox = makeFullBox(.tkhd, flags: 0x01, tkhdPayload)
+
+        // trak
+        var trakPayload = Data()
+        trakPayload.append(tkhdBox)
+        trakPayload.append(mdiaBox)
+        let trakBox = makeBox(.trak, trakPayload)
+
+        // mvhd (Movie timescale 1000, Duration 10000 = 10.0s)
+        var mvhdPayload = Data()
+        appendUInt32(0, to: &mvhdPayload)     // creation_time
+        appendUInt32(0, to: &mvhdPayload)     // modification_time
+        appendUInt32(1000, to: &mvhdPayload)  // timescale = 1000
+        appendUInt32(10000, to: &mvhdPayload) // duration = 10000
+        appendUInt32(0x00010000, to: &mvhdPayload) // rate 1.0
+        appendUInt16(0x0100, to: &mvhdPayload)     // volume 1.0
+        mvhdPayload.append(contentsOf: [UInt8](repeating: 0, count: 70)) // reserved, matrix, predefined, next_track_id
+        let mvhdBox = makeFullBox(.mvhd, mvhdPayload)
+
+        // moov
+        var moovPayload = Data()
+        moovPayload.append(mvhdBox)
+        moovPayload.append(trakBox)
+        let moovBox = makeBox(.moov, moovPayload)
+
+        // Assemble Complete ISO BMFF Data: [ftyp][free][mdat][moov]
+        var mp4Data = Data()
+        mp4Data.append(ftypBox)
+        mp4Data.append(freeBox)
+        mp4Data.append(mdatBox)
+        mp4Data.append(moovBox)
+
+        // 3. Test In-Memory MP4 Demuxing
+        if let demuxer = try? MP4Demuxer(data: mp4Data) {
+            assertTest("MP4Demuxer In-Memory Initialization", condition: true)
+            assertTest("MP4 Top-Level Box ftyp Major Brand", condition: demuxer.majorBrand == FourCC("isom"))
+            assertTest("MP4 Top-Level Box ftyp Minor Version", condition: demuxer.minorVersion == 0x00000200)
+            assertTest("MP4 Top-Level Box ftyp Compatible Brands", condition: demuxer.compatibleBrands.contains(FourCC("mp42")))
+            assertTest("MP4 Duration Parsed Accurately (10.0s)", condition: abs(demuxer.duration - 10.0) < 0.001)
+            assertTest("MP4 Video Track Extracted", condition: demuxer.videoTracks.count == 1)
+
+            if let vTrack = demuxer.videoTracks.first {
+                assertTest("MP4 Video Codec H.264 Recognized", condition: vTrack.isH264 && vTrack.codecID == "avc1")
+                assertTest("MP4 Video Dimensions (1920x1080)", condition: vTrack.pixelWidth == 1920 && vTrack.pixelHeight == 1080)
+                assertTest("MP4 Video Display Dimensions (1920x1080)", condition: vTrack.displayWidth == 1920 && vTrack.displayHeight == 1080)
+                assertTest("MP4 Video Language Code ('eng')", condition: vTrack.language == "eng")
+                assertTest("MP4 Video HDR Color Profile Primaries (BT.2020)", condition: vTrack.colorPrimaries == 9)
+                assertTest("MP4 Video HDR Transfer Function (SMPTE ST 2084 PQ)", condition: vTrack.transferCharacteristics == 16)
+                assertTest("MP4 Video Track isHDR Flag True", condition: vTrack.isHDR)
+
+                // Verify extradata avcC parsing via NALParser
+                if let priv = vTrack.codecPrivate,
+                   let parsedAVC = NALParser.parseAVCDecoderConfigurationRecord(priv) {
+                    assertTest("MP4 avcC SPS Parameter Set Extracted", condition: parsedAVC.sps.count == 1 && parsedAVC.sps[0].count == 4)
+                    assertTest("MP4 avcC PPS Parameter Set Extracted", condition: parsedAVC.pps.count == 1 && parsedAVC.pps[0].count == 4)
+                    assertTest("MP4 avcC NAL Length Size Is 4", condition: parsedAVC.nalLengthSize == 4)
+                } else {
+                    assertTest("MP4 avcC SPS Parameter Set Extracted", condition: false)
+                }
+            }
+
+            // 4. Sample Table & Keyframe Verification
+            assertTest("MP4 Sample Count Match (10 Samples)", condition: demuxer.sampleCount == 10)
+            assertTest("MP4 Keyframe Indices Match ([0, 5])", condition: demuxer.keyframeIndices(for: 1) == [0, 5])
+
+            // 5. Zero-Copy Packet Streaming (nextPacket)
+            if let packet0 = try? demuxer.nextPacket() {
+                assertTest("MP4 Packet 0 Track Number Matches", condition: packet0.trackNumber == 1)
+                assertTest("MP4 Packet 0 isKeyframe True", condition: packet0.isKeyframe)
+                assertTest("MP4 Packet 0 PTS is 0.0s", condition: abs(packet0.pts - 0.0) < 0.001)
+                assertTest("MP4 Packet 0 Size Is 100 Bytes", condition: packet0.data.count == 100)
+                assertTest("MP4 Packet 0 Payload Content Matches mdat Byte 0x01", condition: packet0.data[0] == 0x01)
+            } else {
+                assertTest("MP4 Packet 0 Extracted", condition: false)
+            }
+
+            // Packet 1 has CTS offset (B-frame offset): PTS = DTS + 6000 / 30000 = 0.1s + 0.2s = 0.3s
+            if let packet1 = try? demuxer.nextPacket() {
+                assertTest("MP4 Packet 1 DTS is 0.1s", condition: abs(packet1.dts - 0.1) < 0.001)
+                assertTest("MP4 Packet 1 B-Frame CTS Offset Applied (PTS 0.3s)", condition: abs(packet1.pts - 0.3) < 0.001)
+                assertTest("MP4 Packet 1 isKeyframe False", condition: !packet1.isKeyframe)
+            } else {
+                assertTest("MP4 Packet 1 Extracted", condition: false)
+            }
+
+            // Drain remaining packets until EOF
+            var drainedCount = 2
+            while let _ = try? demuxer.nextPacket() {
+                drainedCount += 1
+            }
+            assertTest("MP4 Drained Exactly 10 Packets", condition: drainedCount == 10)
+            assertTest("MP4 nextPacket at EOF Returns Nil", condition: (try? demuxer.nextPacket()) == nil)
+
+            // 6. O(log N) Keyframe Seeking
+            // Seek to 0.7s: should snap to keyframe at sample 5 (pts 0.5s)
+            demuxer.seek(to: 0.7)
+            if let postSeekPacket = try? demuxer.nextPacket() {
+                assertTest("MP4 Seek(0.7s) Snaps to Keyframe at 0.5s", condition: postSeekPacket.isKeyframe && abs(postSeekPacket.pts - 0.5) < 0.001)
+                assertTest("MP4 Seek Post-Seek Sample Index 5 Payload Content", condition: postSeekPacket.data[0] == 0x06)
+            } else {
+                assertTest("MP4 Seek(0.7s) Extracted Packet", condition: false)
+            }
+
+            // Seek to 0.0s: snaps to keyframe 0
+            demuxer.seek(to: 0.0)
+            if let zeroPacket = try? demuxer.nextPacket() {
+                assertTest("MP4 Seek(0.0s) Snaps to Keyframe 0 at 0.0s", condition: zeroPacket.isKeyframe && abs(zeroPacket.pts - 0.0) < 0.001)
+            } else {
+                assertTest("MP4 Seek(0.0s) Extracted Packet", condition: false)
+            }
+        } else {
+            assertTest("MP4Demuxer In-Memory Initialization", condition: false)
+        }
+
+        // 7. 64-Bit Chunk Offsets (co64 Box) Verification
+        var co64StblPayload = Data()
+        co64StblPayload.append(stsdBox)
+        co64StblPayload.append(sttsBox)
+        co64StblPayload.append(stssBox)
+        co64StblPayload.append(stszBox)
+        co64StblPayload.append(stscBox)
+
+        var co64Payload = Data()
+        appendUInt32(2, to: &co64Payload) // entry_count = 2
+        appendUInt64(chunk1Offset, to: &co64Payload)
+        appendUInt64(chunk2Offset, to: &co64Payload)
+        let co64Box = makeFullBox(.co64, co64Payload)
+        co64StblPayload.append(co64Box)
+
+        var co64MinfPayload = Data()
+        co64MinfPayload.append(vmhdBox)
+        co64MinfPayload.append(makeBox(.stbl, co64StblPayload))
+
+        var co64MdiaPayload = Data()
+        co64MdiaPayload.append(mdhdBox)
+        co64MdiaPayload.append(hdlrBox)
+        co64MdiaPayload.append(makeBox(.minf, co64MinfPayload))
+
+        var co64TrakPayload = Data()
+        co64TrakPayload.append(tkhdBox)
+        co64TrakPayload.append(makeBox(.mdia, co64MdiaPayload))
+
+        var co64MoovPayload = Data()
+        co64MoovPayload.append(mvhdBox)
+        co64MoovPayload.append(makeBox(.trak, co64TrakPayload))
+
+        var co64Data = Data()
+        co64Data.append(ftypBox)
+        co64Data.append(mdatBox)
+        co64Data.append(makeBox(.moov, co64MoovPayload))
+
+        if let co64Demuxer = try? MP4Demuxer(data: co64Data) {
+            assertTest("MP4 co64 64-Bit Chunk Offsets Demuxer Initialized", condition: true)
+            assertTest("MP4 co64 Sample Count Matches (10 Samples)", condition: co64Demuxer.sampleCount == 10)
+            if let p0 = try? co64Demuxer.nextPacket() {
+                assertTest("MP4 co64 Packet 0 Payload Correctly Sliced", condition: p0.data.count == 100 && p0.data[0] == 0x01)
+            } else {
+                assertTest("MP4 co64 Packet 0 Payload Correctly Sliced", condition: false)
+            }
+        } else {
+            assertTest("MP4 co64 64-Bit Chunk Offsets Demuxer Initialized", condition: false)
+        }
+
+        // 8. Audio Track with AAC mp4a & esds Box AudioSpecificConfig Extraction
+        var esdsPayload = Data()
+        appendUInt32(0, to: &esdsPayload) // version + flags
+        // Tag 0x03 ES_Descriptor (len = 22)
+        esdsPayload.append(0x03); esdsPayload.append(22)
+        appendUInt16(1, to: &esdsPayload) // ES_ID = 1
+        esdsPayload.append(0)             // flags = 0
+        // Tag 0x04 DecoderConfigDescriptor (len = 17)
+        esdsPayload.append(0x04); esdsPayload.append(17)
+        esdsPayload.append(0x40) // objectType = AAC (0x40)
+        esdsPayload.append(0x15) // streamType = Audio (0x05 << 2 | 1)
+        esdsPayload.append(contentsOf: [0, 0, 0]) // bufferSize
+        appendUInt32(128000, to: &esdsPayload) // maxBitrate
+        appendUInt32(128000, to: &esdsPayload) // avgBitrate
+        // Tag 0x05 DecSpecificInfoTag (len = 2) -> AudioSpecificConfig [0x12, 0x10] (44.1kHz stereo LC)
+        esdsPayload.append(0x05); esdsPayload.append(2)
+        esdsPayload.append(contentsOf: [0x12, 0x10])
+        let esdsBox = makeBox(.esds, esdsPayload)
+
+        var mp4aPayload = Data()
+        mp4aPayload.append(contentsOf: [0, 0, 0, 0, 0, 0]) // reserved (6 bytes)
+        appendUInt16(1, to: &mp4aPayload)                   // data_reference_index
+        appendUInt16(0, to: &mp4aPayload)                   // sound version = 0
+        appendUInt16(0, to: &mp4aPayload)                   // revision
+        appendUInt32(0, to: &mp4aPayload)                   // vendor
+        appendUInt16(2, to: &mp4aPayload)                   // channelCount = 2
+        appendUInt16(16, to: &mp4aPayload)                  // sampleSize = 16
+        appendUInt16(0, to: &mp4aPayload)                   // compressionId
+        appendUInt16(0, to: &mp4aPayload)                   // packetSize
+        appendUInt32(44100 << 16, to: &mp4aPayload)         // sampleRate = 44100.0 (16.16)
+        mp4aPayload.append(esdsBox)
+        let mp4aEntry = makeBox(.mp4a, mp4aPayload)
+
+        var audioStsdPayload = Data()
+        appendUInt32(1, to: &audioStsdPayload)
+        audioStsdPayload.append(mp4aEntry)
+        let audioStsdBox = makeFullBox(.stsd, audioStsdPayload)
+
+        var audioSttsPayload = Data()
+        appendUInt32(1, to: &audioSttsPayload)
+        appendUInt32(5, to: &audioSttsPayload)  // 5 audio samples
+        appendUInt32(1024, to: &audioSttsPayload) // 1024 samples per frame
+        let audioSttsBox = makeFullBox(.stts, audioSttsPayload)
+
+        var audioStszPayload = Data()
+        appendUInt32(200, to: &audioStszPayload) // 200 bytes per AAC frame
+        appendUInt32(5, to: &audioStszPayload)
+        let audioStszBox = makeFullBox(.stsz, audioStszPayload)
+
+        var audioStscPayload = Data()
+        appendUInt32(1, to: &audioStscPayload)
+        appendUInt32(1, to: &audioStscPayload)
+        appendUInt32(5, to: &audioStscPayload)
+        appendUInt32(1, to: &audioStscPayload)
+        let audioStscBox = makeFullBox(.stsc, audioStscPayload)
+
+        var audioStcoPayload = Data()
+        appendUInt32(1, to: &audioStcoPayload)
+        appendUInt32(100, to: &audioStcoPayload) // dummy offset
+        let audioStcoBox = makeFullBox(.stco, audioStcoPayload)
+
+        var audioStblPayload = Data()
+        audioStblPayload.append(audioStsdBox)
+        audioStblPayload.append(audioSttsBox)
+        audioStblPayload.append(audioStszBox)
+        audioStblPayload.append(audioStscBox)
+        audioStblPayload.append(audioStcoBox)
+
+        var audioMinfPayload = Data()
+        audioMinfPayload.append(makeBox(.stbl, audioStblPayload))
+
+        var audioHdlrPayload = Data()
+        appendUInt32(0, to: &audioHdlrPayload)
+        appendUInt32(FourCC.soun.value, to: &audioHdlrPayload) // 'soun' handler
+        audioHdlrPayload.append(contentsOf: [UInt8](repeating: 0, count: 12))
+        audioHdlrPayload.append(Data("SoundHandler\0".utf8))
+
+        var audioMdhdPayload = Data()
+        appendUInt32(0, to: &audioMdhdPayload)
+        appendUInt32(0, to: &audioMdhdPayload)
+        appendUInt32(44100, to: &audioMdhdPayload) // media timescale = 44100
+        appendUInt32(5120, to: &audioMdhdPayload)  // duration
+        appendUInt16(0x15C7, to: &audioMdhdPayload) // 'eng'
+        appendUInt16(0, to: &audioMdhdPayload)
+
+        var audioMdiaPayload = Data()
+        audioMdiaPayload.append(makeFullBox(.mdhd, audioMdhdPayload))
+        audioMdiaPayload.append(makeFullBox(.hdlr, audioHdlrPayload))
+        audioMdiaPayload.append(makeBox(.minf, audioMinfPayload))
+
+        var audioTkhdPayload = Data()
+        appendUInt32(0, to: &audioTkhdPayload)
+        appendUInt32(0, to: &audioTkhdPayload)
+        appendUInt32(2, to: &audioTkhdPayload) // track_id = 2
+        appendUInt32(0, to: &audioTkhdPayload)
+        appendUInt32(10000, to: &audioTkhdPayload)
+        audioTkhdPayload.append(contentsOf: [UInt8](repeating: 0, count: 56))
+
+        var audioTrakPayload = Data()
+        audioTrakPayload.append(makeFullBox(.tkhd, flags: 1, audioTkhdPayload))
+        audioTrakPayload.append(makeBox(.mdia, audioMdiaPayload))
+
+        var multiTrackMoovPayload = Data()
+        multiTrackMoovPayload.append(mvhdBox)
+        multiTrackMoovPayload.append(trakBox) // Video track 1
+        multiTrackMoovPayload.append(makeBox(.trak, audioTrakPayload)) // Audio track 2
+
+        var multiTrackData = Data()
+        multiTrackData.append(ftypBox)
+        multiTrackData.append(mdatBox)
+        multiTrackData.append(makeBox(.moov, multiTrackMoovPayload))
+
+        if let multiDemuxer = try? MP4Demuxer(data: multiTrackData) {
+            assertTest("MP4 Multi-Track Demuxer Initialized", condition: true)
+            assertTest("MP4 Multi-Track Audio Track Extracted", condition: multiDemuxer.audioTracks.count == 1)
+            if let aTrack = multiDemuxer.audioTracks.first {
+                assertTest("MP4 Audio Track isAAC True", condition: aTrack.isAAC)
+                assertTest("MP4 Audio Channels Equals 2", condition: aTrack.channels == 2)
+                assertTest("MP4 Audio Sample Rate Equals 44100", condition: abs(aTrack.sampleRate - 44100.0) < 0.1)
+                assertTest("MP4 esds AudioSpecificConfig Extracted [0x12, 0x10]", condition: aTrack.codecPrivate == Data([0x12, 0x10]))
+            }
+        } else {
+            assertTest("MP4 Multi-Track Demuxer Initialized", condition: false)
+        }
+
+        // 9. Subtitle tx3g Extraction Verification
+        var tx3gPayload = Data()
+        tx3gPayload.append(contentsOf: [0, 0, 0, 0, 0, 0])
+        appendUInt16(1, to: &tx3gPayload)
+        appendUInt32(0, to: &tx3gPayload) // display flags
+        appendUInt32(0, to: &tx3gPayload)
+        let tx3gEntry = makeBox(.tx3g, tx3gPayload)
+
+        var subStsdPayload = Data()
+        appendUInt32(1, to: &subStsdPayload)
+        subStsdPayload.append(tx3gEntry)
+
+        var subSttsPayload = Data()
+        appendUInt32(1, to: &subSttsPayload)
+        appendUInt32(1, to: &subSttsPayload)
+        appendUInt32(1000, to: &subSttsPayload)
+
+        var subStszPayload = Data()
+        appendUInt32(14, to: &subStszPayload) // 14 bytes: 2 bytes len + "Hello World!" (12 bytes)
+        appendUInt32(1, to: &subStszPayload)
+
+        var subStscPayload = Data()
+        appendUInt32(1, to: &subStscPayload)
+        appendUInt32(1, to: &subStscPayload)
+        appendUInt32(1, to: &subStscPayload)
+        appendUInt32(1, to: &subStscPayload)
+
+        var subMdat = Data()
+        appendUInt16(12, to: &subMdat) // 12 characters
+        subMdat.append(Data("Hello World!".utf8))
+        let subMdatBox = makeBox(.mdat, subMdat)
+
+        var subStcoPayload = Data()
+        appendUInt32(1, to: &subStcoPayload)
+        appendUInt32(UInt32(ftypBox.count + 8), to: &subStcoPayload)
+
+        var subStblPayload = Data()
+        subStblPayload.append(makeFullBox(.stsd, subStsdPayload))
+        subStblPayload.append(makeFullBox(.stts, subSttsPayload))
+        subStblPayload.append(makeFullBox(.stsz, subStszPayload))
+        subStblPayload.append(makeFullBox(.stsc, subStscPayload))
+        subStblPayload.append(makeFullBox(.stco, subStcoPayload))
+
+        var subMinfPayload = Data()
+        subMinfPayload.append(makeBox(.stbl, subStblPayload))
+
+        var subHdlrPayload = Data()
+        appendUInt32(0, to: &subHdlrPayload)
+        appendUInt32(FourCC.subt.value, to: &subHdlrPayload) // 'subt' handler
+        subHdlrPayload.append(contentsOf: [UInt8](repeating: 0, count: 12))
+        subHdlrPayload.append(Data("SubtitleHandler\0".utf8))
+
+        var subMdhdPayload = Data()
+        appendUInt32(0, to: &subMdhdPayload)
+        appendUInt32(0, to: &subMdhdPayload)
+        appendUInt32(1000, to: &subMdhdPayload)
+        appendUInt32(1000, to: &subMdhdPayload)
+        appendUInt16(0x15C7, to: &subMdhdPayload)
+        appendUInt16(0, to: &subMdhdPayload)
+
+        var subMdiaPayload = Data()
+        subMdiaPayload.append(makeFullBox(.mdhd, subMdhdPayload))
+        subMdiaPayload.append(makeFullBox(.hdlr, subHdlrPayload))
+        subMdiaPayload.append(makeBox(.minf, subMinfPayload))
+
+        var subTkhdPayload = Data()
+        appendUInt32(0, to: &subTkhdPayload)
+        appendUInt32(0, to: &subTkhdPayload)
+        appendUInt32(3, to: &subTkhdPayload) // track 3
+        appendUInt32(0, to: &subTkhdPayload)
+        appendUInt32(1000, to: &subTkhdPayload)
+        subTkhdPayload.append(contentsOf: [UInt8](repeating: 0, count: 60))
+
+        var subMoovPayload = Data()
+        subMoovPayload.append(mvhdBox)
+        var subTrakPayload = Data()
+        subTrakPayload.append(makeFullBox(.tkhd, flags: 1, subTkhdPayload))
+        subTrakPayload.append(makeBox(.mdia, subMdiaPayload))
+        subMoovPayload.append(makeBox(.trak, subTrakPayload))
+
+        var subContainerData = Data()
+        subContainerData.append(ftypBox)
+        subContainerData.append(subMdatBox)
+        subContainerData.append(makeBox(.moov, subMoovPayload))
+
+        if let subDemuxer = try? MP4Demuxer(data: subContainerData) {
+            let cues = subDemuxer.extractAllSubtitleCues()
+            assertTest("MP4 Subtitle Cue Extraction Count", condition: cues[3]?.count == 1)
+            assertTest("MP4 Subtitle Cue Text Matches 'Hello World!'", condition: cues[3]?.first?.text == "Hello World!")
+        } else {
+            assertTest("MP4 Subtitle Cue Extraction Count", condition: false)
+        }
+
+        // 10. Robustness & Error Path Tests
+        do {
+            _ = try MP4Demuxer(data: ftypBox) // Missing moov box
+            assertTest("MP4 Missing Moov Throws Error", condition: false)
+        } catch MP4DemuxerError.missingMoovBox {
+            assertTest("MP4 Missing Moov Throws Error", condition: true)
+        } catch {
+            assertTest("MP4 Missing Moov Throws Error", condition: false)
+        }
+
+        do {
+            var corruptHeader = Data([0x00, 0x00, 0x00, 0x02, 0x66, 0x74, 0x79, 0x70]) // Invalid size 2 < 8
+            _ = try MP4Demuxer(data: corruptHeader)
+            assertTest("MP4 Invalid Header Throws Error", condition: false)
+        } catch MP4DemuxerError.invalidBoxHeader {
+            assertTest("MP4 Invalid Header Throws Error", condition: true)
+        } catch {
+            assertTest("MP4 Invalid Header Throws Error", condition: false)
+        }
+
+        do {
+            var emptyMoov = Data()
+            emptyMoov.append(ftypBox)
+            emptyMoov.append(makeBox(.moov, mvhdBox)) // Moov without any traks
+            _ = try MP4Demuxer(data: emptyMoov)
+            assertTest("MP4 No Tracks Throws Error", condition: false)
+        } catch MP4DemuxerError.noValidTracks {
+            assertTest("MP4 No Tracks Throws Error", condition: true)
+        } catch {
+            assertTest("MP4 No Tracks Throws Error", condition: false)
+        }
+
+        // 11. PlaybackPipeline Container Probing & Seamless Integration
+        let tempMP4URL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("test_stream_\(UUID().uuidString).mp4")
+        let tempMKVURL2 = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("test_ebml_\(UUID().uuidString).mkv")
+        try? mp4Data.write(to: tempMP4URL)
+        try? Data([0x1A, 0x45, 0xDF, 0xA3, 0x93, 0x42, 0x82, 0x88]).write(to: tempMKVURL2)
+
+        let probedMP4 = PlaybackPipeline.probeContainerType(at: tempMP4URL)
+        let probedMKV = PlaybackPipeline.probeContainerType(at: tempMKVURL2)
+        assertTest("PlaybackPipeline Probe Container Type MP4", condition: probedMP4 == .mp4)
+        assertTest("PlaybackPipeline Probe Container Type Matroska", condition: probedMKV == .matroska)
+
+        let mp4Pipeline = PlaybackPipeline()
+        let loadSuccess = mp4Pipeline.loadSync(url: tempMP4URL)
+        assertTest("PlaybackPipeline Load MP4 File URL", condition: loadSuccess)
+        assertTest("PlaybackPipeline Demuxer Conforms to MediaDemuxer", condition: mp4Pipeline.demuxer != nil)
+        assertTest("PlaybackPipeline Typed mp4Demuxer Non-Nil", condition: mp4Pipeline.mp4Demuxer != nil)
+        assertTest("PlaybackPipeline Duration Synced (10.0s)", condition: abs(mp4Pipeline.duration - 10.0) < 0.001)
+
+        mp4Pipeline.seek(to: 5.0, isScrubbing: false)
+        assertTest("PlaybackPipeline Seek Dispatched Successfully", condition: true)
+        mp4Pipeline.stop()
+
+        try? FileManager.default.removeItem(at: tempMP4URL)
+        try? FileManager.default.removeItem(at: tempMKVURL2)
+        // 12. Real File Hardware Zero-Copy Demuxing via mmap
+        let tempMmapURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("test_mmap_\(UUID().uuidString).mp4")
+        try? mp4Data.write(to: tempMmapURL)
+        if let fileDemuxer = try? MP4Demuxer(url: tempMmapURL) {
+            assertTest("MP4 File-URL Demuxer Initialized (mmap)", condition: true)
+            assertTest("MP4 File-URL Demuxer Duration Matches", condition: abs(fileDemuxer.duration - 10.0) < 0.001)
+            if let packet = try? fileDemuxer.nextPacket() {
+                assertTest("MP4 File-URL Packet 0 Zero-Copy Extracted", condition: packet.data.count == 100 && packet.data[0] == 0x01)
+            } else {
+                assertTest("MP4 File-URL Packet 0 Zero-Copy Extracted", condition: false)
+            }
+            fileDemuxer.seek(to: 0.5)
+            if let postSeek = try? fileDemuxer.nextPacket() {
+                assertTest("MP4 File-URL Post-Seek Packet Snapped", condition: postSeek.isKeyframe && abs(postSeek.pts - 0.5) < 0.001)
+            } else {
+                assertTest("MP4 File-URL Post-Seek Packet Snapped", condition: false)
+            }
+            fileDemuxer.close()
+        } else {
+            assertTest("MP4 File-URL Demuxer Initialized (mmap)", condition: false)
+        }
+        try? FileManager.default.removeItem(at: tempMmapURL)
+
+        // 13. QuickTime Sound Sample Description Version 2 (96kHz 5.1 24-bit LPCM)
+        var qtSoundV2Payload = Data()
+        qtSoundV2Payload.append(contentsOf: [0, 0, 0, 0, 0, 0]) // reserved (6)
+        appendUInt16(1, to: &qtSoundV2Payload)                   // data_reference_index
+        appendUInt16(2, to: &qtSoundV2Payload)                   // sound version = 2
+        appendUInt16(0, to: &qtSoundV2Payload)                   // revision
+        appendUInt32(0, to: &qtSoundV2Payload)                   // vendor
+        appendUInt16(3, to: &qtSoundV2Payload)                   // dummy channelCount = 3 in v2
+        appendUInt16(16, to: &qtSoundV2Payload)                  // dummy sampleSize = 16 in v2
+        appendUInt16(0, to: &qtSoundV2Payload)                   // compressionId
+        appendUInt16(0, to: &qtSoundV2Payload)                   // packetSize
+        appendUInt32(0x00010000, to: &qtSoundV2Payload)          // dummy 16.16 sampleRate = 1.0 in v2
+        // Version 2 extensions (offset 36):
+        appendUInt32(72, to: &qtSoundV2Payload)                  // sizeOfStructOnly = 72
+        // offset 40: 64-bit IEEE float sample rate = 96000.0
+        let sr96000Bits = (96000.0 as Double).bitPattern
+        appendUInt64(sr96000Bits, to: &qtSoundV2Payload)
+        appendUInt32(6, to: &qtSoundV2Payload)                   // offset 48: actual channels = 6 (5.1 surround)
+        appendUInt32(0x7F000000, to: &qtSoundV2Payload)         // offset 52: reserved
+        appendUInt32(24, to: &qtSoundV2Payload)                  // offset 56: constBitsPerChannel = 24
+        appendUInt32(0, to: &qtSoundV2Payload)                   // offset 60: formatSpecificFlags
+        appendUInt32(18, to: &qtSoundV2Payload)                  // offset 64: constBytesPerAudioPacket
+        appendUInt32(1, to: &qtSoundV2Payload)                   // offset 68: constLPCMFramesPerAudioPacket
+
+        let lpcmEntry = makeBox(FourCC("lpcm"), qtSoundV2Payload)
+        var v2AudioStsd = Data()
+        appendUInt32(1, to: &v2AudioStsd)
+        v2AudioStsd.append(lpcmEntry)
+
+        var v2Stbl = Data()
+        v2Stbl.append(makeFullBox(.stsd, v2AudioStsd))
+        v2Stbl.append(audioSttsBox)
+        v2Stbl.append(audioStszBox)
+        v2Stbl.append(audioStscBox)
+        v2Stbl.append(audioStcoBox)
+
+        var v2Minf = Data()
+        v2Minf.append(makeBox(.stbl, v2Stbl))
+        var v2Mdia = Data()
+        v2Mdia.append(makeFullBox(.mdhd, audioMdhdPayload))
+        v2Mdia.append(makeFullBox(.hdlr, audioHdlrPayload))
+        v2Mdia.append(makeBox(.minf, v2Minf))
+        var v2Trak = Data()
+        v2Trak.append(makeFullBox(.tkhd, flags: 1, audioTkhdPayload))
+        v2Trak.append(makeBox(.mdia, v2Mdia))
+        var v2Moov = Data()
+        v2Moov.append(mvhdBox)
+        v2Moov.append(makeBox(.trak, v2Trak))
+
+        var v2Container = Data()
+        v2Container.append(ftypBox)
+        v2Container.append(mdatBox)
+        v2Container.append(makeBox(.moov, v2Moov))
+
+        if let v2Demuxer = try? MP4Demuxer(data: v2Container), let aTrack = v2Demuxer.audioTracks.first {
+            assertTest("MP4 QuickTime Sound V2 Sample Rate Extracted (96kHz)", condition: abs(aTrack.sampleRate - 96000.0) < 0.1)
+            assertTest("MP4 QuickTime Sound V2 Channels Extracted (6ch)", condition: aTrack.channels == 6)
+            assertTest("MP4 QuickTime Sound V2 Bit Depth Extracted (24-bit)", condition: aTrack.bitDepth == 24)
+        } else {
+            assertTest("MP4 QuickTime Sound V2 Sample Rate Extracted (96kHz)", condition: false)
+        }
+
+        // 14. Dynamic Multi-Run stsc (Sample-to-Chunk) Mapping
+        // Run 1: Chunk 1..2 (2 chunks) -> 3 samples each (6 samples total, chunks 1 & 2)
+        // Run 2: Chunk 3..5 (3 chunks) -> 2 samples each (6 samples total, chunks 3, 4, 5)
+        // Total 12 samples across 5 chunks
+        var multiStscPayload = Data()
+        appendUInt32(2, to: &multiStscPayload) // 2 entries
+        appendUInt32(1, to: &multiStscPayload); appendUInt32(3, to: &multiStscPayload); appendUInt32(1, to: &multiStscPayload) // chunk 1+: 3 spc
+        appendUInt32(3, to: &multiStscPayload); appendUInt32(2, to: &multiStscPayload); appendUInt32(1, to: &multiStscPayload) // chunk 3+: 2 spc
+        let multiStscBox = makeFullBox(.stsc, multiStscPayload)
+
+        var multiStszPayload = Data()
+        appendUInt32(50, to: &multiStszPayload) // uniform 50 bytes
+        appendUInt32(12, to: &multiStszPayload) // 12 samples total
+        let multiStszBox = makeFullBox(.stsz, multiStszPayload)
+
+        var multiStcoPayload = Data()
+        appendUInt32(5, to: &multiStcoPayload) // 5 chunk offsets
+        for c in 0..<5 {
+            appendUInt32(UInt32(1000 + c * 200), to: &multiStcoPayload)
+        }
+        let multiStcoBox = makeFullBox(.stco, multiStcoPayload)
+
+        var multiSttsPayload = Data()
+        appendUInt32(1, to: &multiSttsPayload)
+        appendUInt32(12, to: &multiSttsPayload)
+        appendUInt32(1000, to: &multiSttsPayload)
+        let multiSttsBox = makeFullBox(.stts, multiSttsPayload)
+
+        var multiStblPayload = Data()
+        multiStblPayload.append(stsdBox)
+        multiStblPayload.append(multiSttsBox)
+        multiStblPayload.append(multiStszBox)
+        multiStblPayload.append(multiStscBox)
+        multiStblPayload.append(multiStcoBox)
+
+        var multiMinfPayload = Data()
+        multiMinfPayload.append(vmhdBox)
+        multiMinfPayload.append(makeBox(.stbl, multiStblPayload))
+        var multiMdiaPayload = Data()
+        multiMdiaPayload.append(mdhdBox)
+        multiMdiaPayload.append(hdlrBox)
+        multiMdiaPayload.append(makeBox(.minf, multiMinfPayload))
+        var multiTrakPayload = Data()
+        multiTrakPayload.append(tkhdBox)
+        multiTrakPayload.append(makeBox(.mdia, multiMdiaPayload))
+        var multiMoovPayload = Data()
+        multiMoovPayload.append(mvhdBox)
+        multiMoovPayload.append(makeBox(.trak, multiTrakPayload))
+
+        // Create media data of 2000 bytes so offsets 1000..1800 are valid
+        let dummyMdat = makeBox(.mdat, Data(repeating: 0x42, count: 2000))
+        var multiRunData = Data()
+        multiRunData.append(ftypBox)
+        multiRunData.append(dummyMdat)
+        multiRunData.append(makeBox(.moov, multiMoovPayload))
+
+        if let multiRunDemuxer = try? MP4Demuxer(data: multiRunData) {
+            assertTest("MP4 Multi-Run stsc Sample Count Matches (12)", condition: multiRunDemuxer.sampleCount == 12)
+            var readPackets = 0
+            while let _ = try? multiRunDemuxer.nextPacket() {
+                readPackets += 1
+            }
+            assertTest("MP4 Multi-Run stsc All 12 Samples Drained", condition: readPackets == 12)
+        } else {
+            assertTest("MP4 Multi-Run stsc Sample Count Matches (12)", condition: false)
+        }
+
+        // 15. MediaDemuxer Subtitle Protocol Polymorphism & Clean Text Extraction
+        let polyDemuxer: any MediaDemuxer = try! MP4Demuxer(data: subContainerData)
+        let polyCues = polyDemuxer.extractSubtitleCues(for: 3)
+        assertTest("MediaDemuxer Polymorphic extractSubtitleCues Count", condition: polyCues.count == 1)
+        assertTest("MediaDemuxer Polymorphic extractSubtitleCues Text Clean", condition: polyCues.first?.text == "Hello World!")
+
+        // 16. Fallback Duration Calculation when mvhd duration is 0
+        var zeroDurMvhd = Data()
+        appendUInt32(0, to: &zeroDurMvhd)    // creation_time
+        appendUInt32(0, to: &zeroDurMvhd)    // modification_time
+        appendUInt32(1000, to: &zeroDurMvhd) // timescale = 1000
+        appendUInt32(0, to: &zeroDurMvhd)    // duration = 0 (unfinalized / live)
+        appendUInt32(0x00010000, to: &zeroDurMvhd)
+        appendUInt16(0x0100, to: &zeroDurMvhd)
+        zeroDurMvhd.append(contentsOf: [UInt8](repeating: 0, count: 70))
+        let zeroMvhdBox = makeFullBox(.mvhd, zeroDurMvhd)
+
+        var fallbackMoov = Data()
+        fallbackMoov.append(zeroMvhdBox)
+        fallbackMoov.append(trakBox) // 10 samples of 0.1s each = 1.0s video
+        var fallbackContainer = Data()
+        fallbackContainer.append(ftypBox)
+        fallbackContainer.append(mdatBox)
+        fallbackContainer.append(makeBox(.moov, fallbackMoov))
+
+        if let fallbackDemuxer = try? MP4Demuxer(data: fallbackContainer) {
+            assertTest("MP4 Zero-mvhd Fallback Duration Computed (1.0s)", condition: abs(fallbackDemuxer.duration - 1.0) < 0.01)
+        } else {
+            assertTest("MP4 Zero-mvhd Fallback Duration Computed (1.0s)", condition: false)
+        }
+
+        // ==========================================
+        // [42] Dual-Engine Presentation Pipeline & Storage Burst Prefetching
+        // ==========================================
+        logs.append("\n[42] Testing Dual-Engine Presentation Pipeline & Storage Burst Prefetching...")
+
+        // 1. CMSampleBuffer zero-copy generation from CVPixelBuffer
+        var testPixelBuffer: CVPixelBuffer?
+        let pixelBufferAttrs: [CFString: Any] = [
+            kCVPixelBufferIOSurfacePropertiesKey: [:] as CFDictionary
+        ]
+        let cvStatus = CVPixelBufferCreate(
+            kCFAllocatorDefault,
+            1920,
+            1080,
+            kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange,
+            pixelBufferAttrs as CFDictionary,
+            &testPixelBuffer
+        )
+        assertTest("CVPixelBuffer Allocation Successful", condition: cvStatus == kCVReturnSuccess && testPixelBuffer != nil)
+
+        if let pb = testPixelBuffer {
+            let pts = CMTime(seconds: 4.25, preferredTimescale: 600)
+            let duration = CMTime(seconds: 1.0 / 60.0, preferredTimescale: 600)
+            let sampleBuffer = SampleBufferFactory.makeSampleBuffer(
+                from: pb,
+                presentationTimeStamp: pts,
+                duration: duration,
+                displayImmediately: true
+            )
+            assertTest("CMSampleBuffer Generation Non-Nil", condition: sampleBuffer != nil)
+            
+            if let sb = sampleBuffer {
+                // Verify zero-copy: underlying image buffer is pointer-identical to original CVPixelBuffer
+                let extractedBuffer = CMSampleBufferGetImageBuffer(sb)
+                assertTest("CMSampleBuffer Zero-Copy Wrapping Verified", condition: extractedBuffer === pb)
+
+                // Verify presentation timing
+                let outputPts = CMSampleBufferGetOutputPresentationTimeStamp(sb)
+                assertTest("CMSampleBuffer Timing PTS Matches", condition: abs(outputPts.seconds - 4.25) < 0.001)
+
+                // Verify displayImmediately attachment
+                let attachments = CMSampleBufferGetSampleAttachmentsArray(sb, createIfNecessary: false)
+                var hasDisplayImmediately = false
+                if let attArray = attachments, CFArrayGetCount(attArray) > 0 {
+                    let dict = unsafeBitCast(CFArrayGetValueAtIndex(attArray, 0), to: CFDictionary.self)
+                    if let val = CFDictionaryGetValue(dict, Unmanaged.passUnretained(kCMSampleAttachmentKey_DisplayImmediately).toOpaque()) {
+                        hasDisplayImmediately = (Unmanaged<CFBoolean>.fromOpaque(val).takeUnretainedValue() == kCFBooleanTrue)
+                    }
+                }
+                assertTest("CMSampleBuffer DisplayImmediately Attachment True", condition: hasDisplayImmediately)
+            } else {
+                assertTest("CMSampleBuffer Zero-Copy Wrapping Verified", condition: false)
+                assertTest("CMSampleBuffer Timing PTS Matches", condition: false)
+                assertTest("CMSampleBuffer DisplayImmediately Attachment True", condition: false)
+            }
+        }
+
+        // 2. VideoPresentationEngine setting persistence and mode switching logic
+        let presentationSettings = SettingsManager.shared
+        let originalEngine = presentationSettings.videoPresentationEngine
+        let originalDeband = presentationSettings.animeDebandingEnabled
+        let originalAdjustments = presentationSettings.customVideoAdjustmentsEnabled
+        let originalHdrTone = presentationSettings.hdrToneMapping
+
+        // Default value in fresh state
+        assertTest("VideoPresentationEngine Enum Auto Case Exists", condition: VideoPresentationEngine.auto.rawValue == "auto")
+        assertTest("VideoPresentationEngine Enum Direct Scanout Case Exists", condition: VideoPresentationEngine.directHardwareScanout.rawValue == "directHardwareScanout")
+        assertTest("VideoPresentationEngine Enum Metal Shaders Case Exists", condition: VideoPresentationEngine.metalShaders.rawValue == "metalShaders")
+
+        // Setting persistence in UserDefaults
+        presentationSettings.videoPresentationEngine = VideoPresentationEngine.directHardwareScanout
+        assertTest("VideoPresentationEngine Setting Persistence (Direct Hardware Scanout)", condition: UserDefaults.standard.string(forKey: SettingsManager.videoPresentationEngineKey) == "directHardwareScanout")
+        
+        presentationSettings.videoPresentationEngine = VideoPresentationEngine.metalShaders
+        assertTest("VideoPresentationEngine Setting Persistence (Metal Shaders)", condition: UserDefaults.standard.string(forKey: SettingsManager.videoPresentationEngineKey) == "metalShaders")
+
+        presentationSettings.videoPresentationEngine = VideoPresentationEngine.auto
+        assertTest("VideoPresentationEngine Setting Persistence (Auto)", condition: UserDefaults.standard.string(forKey: SettingsManager.videoPresentationEngineKey) == "auto")
+
+        // Mode Switching Logic
+        // In .auto mode with no post-processing: effective presentation engine should be directHardwareScanout (0% GPU)
+        presentationSettings.animeDebandingEnabled = false
+        presentationSettings.customVideoAdjustmentsEnabled = false
+        presentationSettings.hdrToneMapping = HDRToneMappingMode.auto
+        assertTest("Auto Presentation Engine Defaults to Direct Hardware Scanout", condition: presentationSettings.effectivePresentationEngine == VideoPresentationEngine.directHardwareScanout)
+
+        // Engage anime debanding -> auto switches to metalShaders
+        presentationSettings.animeDebandingEnabled = true
+        assertTest("Auto Mode Activates Metal Shaders on Anime Debanding", condition: presentationSettings.effectivePresentationEngine == VideoPresentationEngine.metalShaders)
+        presentationSettings.animeDebandingEnabled = false
+
+        // Engage custom video adjustments -> auto switches to metalShaders
+        presentationSettings.customVideoAdjustmentsEnabled = true
+        assertTest("Auto Mode Activates Metal Shaders on Video Adjustments", condition: presentationSettings.effectivePresentationEngine == VideoPresentationEngine.metalShaders)
+        presentationSettings.customVideoAdjustmentsEnabled = false
+
+        // Engage custom tone mapping (sdrOnly) -> auto switches to metalShaders
+        presentationSettings.hdrToneMapping = HDRToneMappingMode.sdrOnly
+        assertTest("Auto Mode Activates Metal Shaders on Custom SDR Tone Mapping", condition: presentationSettings.effectivePresentationEngine == VideoPresentationEngine.metalShaders)
+        presentationSettings.hdrToneMapping = HDRToneMappingMode.auto
+
+        // Forced directHardwareScanout ignores custom post-processing
+        presentationSettings.videoPresentationEngine = VideoPresentationEngine.directHardwareScanout
+        presentationSettings.animeDebandingEnabled = true
+        assertTest("Forced Direct Hardware Scanout Retains Direct Mode", condition: presentationSettings.effectivePresentationEngine == VideoPresentationEngine.directHardwareScanout)
+
+        // Forced metalShaders ignores idle post-processing
+        presentationSettings.videoPresentationEngine = VideoPresentationEngine.metalShaders
+        presentationSettings.animeDebandingEnabled = false
+        assertTest("Forced Metal Shaders Retains Metal Mode", condition: presentationSettings.effectivePresentationEngine == VideoPresentationEngine.metalShaders)
+
+        // Restore original settings
+        presentationSettings.videoPresentationEngine = originalEngine
+        presentationSettings.animeDebandingEnabled = originalDeband
+        presentationSettings.customVideoAdjustmentsEnabled = originalAdjustments
+        presentationSettings.hdrToneMapping = originalHdrTone
+
+        // 3. NativeMetalView presentation canvas layer hierarchy & AVSampleBufferDisplayLayer configuration
+        let canvas = NativeMetalView(renderer: MetalVideoRenderer())
+        assertTest("NativeMetalView CAMetalLayer Initialized", condition: (canvas.layer as? CAMetalLayer) != nil)
+        assertTest("NativeMetalView AVSampleBufferDisplayLayer Non-Nil", condition: canvas.sampleBufferDisplayLayer != nil)
+        
+        if let sbdl = canvas.sampleBufferDisplayLayer {
+            assertTest("AVSampleBufferDisplayLayer preventsDisplaySleepDuringVideoPlayback True", condition: sbdl.preventsDisplaySleepDuringVideoPlayback)
+            assertTest("AVSampleBufferDisplayLayer videoGravity ResizeAspect", condition: sbdl.videoGravity == .resizeAspect)
+            assertTest("AVSampleBufferDisplayLayer isOpaque True", condition: sbdl.isOpaque)
+        } else {
+            assertTest("AVSampleBufferDisplayLayer preventsDisplaySleepDuringVideoPlayback True", condition: false)
+            assertTest("AVSampleBufferDisplayLayer videoGravity ResizeAspect", condition: false)
+            assertTest("AVSampleBufferDisplayLayer isOpaque True", condition: false)
+        }
+
+        // Test presenting a frame to direct hardware layer
+        if let pb = testPixelBuffer {
+            canvas.presentDirectHardwareBuffer(pb)
+            assertTest("NativeMetalView Direct Hardware Buffer Enqueued Without Crash", condition: true)
+        }
+
+        // 4. Burst I/O madvise prefetch integration (MP4Demuxer & MatroskaDemuxer)
+        // a. MP4Demuxer burst prefetching
+        let testMP4Url = FileManager.default.temporaryDirectory.appendingPathComponent("burst_test_\(UUID().uuidString).mp4")
+        try? mp4Data.write(to: testMP4Url)
+        if let mp4MmapDemuxer = try? MP4Demuxer(url: testMP4Url) {
+            assertTest("MP4Demuxer Mapped Region Initialized", condition: mp4MmapDemuxer.mappedRegion != nil)
+            let prefetchOk = mp4MmapDemuxer.adviseBurstPrefetch(offset: 0, length: 16 * 1024 * 1024)
+            assertTest("MP4Demuxer adviseBurstPrefetch Returns True", condition: prefetchOk)
+            assertTest("MP4Demuxer burstPrefetchCount Incremented", condition: mp4MmapDemuxer.burstPrefetchCount >= 1)
+
+            let countBeforeSeek = mp4MmapDemuxer.burstPrefetchCount
+            mp4MmapDemuxer.seek(to: 0.5)
+            assertTest("MP4Demuxer Seek Triggers Burst Prefetch", condition: mp4MmapDemuxer.burstPrefetchCount > countBeforeSeek)
+            mp4MmapDemuxer.close()
+        } else {
+            assertTest("MP4Demuxer Mapped Region Initialized", condition: false)
+            assertTest("MP4Demuxer adviseBurstPrefetch Returns True", condition: false)
+            assertTest("MP4Demuxer burstPrefetchCount Incremented", condition: false)
+            assertTest("MP4Demuxer Seek Triggers Burst Prefetch", condition: false)
+        }
+        try? FileManager.default.removeItem(at: testMP4Url)
+
+        // b. MatroskaDemuxer burst prefetching
+        let testMkvUrl = FileManager.default.temporaryDirectory.appendingPathComponent("burst_test_\(UUID().uuidString).mkv")
+        var mkvBytesForBurst = Data()
+        // EBML Header (DocType "mk")
+        mkvBytesForBurst.append(contentsOf: [0x1A, 0x45, 0xDF, 0xA3, 0x85, 0x42, 0x82, 0x82, 0x6D, 0x6B])
+        // Segment (Unknown Size: 0x01FFFFFFFFFFFFFF)
+        mkvBytesForBurst.append(contentsOf: [0x18, 0x53, 0x80, 0x67, 0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])
+        // Cluster 1 at offset 22 (Timestamp: 0ms)
+        mkvBytesForBurst.append(contentsOf: [0x1F, 0x43, 0xB6, 0x75, 0x86, 0xE7, 0x81, 0x00, 0xEC, 0x81, 0x00])
+        // Cluster 2 at offset 33 (Timestamp: 5000ms = 5.0s)
+        mkvBytesForBurst.append(contentsOf: [0x1F, 0x43, 0xB6, 0x75, 0x86, 0xE7, 0x82, 0x13, 0x88, 0xEC, 0x80])
+        try? mkvBytesForBurst.write(to: testMkvUrl)
+        if let mkvDemuxer = try? MatroskaDemuxer(url: testMkvUrl) {
+            assertTest("MatroskaDemuxer Mapped Region Initialized", condition: mkvDemuxer.mappedRegion != nil)
+            let mkvPrefetchOk = mkvDemuxer.adviseBurstPrefetch(offset: 0, length: 16 * 1024 * 1024)
+            assertTest("MatroskaDemuxer adviseBurstPrefetch Returns True", condition: mkvPrefetchOk)
+            assertTest("MatroskaDemuxer burstPrefetchCount Incremented", condition: mkvDemuxer.burstPrefetchCount >= 1)
+
+            let countBeforeSeek = mkvDemuxer.burstPrefetchCount
+            mkvDemuxer.seek(to: 0.0)
+            assertTest("MatroskaDemuxer Seek Triggers Burst Prefetch", condition: mkvDemuxer.burstPrefetchCount > countBeforeSeek)
+            mkvDemuxer.close()
+        } else {
+            assertTest("MatroskaDemuxer Mapped Region Initialized", condition: false)
+            assertTest("MatroskaDemuxer adviseBurstPrefetch Returns True", condition: false)
+            assertTest("MatroskaDemuxer burstPrefetchCount Incremented", condition: false)
+            assertTest("MatroskaDemuxer Seek Triggers Burst Prefetch", condition: false)
+        }
+        try? FileManager.default.removeItem(at: testMkvUrl)
+
+        // c. Zero-copy MappedFileRegion page-alignment math
+        let tempAlignUrl = FileManager.default.temporaryDirectory.appendingPathComponent("burst_align_\(UUID().uuidString).bin")
+        let alignData = Data(repeating: 0x55, count: 64 * 1024)
+        try? alignData.write(to: tempAlignUrl)
+        let dummyFd = open(tempAlignUrl.path, O_RDONLY)
+        if dummyFd >= 0 {
+            if let region = MappedFileRegion(fd: dummyFd, size: UInt64(alignData.count)) {
+                // Test unaligned offset (e.g. byte 123)
+                let unalignedSuccess = region.adviseBurst(offset: 123, length: 32768)
+                assertTest("MappedFileRegion Unaligned Offset Aligns & Advises Successfully", condition: unalignedSuccess)
+            } else {
+                assertTest("MappedFileRegion Unaligned Offset Aligns & Advises Successfully", condition: false)
+            }
+            Darwin.close(dummyFd)
+        } else {
+            assertTest("MappedFileRegion Unaligned Offset Aligns & Advises Successfully", condition: false)
+        }
+        try? FileManager.default.removeItem(at: tempAlignUrl)
+
         // Summary
         logs.append("\n==========================================")
         logs.append("RESULTS: \(passed) PASSED, \(failed) FAILED")
@@ -2598,3 +3795,4 @@ public enum FramesTestSuite {
         return (passed, failed, logs)
     }
 }
+

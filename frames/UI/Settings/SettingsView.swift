@@ -465,6 +465,51 @@ public struct PlaybackSettingsTab: View {
                         if isCompact {
                             VStack(alignment: .leading, spacing: 8) {
                                 VStack(alignment: .leading, spacing: 2) {
+                                    Text("Presentation Engine")
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundStyle(ShadcnTheme.foreground)
+                                    Text("Direct hardware scanout (0% GPU) or CAMetalLayer shaders.")
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                Picker("", selection: $settings.videoPresentationEngine) {
+                                    ForEach(VideoPresentationEngine.allCases) { mode in
+                                        Text(mode.displayName).tag(mode)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        } else {
+                            HStack(alignment: .center, spacing: 16) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Presentation Engine")
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundStyle(ShadcnTheme.foreground)
+                                    Text("Direct hardware scanout (0% GPU) or CAMetalLayer shaders.")
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                Spacer(minLength: 16)
+                                Picker("", selection: $settings.videoPresentationEngine) {
+                                    ForEach(VideoPresentationEngine.allCases) { mode in
+                                        Text(mode.displayName).tag(mode)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                                .frame(width: 210)
+                            }
+                        }
+
+                        Rectangle()
+                            .fill(ShadcnTheme.borderSubtle)
+                            .frame(height: 1)
+
+                        if isCompact {
+                            VStack(alignment: .leading, spacing: 8) {
+                                VStack(alignment: .leading, spacing: 2) {
                                     Text("HDR Tone Mapping")
                                         .font(.system(size: 13, weight: .medium))
                                         .foregroundStyle(ShadcnTheme.foreground)

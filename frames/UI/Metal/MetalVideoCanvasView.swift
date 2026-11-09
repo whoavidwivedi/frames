@@ -11,6 +11,62 @@ import AppKit
 import Metal
 import QuartzCore
 import CoreVideo
+import CoreMedia
+import AVFoundation
+
+// MARK: - Zero-Copy CMSampleBuffer Factory
+
+public enum SampleBufferFactory {
+    /// Zero-copy wraps a decoded CVPixelBuffer into a hardware-scannable CMSampleBuffer.
+    public static func makeSampleBuffer(
+        from pixelBuffer: CVPixelBuffer,
+        presentationTimeStamp: CMTime = .invalid,
+        duration: CMTime = .invalid,
+        displayImmediately: Bool = true
+    ) -> CMSampleBuffer? {
+        var formatDescription: CMVideoFormatDescription?
+        let formatStatus = CMVideoFormatDescriptionCreateForImageBuffer(
+            allocator: kCFAllocatorDefault,
+            imageBuffer: pixelBuffer,
+            formatDescriptionOut: &formatDescription
+        )
+        guard formatStatus == noErr, let formatDesc = formatDescription else {
+            return nil
+        }
+
+        var timingInfo = CMSampleTimingInfo(
+            duration: duration.isValid ? duration : CMTime(value: 1, timescale: 60),
+            presentationTimeStamp: presentationTimeStamp.isValid ? presentationTimeStamp : CMTime(value: 0, timescale: 1000),
+            decodeTimeStamp: .invalid
+        )
+
+        var sampleBuffer: CMSampleBuffer?
+        let status = CMSampleBufferCreateReadyWithImageBuffer(
+            allocator: kCFAllocatorDefault,
+            imageBuffer: pixelBuffer,
+            formatDescription: formatDesc,
+            sampleTiming: &timingInfo,
+            sampleBufferOut: &sampleBuffer
+        )
+
+        guard status == noErr, let sample = sampleBuffer else {
+            return nil
+        }
+
+        if displayImmediately {
+            if let attachments = CMSampleBufferGetSampleAttachmentsArray(sample, createIfNecessary: true) {
+                let dict = unsafeBitCast(CFArrayGetValueAtIndex(attachments, 0), to: CFMutableDictionary.self)
+                CFDictionarySetValue(
+                    dict,
+                    Unmanaged.passUnretained(kCMSampleAttachmentKey_DisplayImmediately).toOpaque(),
+                    Unmanaged.passUnretained(kCFBooleanTrue).toOpaque()
+                )
+            }
+        }
+
+        return sample
+    }
+}
 
 public final class NativeMetalView: NSView {
     
@@ -18,6 +74,8 @@ public final class NativeMetalView: NSView {
     
     public let renderer: MetalVideoRenderer?
     private var metalLayer: CAMetalLayer?
+    public private(set) var sampleBufferDisplayLayer: AVSampleBufferDisplayLayer?
+    private var lastEnqueuedBuffer: CVPixelBuffer?
     private var displayLink: CADisplayLink?
     private var needsRender = true
     private var isPlaying = false
@@ -65,9 +123,22 @@ public final class NativeMetalView: NSView {
         layer.presentsWithTransaction = false
         layer.framebufferOnly = true
         layer.allowsNextDrawableTimeout = true
+        layer.isOpaque = true
         
         self.layer = layer
         self.metalLayer = layer
+        self.canDrawSubviewsIntoLayer = false
+
+        // Ultra-low-power AVSampleBufferDisplayLayer direct hardware scanout target
+        let sbdl = AVSampleBufferDisplayLayer()
+        sbdl.preventsDisplaySleepDuringVideoPlayback = true
+        sbdl.videoGravity = .resizeAspect
+        sbdl.isOpaque = true
+        sbdl.frame = bounds
+        layer.addSublayer(sbdl)
+        self.sampleBufferDisplayLayer = sbdl
+        
+        updatePresentationEngineLayers()
         
         // Single-frame listener for seeks / paused scrubbing updates
         renderer.onFrameAvailable = { [weak self] in
@@ -75,16 +146,43 @@ public final class NativeMetalView: NSView {
                 guard let self = self else { return }
                 // Avoid redundant rendering if display link is already actively ticking
                 if !self.isPlaying {
-                self.needsRender = true
-                self.renderNow()
+                    self.needsRender = true
+                    self.renderNow()
+                }
             }
         }
     }
+
+    private func updatePresentationEngineLayers() {
+        let isDirect = (SettingsManager.shared.effectivePresentationEngine == .directHardwareScanout)
+        sampleBufferDisplayLayer?.isHidden = !isDirect
+    }
+
+    public override var isOpaque: Bool {
+        return true
+    }
+
+    public private(set) var isDecoupledFullscreen: Bool = false
+
+    /// Decouples transparent overlay views and subview compositing in fullscreen mode
+    /// to grant macOS WindowServer direct hardware plane scanout promotion.
+    public func decoupleOverlaysForFullscreen(_ decouple: Bool) {
+        self.isDecoupledFullscreen = decouple
+        if let layer = metalLayer {
+            layer.isOpaque = true
+        }
+        if let sbdl = sampleBufferDisplayLayer {
+            sbdl.isOpaque = true
+        }
+        if decouple {
+            self.canDrawSubviewsIntoLayer = false
+        }
     }
     
     public override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        if window != nil {
+        if let window = window {
+            sampleBufferDisplayLayer?.contentsScale = window.backingScaleFactor
             startDisplayLink()
         } else {
             stopDisplayLink()
@@ -93,11 +191,20 @@ public final class NativeMetalView: NSView {
     
     public override func layout() {
         super.layout()
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
         if let metalLayer = metalLayer {
             metalLayer.frame = bounds
             metalLayer.drawableSize = convertToBacking(bounds).size
-            needsRender = true
         }
+        if let sbdl = sampleBufferDisplayLayer {
+            sbdl.frame = bounds
+            if let window = window {
+                sbdl.contentsScale = window.backingScaleFactor
+            }
+        }
+        CATransaction.commit()
+        needsRender = true
     }
     
     // MARK: - Display Link Pacing & Dynamic Frame Rate Cadence
@@ -168,8 +275,10 @@ public final class NativeMetalView: NSView {
     }
     
     public func applySettings() {
+        let settings = SettingsManager.shared
         if let layer = metalLayer {
-            let hdrMode = SettingsManager.shared.hdrToneMapping
+            layer.isOpaque = true
+            let hdrMode = settings.hdrToneMapping
             if hdrMode == .sdrOnly {
                 layer.colorspace = CGColorSpace(name: CGColorSpace.sRGB)
                 layer.wantsExtendedDynamicRangeContent = false
@@ -178,7 +287,16 @@ public final class NativeMetalView: NSView {
                 layer.wantsExtendedDynamicRangeContent = true
             }
         }
+        if let sbdl = sampleBufferDisplayLayer {
+            sbdl.isOpaque = true
+            sbdl.preventsDisplaySleepDuringVideoPlayback = true
+            sbdl.videoGravity = .resizeAspect
+            let isDirect = (settings.effectivePresentationEngine == .directHardwareScanout)
+            sbdl.isHidden = !isDirect
+        }
         updateFrameRateCadence()
+        needsRender = true
+        renderNow()
     }
     
     private func stopDisplayLink() {
@@ -187,29 +305,71 @@ public final class NativeMetalView: NSView {
     }
     
     @objc private func displayLinkDidFire(_ sender: CADisplayLink) {
-        guard let renderer = renderer, let layer = metalLayer else { return }
+        let engine = SettingsManager.shared.effectivePresentationEngine
         
         var receivedFrame = false
+        var nextBuffer: CVPixelBuffer? = nil
         if let getNextBuffer = onFrameRequested, let buffer = getNextBuffer() {
-            // Feed directly into renderer without triggering asynchronous renderNow loop
-            renderer.setBufferForDisplay(buffer)
+            nextBuffer = buffer
             receivedFrame = true
         }
 
-        // Preserve the last drawable. Re-rendering the same frame on every
-        // display tick wastes GPU power without improving the image.
-        guard receivedFrame || needsRender else { return }
-        needsRender = false
-        renderer.render(to: layer)
+        switch engine {
+        case .directHardwareScanout:
+            sampleBufferDisplayLayer?.isHidden = false
+            if let buffer = nextBuffer {
+                presentDirectHardwareBuffer(buffer)
+            } else if needsRender, let buffer = lastEnqueuedBuffer ?? renderer?.currentBuffer {
+                presentDirectHardwareBuffer(buffer)
+            }
+            needsRender = false
+
+        case .metalShaders:
+            sampleBufferDisplayLayer?.isHidden = true
+            guard let renderer = renderer, let layer = metalLayer else { return }
+            if let buffer = nextBuffer {
+                renderer.setBufferForDisplay(buffer)
+            }
+            guard receivedFrame || needsRender else { return }
+            needsRender = false
+            renderer.render(to: layer)
+
+        case .auto:
+            break
+        }
     }
     
     /// Trigger an immediate render pass outside the display link loop
     public func renderNow() {
-        guard let renderer = renderer, let layer = metalLayer else { return }
         needsRender = false
-        renderer.render(to: layer)
+        let engine = SettingsManager.shared.effectivePresentationEngine
+        switch engine {
+        case .directHardwareScanout:
+            sampleBufferDisplayLayer?.isHidden = false
+            if let buffer = lastEnqueuedBuffer ?? renderer?.currentBuffer {
+                presentDirectHardwareBuffer(buffer)
+            }
+        case .metalShaders, .auto:
+            sampleBufferDisplayLayer?.isHidden = true
+            guard let renderer = renderer, let layer = metalLayer else { return }
+            renderer.render(to: layer)
+        }
+    }
+
+    /// Enqueues pixel buffer directly to AVSampleBufferDisplayLayer for 0% GPU DCP hardware scanout.
+    public func presentDirectHardwareBuffer(_ buffer: CVPixelBuffer) {
+        lastEnqueuedBuffer = buffer
+        guard let sbdl = sampleBufferDisplayLayer else { return }
+        if sbdl.status == .failed {
+            sbdl.flush()
+        }
+        if let sample = SampleBufferFactory.makeSampleBuffer(from: buffer) {
+            sbdl.enqueue(sample)
+        }
     }
 }
+
+public typealias VideoPresentationCanvasView = MetalVideoCanvasView
 
 // MARK: - SwiftUI Representable
 
@@ -217,17 +377,20 @@ public struct MetalVideoCanvasView: NSViewRepresentable {
     public let renderer: MetalVideoRenderer?
     public var isPlaying: Bool = true
     public var videoFrameRate: Float = 60.0
+    public var isDecoupledFullscreen: Bool = false
     public var onFrameRequested: (@MainActor () -> CVPixelBuffer?)?
     
     public init(
         renderer: MetalVideoRenderer?,
         isPlaying: Bool = true,
         videoFrameRate: Float = 60.0,
+        isDecoupledFullscreen: Bool = false,
         onFrameRequested: (@MainActor () -> CVPixelBuffer?)? = nil
     ) {
         self.renderer = renderer
         self.isPlaying = isPlaying
         self.videoFrameRate = videoFrameRate
+        self.isDecoupledFullscreen = isDecoupledFullscreen
         self.onFrameRequested = onFrameRequested
     }
     
@@ -235,11 +398,13 @@ public struct MetalVideoCanvasView: NSViewRepresentable {
         let view = NativeMetalView(renderer: renderer)
         view.onFrameRequested = onFrameRequested
         view.setPlaybackState(isPlaying: isPlaying, frameRate: videoFrameRate)
+        view.decoupleOverlaysForFullscreen(isDecoupledFullscreen)
         return view
     }
     
     public func updateNSView(_ nsView: NativeMetalView, context: Context) {
         nsView.onFrameRequested = onFrameRequested
         nsView.setPlaybackState(isPlaying: isPlaying, frameRate: videoFrameRate)
+        nsView.decoupleOverlaysForFullscreen(isDecoupledFullscreen)
     }
 }
