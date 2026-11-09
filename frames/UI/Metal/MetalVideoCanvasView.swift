@@ -17,6 +17,27 @@ import AVFoundation
 // MARK: - Zero-Copy CMSampleBuffer Factory
 
 public enum SampleBufferFactory {
+    private static func extractDouble(from pixelBuffer: CVPixelBuffer, key: String) -> Double? {
+        if let obj = CVBufferCopyAttachment(pixelBuffer, key as CFString, nil) {
+            if let num = obj as? NSNumber {
+                return num.doubleValue
+            } else if let d = obj as? Double {
+                return d
+            }
+        }
+        #if canImport(CoreVideo)
+        if let unmanaged = CVBufferGetAttachment(pixelBuffer, key as CFString, nil) {
+            let val = unmanaged.takeUnretainedValue()
+            if let num = val as? NSNumber {
+                return num.doubleValue
+            } else if let d = val as? Double {
+                return d
+            }
+        }
+        #endif
+        return nil
+    }
+
     /// Zero-copy wraps a decoded CVPixelBuffer into a hardware-scannable CMSampleBuffer.
     public static func makeSampleBuffer(
         from pixelBuffer: CVPixelBuffer,
@@ -36,8 +57,8 @@ public enum SampleBufferFactory {
 
         var pts = presentationTimeStamp
         if !pts.isValid {
-            if let ptsNum = CVBufferCopyAttachment(pixelBuffer, "FramesPTS" as CFString, nil) as? NSNumber {
-                pts = CMTime(seconds: ptsNum.doubleValue, preferredTimescale: 60000)
+            if let sec = extractDouble(from: pixelBuffer, key: "FramesPTS") {
+                pts = CMTime(seconds: sec, preferredTimescale: 60000)
             } else {
                 pts = CMTime(value: 0, timescale: 1000)
             }
@@ -45,8 +66,8 @@ public enum SampleBufferFactory {
 
         var frameDuration = duration
         if !frameDuration.isValid {
-            if let durNum = CVBufferCopyAttachment(pixelBuffer, "FramesDuration" as CFString, nil) as? NSNumber, durNum.doubleValue > 0 {
-                frameDuration = CMTime(seconds: durNum.doubleValue, preferredTimescale: 60000)
+            if let sec = extractDouble(from: pixelBuffer, key: "FramesDuration"), sec > 0 {
+                frameDuration = CMTime(seconds: sec, preferredTimescale: 60000)
             } else {
                 frameDuration = CMTime(value: 1, timescale: 60)
             }
@@ -160,6 +181,11 @@ public final class NativeMetalView: NSView {
         layer.allowsNextDrawableTimeout = true
         layer.isOpaque = true
         
+        let scale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2.0
+        layer.frame = bounds
+        layer.contentsScale = scale
+        layer.drawableSize = convertToBacking(bounds).size
+        
         self.layer = layer
         self.metalLayer = layer
         self.canDrawSubviewsIntoLayer = false
@@ -170,6 +196,7 @@ public final class NativeMetalView: NSView {
         sbdl.videoGravity = .resizeAspect
         sbdl.isOpaque = true
         sbdl.frame = bounds
+        sbdl.contentsScale = scale
         layer.addSublayer(sbdl)
         self.sampleBufferDisplayLayer = sbdl
         
@@ -216,8 +243,13 @@ public final class NativeMetalView: NSView {
     
     public override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        if let window = window {
-            sampleBufferDisplayLayer?.contentsScale = window.backingScaleFactor
+        let scale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2.0
+        metalLayer?.frame = bounds
+        metalLayer?.contentsScale = scale
+        metalLayer?.drawableSize = convertToBacking(bounds).size
+        sampleBufferDisplayLayer?.frame = bounds
+        sampleBufferDisplayLayer?.contentsScale = scale
+        if window != nil {
             startDisplayLink()
         } else {
             stopDisplayLink()
@@ -228,17 +260,37 @@ public final class NativeMetalView: NSView {
         super.layout()
         CATransaction.begin()
         CATransaction.setDisableActions(true)
+        let scale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2.0
         if let metalLayer = metalLayer {
+            metalLayer.frame = bounds
+            metalLayer.contentsScale = scale
             metalLayer.drawableSize = convertToBacking(bounds).size
         }
         if let sbdl = sampleBufferDisplayLayer {
             sbdl.frame = bounds
-            if let window = window {
-                sbdl.contentsScale = window.backingScaleFactor
-            }
+            sbdl.contentsScale = scale
         }
         CATransaction.commit()
         needsRender = true
+    }
+
+    public override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        let scale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2.0
+        if let metalLayer = metalLayer {
+            metalLayer.frame = bounds
+            metalLayer.contentsScale = scale
+            metalLayer.drawableSize = convertToBacking(bounds).size
+        }
+        if let sbdl = sampleBufferDisplayLayer {
+            sbdl.frame = bounds
+            sbdl.contentsScale = scale
+        }
+        CATransaction.commit()
+        needsRender = true
+        renderNow()
     }
     
     // MARK: - Display Link Pacing & Dynamic Frame Rate Cadence
@@ -310,7 +362,11 @@ public final class NativeMetalView: NSView {
     
     public func applySettings() {
         let settings = SettingsManager.shared
+        let scale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2.0
         if let layer = metalLayer {
+            layer.frame = bounds
+            layer.contentsScale = scale
+            layer.drawableSize = convertToBacking(bounds).size
             layer.isOpaque = true
             let hdrMode = settings.hdrToneMapping
             if hdrMode == .sdrOnly {
@@ -326,11 +382,12 @@ public final class NativeMetalView: NSView {
             sbdl.preventsDisplaySleepDuringVideoPlayback = true
             sbdl.videoGravity = .resizeAspect
             sbdl.frame = bounds
-            if let window = window {
-                sbdl.contentsScale = window.backingScaleFactor
-            }
+            sbdl.contentsScale = scale
             let isDirect = (settings.effectivePresentationEngine == .directHardwareScanout)
             sbdl.isHidden = !isDirect
+            if !isDirect {
+                sbdl.flush()
+            }
         }
         updateFrameRateCadence()
         needsRender = true
@@ -364,15 +421,12 @@ public final class NativeMetalView: NSView {
             }
             needsRender = false
 
-        case .metalShaders:
+        case .metalShaders, .auto:
             sampleBufferDisplayLayer?.isHidden = true
             guard let renderer = renderer, let layer = metalLayer else { return }
             guard receivedFrame || needsRender else { return }
             needsRender = false
             renderer.render(to: layer)
-
-        case .auto:
-            break
         }
     }
     

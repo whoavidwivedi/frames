@@ -37,6 +37,7 @@ nonisolated public final class FrameQueue: @unchecked Sendable {
     private let consumerTail: UnsafeMutablePointer<UInt64>
     private let consumerCachedHead: UnsafeMutablePointer<UInt64>
     
+    private var queueLock = os_unfair_lock()
     private var configLock = os_unfair_lock()
     private var baseMaxCount: Int
     private var customMaxCount: Int? = nil
@@ -112,6 +113,8 @@ nonisolated public final class FrameQueue: @unchecked Sendable {
     }
     
     public var count: Int {
+        os_unfair_lock_lock(&queueLock)
+        defer { os_unfair_lock_unlock(&queueLock) }
         let head = producerHead.pointee
         let tail = consumerTail.pointee
         return head >= tail ? Int(head - tail) : 0
@@ -157,40 +160,68 @@ nonisolated public final class FrameQueue: @unchecked Sendable {
         
         guard frame.pts >= minPTS else { return }
         
-        let head = producerHead.pointee
+        os_unfair_lock_lock(&queueLock)
+        defer { os_unfair_lock_unlock(&queueLock) }
         
-        // Dynamically track nominal frame duration if reported by frame or consecutive delta
+        let head = producerHead.pointee
+        let tail = consumerTail.pointee
+        
+        // Dynamically track nominal frame duration if reported by frame
         if frame.duration > 0.001 && abs(nominal - (1.0 / 30.0)) < 0.0001 {
             os_unfair_lock_lock(&configLock)
             _nominalFrameDuration = frame.duration
             os_unfair_lock_unlock(&configLock)
-        } else if head > 0 && abs(nominal - (1.0 / 30.0)) < 0.0001 {
-            let lastPTS = producerLastPTS.pointee
-            let delta = frame.pts - lastPTS
-            if delta > 0.001 && delta < 0.25 {
-                os_unfair_lock_lock(&configLock)
-                _nominalFrameDuration = delta
-                os_unfair_lock_unlock(&configLock)
-            }
         }
         producerLastPTS.pointee = frame.pts
         
-        var cachedTail = producerCachedTail.pointee
-        
         // Handle buffer full condition without mutating consumer state
-        if head >= cachedTail + UInt64(Self.ringCapacity) {
-            cachedTail = consumerTail.pointee
-            producerCachedTail.pointee = cachedTail
-            
-            if head >= cachedTail + UInt64(Self.ringCapacity) {
-                // Buffer is completely full (256 slots). Drop incoming frame to preserve
-                // SPSC single-writer invariant and prevent race condition on consumer tail.
-                return
+        if head >= tail + UInt64(Self.ringCapacity) {
+            // Buffer is completely full (256 slots). Drop incoming frame to preserve saturation safety.
+            return
+        }
+        
+        // PTS monotonic insertion: maintain queue strictly sorted by presentation timestamp (PTS)
+        // to cleanly handle out-of-order decode order (B-frames) emitted by VideoToolbox.
+        var insertIndex = head
+        while insertIndex > tail {
+            let prevSlot = Int((insertIndex - 1) & UInt64(Self.ringMask))
+            guard let prevFrame = storage[prevSlot] else { break }
+            if prevFrame.pts > frame.pts {
+                let targetSlot = Int(insertIndex & UInt64(Self.ringMask))
+                storage[targetSlot] = prevFrame
+                insertIndex -= 1
+            } else {
+                break
             }
         }
         
-        let slot = Int(head & UInt64(Self.ringMask))
+        let slot = Int(insertIndex & UInt64(Self.ringMask))
         storage[slot] = frame
+        
+        // In sorted display order, derive accurate frame cadence from adjacent frames
+        if frame.duration <= 0.001 && abs(nominal - (1.0 / 30.0)) < 0.0001 {
+            if insertIndex > tail {
+                let prevSlot = Int((insertIndex - 1) & UInt64(Self.ringMask))
+                if let prev = storage[prevSlot] {
+                    let delta = frame.pts - prev.pts
+                    if delta > 0.005 && delta < 0.25 {
+                        os_unfair_lock_lock(&configLock)
+                        _nominalFrameDuration = delta
+                        os_unfair_lock_unlock(&configLock)
+                    }
+                }
+            } else if insertIndex < head {
+                let nextSlot = Int((insertIndex + 1) & UInt64(Self.ringMask))
+                if let next = storage[nextSlot] {
+                    let delta = next.pts - frame.pts
+                    if delta > 0.005 && delta < 0.25 {
+                        os_unfair_lock_lock(&configLock)
+                        _nominalFrameDuration = delta
+                        os_unfair_lock_unlock(&configLock)
+                    }
+                }
+            }
+        }
         
         // Release barrier: ensure frame data is visible before publishing new head cursor
         OSMemoryBarrier()
@@ -198,6 +229,8 @@ nonisolated public final class FrameQueue: @unchecked Sendable {
     }
     
     public func firstFrame() -> CVPixelBuffer? {
+        os_unfair_lock_lock(&queueLock)
+        defer { os_unfair_lock_unlock(&queueLock) }
         let tail = consumerTail.pointee
         let head = producerHead.pointee
         guard head > tail else { return nil }
@@ -206,6 +239,8 @@ nonisolated public final class FrameQueue: @unchecked Sendable {
     }
     
     public func frameClosest(to targetPTS: Double) -> (buffer: CVPixelBuffer, pts: Double)? {
+        os_unfair_lock_lock(&queueLock)
+        defer { os_unfair_lock_unlock(&queueLock) }
         let tail = consumerTail.pointee
         let head = producerHead.pointee
         guard head > tail else { return nil }
@@ -240,58 +275,64 @@ nonisolated public final class FrameQueue: @unchecked Sendable {
         let duration = (frameDuration ?? nominal) > 0.001 ? (frameDuration ?? nominal) : (1.0 / 30.0)
         let lagThreshold = max(0.033, 2.0 * duration)
         
+        var headroomCallback: (@Sendable () -> Void)? = nil
+        var result: (buffer: CVPixelBuffer, pts: Double)? = nil
+        
+        os_unfair_lock_lock(&queueLock)
+        
         var tail = consumerTail.pointee
-        var head = consumerCachedHead.pointee
+        let head = producerHead.pointee
         
-        if tail >= head {
-            head = producerHead.pointee
-            consumerCachedHead.pointee = head
-        }
-        
-        guard head > tail else { return nil }
-        
-        // Acquire barrier: read producer data after reading head
-        OSMemoryBarrier()
-        
-        // Discard stale frames lagging behind masterClock by dynamic frame-rate-aware threshold
-        var dropped = false
-        while (head > tail) && ((head - tail) > 1) {
-            let slot = Int(tail & UInt64(Self.ringMask))
-            guard let candidate = storage[slot] else { break }
-            if candidate.pts < masterClock - lagThreshold {
-                storage[slot] = nil
-                tail += 1
-                dropped = true
-            } else {
-                break
+        if head > tail {
+            // Discard stale frames lagging behind masterClock by dynamic frame-rate-aware threshold.
+            // Since queue is strictly sorted by PTS, we can prune stale frames from the head of the queue.
+            var dropped = false
+            while (head > tail) && ((head - tail) > 1) {
+                let slot = Int(tail & UInt64(Self.ringMask))
+                guard let candidate = storage[slot] else { break }
+                if candidate.pts < masterClock - lagThreshold {
+                    storage[slot] = nil
+                    tail += 1
+                    dropped = true
+                } else {
+                    break
+                }
+            }
+            
+            if dropped {
+                OSMemoryBarrier()
+                consumerTail.pointee = tail
+                headroomCallback = onHeadroomAvailable
+            }
+            
+            if head > tail {
+                let slot = Int(tail & UInt64(Self.ringMask))
+                if let candidate = storage[slot] {
+                    // Deliver frame if due within dynamic display cadence window
+                    let deliveryTolerance = min(0.020, max(0.005, duration * 0.75))
+                    if candidate.pts <= masterClock + deliveryTolerance {
+                        storage[slot] = nil
+                        OSMemoryBarrier()
+                        consumerTail.pointee = tail + 1
+                        headroomCallback = onHeadroomAvailable
+                        result = (candidate.pixelBuffer, candidate.pts)
+                    }
+                }
             }
         }
         
-        if dropped {
-            OSMemoryBarrier()
-            consumerTail.pointee = tail
-            onHeadroomAvailable?()
+        os_unfair_lock_unlock(&queueLock)
+        
+        if let cb = headroomCallback {
+            cb()
         }
         
-        guard head > tail else { return nil }
-        
-        let slot = Int(tail & UInt64(Self.ringMask))
-        guard let candidate = storage[slot] else { return nil }
-        
-        // Deliver frame if due within dynamic display cadence window
-        let deliveryTolerance = min(0.020, max(0.005, duration * 0.75))
-        if candidate.pts <= masterClock + deliveryTolerance {
-            storage[slot] = nil
-            OSMemoryBarrier()
-            consumerTail.pointee = tail + 1
-            onHeadroomAvailable?()
-            return (candidate.pixelBuffer, candidate.pts)
-        }
-        
-        return nil
+        return result
     }
     
     public func removeAll() {
+        var headroomCallback: (@Sendable () -> Void)? = nil
+        os_unfair_lock_lock(&queueLock)
         let head = producerHead.pointee
         var curr = consumerTail.pointee
         while curr < head {
@@ -304,7 +345,10 @@ nonisolated public final class FrameQueue: @unchecked Sendable {
         consumerCachedHead.pointee = head
         producerCachedTail.pointee = head
         producerLastPTS.pointee = -1.0
-        onHeadroomAvailable?()
+        headroomCallback = onHeadroomAvailable
+        os_unfair_lock_unlock(&queueLock)
+        
+        headroomCallback?()
     }
 
     public func reset(forSeek target: Double) {

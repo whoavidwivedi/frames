@@ -3813,6 +3813,97 @@ public enum FramesTestSuite {
         }
         try? FileManager.default.removeItem(at: tempAlignUrl)
 
+        // MARK: - 43. Jitter-Free Playback & Retina Display Sharpness Optimization
+        logs.append("\n[43] Testing Jitter-Free Playback & Retina Display Sharpness Optimization...")
+
+        // 1. FrameQueue B-frame temporal reordering
+        let bFrameQueue = FrameQueue(maxCount: 24, nominalFrameDuration: 1.0 / 25.0) // 25fps (40ms)
+        var testBFramePB: CVPixelBuffer?
+        CVPixelBufferCreate(kCFAllocatorDefault, 32, 32, kCVPixelFormatType_32BGRA, nil, &testBFramePB)
+        if let pb = testBFramePB {
+            // Emulate VideoToolbox emitting frames in raw decode order:
+            // Presentation order: 0.00 (I), 0.04 (B), 0.08 (P), 0.12 (B), 0.16 (P)
+            // Decode arrival order: 0.00 (I), 0.08 (P), 0.04 (B), 0.16 (P), 0.12 (B)
+            bFrameQueue.enqueue(VideoToolboxDecoder.DecodedVideoFrame(pixelBuffer: pb, pts: 0.00, duration: 0.04))
+            bFrameQueue.enqueue(VideoToolboxDecoder.DecodedVideoFrame(pixelBuffer: pb, pts: 0.08, duration: 0.04))
+            bFrameQueue.enqueue(VideoToolboxDecoder.DecodedVideoFrame(pixelBuffer: pb, pts: 0.04, duration: 0.04))
+            bFrameQueue.enqueue(VideoToolboxDecoder.DecodedVideoFrame(pixelBuffer: pb, pts: 0.16, duration: 0.04))
+            bFrameQueue.enqueue(VideoToolboxDecoder.DecodedVideoFrame(pixelBuffer: pb, pts: 0.12, duration: 0.04))
+
+            assertTest("B-Frame Queue Ingestion Preserves 5 Frames", condition: bFrameQueue.count == 5)
+
+            // Dequeue frame 0 (due at 0.00)
+            let f0 = bFrameQueue.dequeueNext(forMasterClock: 0.00, frameDuration: 0.04)
+            assertTest("Decode Order Queue Emits PTS 0.00 First", condition: f0 != nil && abs(f0!.pts - 0.00) < 0.001)
+
+            // Dequeue frame 1 (due at 0.04) -> must be the B-frame (0.04), NOT the P-frame (0.08)!
+            let f1 = bFrameQueue.dequeueNext(forMasterClock: 0.04, frameDuration: 0.04)
+            assertTest("PTS Monotonic Insertion Delivers B-Frame 0.04 In Order", condition: f1 != nil && abs(f1!.pts - 0.04) < 0.001)
+
+            // Dequeue frame 2 (due at 0.08)
+            let f2 = bFrameQueue.dequeueNext(forMasterClock: 0.08, frameDuration: 0.04)
+            assertTest("Queue Delivers P-Frame 0.08", condition: f2 != nil && abs(f2!.pts - 0.08) < 0.001)
+
+            // Dequeue frame 3 (due at 0.12) -> must be the second B-frame (0.12), NOT 0.16!
+            let f3 = bFrameQueue.dequeueNext(forMasterClock: 0.12, frameDuration: 0.04)
+            assertTest("PTS Monotonic Insertion Delivers B-Frame 0.12 In Order", condition: f3 != nil && abs(f3!.pts - 0.12) < 0.001)
+
+            // Dequeue frame 4 (due at 0.16)
+            let f4 = bFrameQueue.dequeueNext(forMasterClock: 0.16, frameDuration: 0.04)
+            assertTest("Queue Delivers P-Frame 0.16", condition: f4 != nil && abs(f4!.pts - 0.16) < 0.001)
+
+            assertTest("Queue Emptied Completely Without Drops", condition: bFrameQueue.count == 0)
+        }
+
+        // 2. NativeMetalView Retina Backing Scale & CAMetalLayer frame synchronization
+        let retinaCanvas = NativeMetalView(renderer: MetalVideoRenderer())
+        retinaCanvas.frame = NSRect(x: 0, y: 0, width: 800, height: 600)
+        retinaCanvas.layout()
+
+        let expectedScale = retinaCanvas.window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2.0
+        assertTest("CAMetalLayer Scale Matches Retina Factor", condition: retinaCanvas.metalLayer?.contentsScale == expectedScale)
+        assertTest("CAMetalLayer Frame Matches View Bounds", condition: retinaCanvas.metalLayer?.frame == retinaCanvas.bounds)
+        assertTest("CAMetalLayer DrawableSize Scaled To Backing", condition: retinaCanvas.metalLayer?.drawableSize == retinaCanvas.convertToBacking(retinaCanvas.bounds).size)
+        assertTest("AVSampleBufferDisplayLayer Scale Matches Retina Factor", condition: retinaCanvas.sampleBufferDisplayLayer?.contentsScale == expectedScale)
+        assertTest("AVSampleBufferDisplayLayer Frame Matches View Bounds", condition: retinaCanvas.sampleBufferDisplayLayer?.frame == retinaCanvas.bounds)
+
+        // 3. Dynamic Backing Scale Properties Notification
+        retinaCanvas.viewDidChangeBackingProperties()
+        assertTest("viewDidChangeBackingProperties Preserves CAMetalLayer Scale", condition: retinaCanvas.metalLayer?.contentsScale == expectedScale)
+        assertTest("viewDidChangeBackingProperties Preserves DrawableSize", condition: retinaCanvas.metalLayer?.drawableSize == retinaCanvas.convertToBacking(retinaCanvas.bounds).size)
+        assertTest("viewDidChangeBackingProperties Preserves SBDL Scale", condition: retinaCanvas.sampleBufferDisplayLayer?.contentsScale == expectedScale)
+
+        // 4. Interleaved Real-Time Streaming B-Frame Cadence
+        let streamingQueue = FrameQueue(maxCount: 16)
+        if let pb = testBFramePB {
+            // I-frame (0.00) & P-frame (0.08) arrive first
+            streamingQueue.enqueue(VideoToolboxDecoder.DecodedVideoFrame(pixelBuffer: pb, pts: 0.00, duration: 0.04))
+            streamingQueue.enqueue(VideoToolboxDecoder.DecodedVideoFrame(pixelBuffer: pb, pts: 0.08, duration: 0.04))
+            
+            // Consumer dequeues frame 0 (0.00)
+            let s0 = streamingQueue.dequeueNext(forMasterClock: 0.00, frameDuration: 0.04)
+            assertTest("Streaming Queue Dequeues Initial I-Frame 0.00", condition: s0 != nil && abs(s0!.pts - 0.00) < 0.001)
+
+            // B-frame (0.04) arrives while P-frame (0.08) is waiting
+            streamingQueue.enqueue(VideoToolboxDecoder.DecodedVideoFrame(pixelBuffer: pb, pts: 0.04, duration: 0.04))
+
+            // Consumer must receive B-frame (0.04) next, before P-frame (0.08)
+            let s1 = streamingQueue.dequeueNext(forMasterClock: 0.04, frameDuration: 0.04)
+            assertTest("Streaming Queue Dequeues Interleaved B-Frame 0.04 Next", condition: s1 != nil && abs(s1!.pts - 0.04) < 0.001)
+
+            let s2 = streamingQueue.dequeueNext(forMasterClock: 0.08, frameDuration: 0.04)
+            assertTest("Streaming Queue Dequeues Waiting P-Frame 0.08 Third", condition: s2 != nil && abs(s2!.pts - 0.08) < 0.001)
+        }
+
+        // 5. SampleBufferFactory Double & Unmanaged Extraction
+        if let pb = testBFramePB {
+            CVBufferSetAttachment(pb, "FramesPTS" as CFString, 12.345 as Double as CFNumber, .shouldPropagate)
+            CVBufferSetAttachment(pb, "FramesDuration" as CFString, 0.033 as Double as CFNumber, .shouldPropagate)
+            let sBuf = SampleBufferFactory.makeSampleBuffer(from: pb)
+            assertTest("SampleBufferFactory Correctly Extracts Double Attachment PTS", condition: sBuf != nil && abs(CMSampleBufferGetOutputPresentationTimeStamp(sBuf!).seconds - 12.345) < 0.001)
+            assertTest("SampleBufferFactory Correctly Extracts Double Attachment Duration", condition: sBuf != nil && abs(CMSampleBufferGetOutputDuration(sBuf!).seconds - 0.033) < 0.001)
+        }
+
         // Summary
         logs.append("\n==========================================")
         logs.append("RESULTS: \(passed) PASSED, \(failed) FAILED")

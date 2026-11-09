@@ -96,12 +96,12 @@ nonisolated public enum VideoShaderSource: Sendable {
         texture2d<half, access::sample> chromaTexture [[texture(1)]],
         constant VideoShaderUniforms &uniforms [[buffer(0)]]
     ) {
-        constexpr sampler s(address::clamp_to_edge, filter::linear);
+        constexpr sampler s(coord::normalized, address::clamp_to_edge, filter::linear);
         
         half y = lumaTexture.sample(s, in.texCoords).r;
         half2 cbcr = chromaTexture.sample(s, in.texCoords).rg;
         
-        half3 yuv = half3(y, cbcr) + half3(uniforms.yuvOffset);
+        half3 yuv = half3(y, cbcr.x, cbcr.y) + half3(uniforms.yuvOffset);
         half3 rgb = max(half3x3(uniforms.colorMatrix) * yuv, half3(0.0h));
         
         if (uniforms.colorSpaceMode == 2) {

@@ -405,9 +405,9 @@ nonisolated public final class VideoToolboxDecoder: @unchecked Sendable {
                 }
             }
             
-            // Configure decode flags: enable asynchronous decompression and temporal processing
-            // to ensure B-frames and out-of-order references are emitted strictly ordered by PTS.
-            var decodeFlags: VTDecodeFrameFlags = [._EnableAsynchronousDecompression, ._EnableTemporalProcessing]
+            // Configure decode flags: enable asynchronous decompression.
+            // B-frame temporal reordering is handled gracefully by FrameQueue PTS monotonic insertion.
+            var decodeFlags: VTDecodeFrameFlags = [._EnableAsynchronousDecompression]
             if doNotOutput {
                 decodeFlags.insert(._DoNotOutputFrame)
             }
