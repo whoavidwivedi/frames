@@ -7,6 +7,7 @@ import CoreVideo
 import CoreMedia
 import QuartzCore
 import Metal
+import VideoToolbox
 
 @MainActor
 public enum FramesTestSuite {
