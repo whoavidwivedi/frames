@@ -3710,11 +3710,36 @@ public enum FramesTestSuite {
             assertTest("AVSampleBufferDisplayLayer isOpaque True", condition: false)
         }
 
-        // Test presenting a frame to direct hardware layer
+        // Test presenting a frame to direct hardware layer & verifying buffer synchronization
         if let pb = testPixelBuffer {
+            CVBufferSetAttachment(pb, "FramesPTS" as CFString, NSNumber(value: 8.75), .shouldPropagate)
+            let attachedSb = SampleBufferFactory.makeSampleBuffer(from: pb)
+            assertTest("SampleBufferFactory Reads FramesPTS Attachment", condition: attachedSb != nil && abs(CMSampleBufferGetOutputPresentationTimeStamp(attachedSb!).seconds - 8.75) < 0.001)
+
             canvas.presentDirectHardwareBuffer(pb)
             assertTest("NativeMetalView Direct Hardware Buffer Enqueued Without Crash", condition: true)
+            assertTest("NativeMetalView Buffer Synchronization across Engines", condition: canvas.renderer?.currentBuffer === pb)
         }
+
+        // Test dynamic runtime layer switching via SettingsManager notification
+        presentationSettings.videoPresentationEngine = .directHardwareScanout
+        assertTest("Dynamic Settings Switch to Direct Scanout Unhides SBDL", condition: canvas.sampleBufferDisplayLayer?.isHidden == false)
+
+        presentationSettings.videoPresentationEngine = .metalShaders
+        assertTest("Dynamic Settings Switch to Metal Shaders Hides SBDL", condition: canvas.sampleBufferDisplayLayer?.isHidden == true)
+
+        presentationSettings.videoPresentationEngine = .auto
+        presentationSettings.animeDebandingEnabled = false
+        assertTest("Dynamic Settings Auto Mode Defaults SBDL Visible", condition: canvas.sampleBufferDisplayLayer?.isHidden == false)
+
+        presentationSettings.animeDebandingEnabled = true
+        assertTest("Dynamic Settings Auto Debanding Mode Hides SBDL for Metal", condition: canvas.sampleBufferDisplayLayer?.isHidden == true)
+
+        // Restore defaults
+        presentationSettings.videoPresentationEngine = originalEngine
+        presentationSettings.animeDebandingEnabled = originalDeband
+        presentationSettings.customVideoAdjustmentsEnabled = originalAdjustments
+        presentationSettings.hdrToneMapping = originalHdrTone
 
         // 4. Burst I/O madvise prefetch integration (MP4Demuxer & MatroskaDemuxer)
         // a. MP4Demuxer burst prefetching

@@ -170,7 +170,7 @@ public struct MP4Sample: Sendable {
 
 // MARK: - Internal Track Playback State
 
-private final class MP4TrackPlaybackState: @unchecked Sendable {
+nonisolated private final class MP4TrackPlaybackState: @unchecked Sendable {
     let track: DemuxedTrack
     let timescale: UInt32
     let samples: [MP4Sample]
@@ -289,7 +289,7 @@ nonisolated public final class MappedFileRegion: @unchecked Sendable {
         let alignedOffset = Int(offset) & ~pageMask
         let offsetDiff = Int(offset) - alignedOffset
         let unalignedLength = min(length + offsetDiff, size - alignedOffset)
-        let alignedLength = min(((unalignedLength + pageMask) / pageSize) * pageSize, size - alignedOffset)
+        let alignedLength = min(((unalignedLength + pageMask) / pageSize) * pageSize, ((size - alignedOffset + pageMask) / pageSize) * pageSize)
         guard alignedLength > 0 else { return false }
         let targetPtr = pointer.advanced(by: alignedOffset)
         return madvise(targetPtr, alignedLength, MADV_WILLNEED) == 0

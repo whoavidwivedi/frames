@@ -458,6 +458,8 @@ nonisolated public final class VideoToolboxDecoder: @unchecked Sendable {
             
             let pts = CMTimeGetSeconds(presentationTimeStamp)
             let duration = presentationDuration.isValid ? CMTimeGetSeconds(presentationDuration) : 0.0
+            CVBufferSetAttachment(pixelBuffer, "FramesPTS" as CFString, NSNumber(value: pts), .shouldPropagate)
+            CVBufferSetAttachment(pixelBuffer, "FramesDuration" as CFString, NSNumber(value: duration), .shouldPropagate)
             let frame = DecodedVideoFrame(pixelBuffer: pixelBuffer, pts: pts, duration: duration)
             
             frameLock.lock()

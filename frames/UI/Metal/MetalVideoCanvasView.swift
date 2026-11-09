@@ -34,9 +34,27 @@ public enum SampleBufferFactory {
             return nil
         }
 
+        var pts = presentationTimeStamp
+        if !pts.isValid {
+            if let ptsNum = CVBufferCopyAttachment(pixelBuffer, "FramesPTS" as CFString, nil) as? NSNumber {
+                pts = CMTime(seconds: ptsNum.doubleValue, preferredTimescale: 60000)
+            } else {
+                pts = CMTime(value: 0, timescale: 1000)
+            }
+        }
+
+        var frameDuration = duration
+        if !frameDuration.isValid {
+            if let durNum = CVBufferCopyAttachment(pixelBuffer, "FramesDuration" as CFString, nil) as? NSNumber, durNum.doubleValue > 0 {
+                frameDuration = CMTime(seconds: durNum.doubleValue, preferredTimescale: 60000)
+            } else {
+                frameDuration = CMTime(value: 1, timescale: 60)
+            }
+        }
+
         var timingInfo = CMSampleTimingInfo(
-            duration: duration.isValid ? duration : CMTime(value: 1, timescale: 60),
-            presentationTimeStamp: presentationTimeStamp.isValid ? presentationTimeStamp : CMTime(value: 0, timescale: 1000),
+            duration: frameDuration,
+            presentationTimeStamp: pts,
             decodeTimeStamp: .invalid
         )
 
@@ -54,7 +72,8 @@ public enum SampleBufferFactory {
         }
 
         if displayImmediately {
-            if let attachments = CMSampleBufferGetSampleAttachmentsArray(sample, createIfNecessary: true) {
+            if let attachments = CMSampleBufferGetSampleAttachmentsArray(sample, createIfNecessary: true),
+               CFArrayGetCount(attachments) > 0 {
                 let dict = unsafeBitCast(CFArrayGetValueAtIndex(attachments, 0), to: CFMutableDictionary.self)
                 CFDictionarySetValue(
                     dict,
@@ -73,10 +92,11 @@ public final class NativeMetalView: NSView {
     // MARK: - Properties
     
     public let renderer: MetalVideoRenderer?
-    private var metalLayer: CAMetalLayer?
+    public private(set) var metalLayer: CAMetalLayer?
     public private(set) var sampleBufferDisplayLayer: AVSampleBufferDisplayLayer?
     private var lastEnqueuedBuffer: CVPixelBuffer?
     private var displayLink: CADisplayLink?
+    private var settingsObserver: AnyObject?
     private var needsRender = true
     private var isPlaying = false
     private var videoFrameRate: Float = 60.0
@@ -90,6 +110,7 @@ public final class NativeMetalView: NSView {
         super.init(frame: .zero)
         self.wantsLayer = true
         setupMetalLayer()
+        registerSettingsObserver()
     }
     
     required init?(coder: NSCoder) {
@@ -97,10 +118,24 @@ public final class NativeMetalView: NSView {
         super.init(coder: coder)
         self.wantsLayer = true
         setupMetalLayer()
+        registerSettingsObserver()
     }
     
     deinit {
         stopDisplayLink()
+        if let obs = settingsObserver {
+            NotificationCenter.default.removeObserver(obs)
+        }
+    }
+    
+    private func registerSettingsObserver() {
+        settingsObserver = NotificationCenter.default.addObserver(
+            forName: SettingsManager.presentationEngineDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.applySettings()
+        }
     }
     
     // MARK: - Setup
@@ -194,7 +229,6 @@ public final class NativeMetalView: NSView {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         if let metalLayer = metalLayer {
-            metalLayer.frame = bounds
             metalLayer.drawableSize = convertToBacking(bounds).size
         }
         if let sbdl = sampleBufferDisplayLayer {
@@ -220,7 +254,7 @@ public final class NativeMetalView: NSView {
             if isPlaying {
                 updateFrameRateCadence()
                 displayLink?.isPaused = false
-        } else {
+            } else {
                 displayLink?.isPaused = true
             }
         } else if isPlaying {
@@ -243,13 +277,13 @@ public final class NativeMetalView: NSView {
                 link.preferredFrameRateRange = CAFrameRateRange(minimum: 30, maximum: 60, preferred: 60)
             } else if fps >= 55.0 && fps <= 65.0 {
                 // 60fps high frame rate: 60Hz
-            link.preferredFrameRateRange = CAFrameRateRange(minimum: 60, maximum: 60, preferred: 60)
+                link.preferredFrameRateRange = CAFrameRateRange(minimum: 60, maximum: 60, preferred: 60)
             } else if fps > 100.0 {
                 // 120fps high-refresh rate: 120Hz
                 link.preferredFrameRateRange = CAFrameRateRange(minimum: 60, maximum: 120, preferred: 120)
             } else {
                 link.preferredFrameRateRange = CAFrameRateRange(minimum: 30, maximum: 60, preferred: 60)
-        }
+            }
         } else if isLowBattery {
             // Power saver on low battery: down-clock cadence to match video or drop to 30Hz
             let fps = videoFrameRate
@@ -291,6 +325,10 @@ public final class NativeMetalView: NSView {
             sbdl.isOpaque = true
             sbdl.preventsDisplaySleepDuringVideoPlayback = true
             sbdl.videoGravity = .resizeAspect
+            sbdl.frame = bounds
+            if let window = window {
+                sbdl.contentsScale = window.backingScaleFactor
+            }
             let isDirect = (settings.effectivePresentationEngine == .directHardwareScanout)
             sbdl.isHidden = !isDirect
         }
@@ -312,6 +350,8 @@ public final class NativeMetalView: NSView {
         if let getNextBuffer = onFrameRequested, let buffer = getNextBuffer() {
             nextBuffer = buffer
             receivedFrame = true
+            lastEnqueuedBuffer = buffer
+            renderer?.setBufferForDisplay(buffer)
         }
 
         switch engine {
@@ -327,9 +367,6 @@ public final class NativeMetalView: NSView {
         case .metalShaders:
             sampleBufferDisplayLayer?.isHidden = true
             guard let renderer = renderer, let layer = metalLayer else { return }
-            if let buffer = nextBuffer {
-                renderer.setBufferForDisplay(buffer)
-            }
             guard receivedFrame || needsRender else { return }
             needsRender = false
             renderer.render(to: layer)
@@ -359,6 +396,7 @@ public final class NativeMetalView: NSView {
     /// Enqueues pixel buffer directly to AVSampleBufferDisplayLayer for 0% GPU DCP hardware scanout.
     public func presentDirectHardwareBuffer(_ buffer: CVPixelBuffer) {
         lastEnqueuedBuffer = buffer
+        renderer?.setBufferForDisplay(buffer)
         guard let sbdl = sampleBufferDisplayLayer else { return }
         if sbdl.status == .failed {
             sbdl.flush()
@@ -406,5 +444,6 @@ public struct MetalVideoCanvasView: NSViewRepresentable {
         nsView.onFrameRequested = onFrameRequested
         nsView.setPlaybackState(isPlaying: isPlaying, frameRate: videoFrameRate)
         nsView.decoupleOverlaysForFullscreen(isDecoupledFullscreen)
+        nsView.applySettings()
     }
 }

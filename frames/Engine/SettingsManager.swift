@@ -157,6 +157,7 @@ public final class SettingsManager {
 
     // MARK: - UserDefaults Keys
     public static let defaultViewModeKey = "frames_settings_default_view_mode_v1"
+    public static let presentationEngineDidChangeNotification = Notification.Name("frames_presentation_engine_did_change")
     public static let autoResumeModeKey = "frames_settings_auto_resume_mode_v1"
     public static let showAddVideoTileKey = "frames_settings_show_add_video_tile_v1"
     public nonisolated static let hardwareAccelerationKey = "frames_settings_hardware_acceleration_v1"
@@ -201,18 +202,21 @@ public final class SettingsManager {
     public var videoPresentationEngine: VideoPresentationEngine {
         didSet {
             UserDefaults.standard.set(videoPresentationEngine.rawValue, forKey: Self.videoPresentationEngineKey)
+            NotificationCenter.default.post(name: Self.presentationEngineDidChangeNotification, object: nil)
         }
     }
 
     public var animeDebandingEnabled: Bool {
         didSet {
             UserDefaults.standard.set(animeDebandingEnabled, forKey: Self.animeDebandingKey)
+            NotificationCenter.default.post(name: Self.presentationEngineDidChangeNotification, object: nil)
         }
     }
 
     public var customVideoAdjustmentsEnabled: Bool {
         didSet {
             UserDefaults.standard.set(customVideoAdjustmentsEnabled, forKey: Self.customVideoAdjustmentsKey)
+            NotificationCenter.default.post(name: Self.presentationEngineDidChangeNotification, object: nil)
         }
     }
 
@@ -240,6 +244,7 @@ public final class SettingsManager {
     public var hdrToneMapping: HDRToneMappingMode {
         didSet {
             UserDefaults.standard.set(hdrToneMapping.rawValue, forKey: Self.hdrToneMappingKey)
+            NotificationCenter.default.post(name: Self.presentationEngineDidChangeNotification, object: nil)
         }
     }
 
