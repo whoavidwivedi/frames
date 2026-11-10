@@ -4383,11 +4383,14 @@ public enum FramesTestSuite {
             isDefault: true,
             isForced: false
         )
-        let vtd = VideoToolboxDecoder(track: telemetryTrack)
-        assertTest("VideoToolboxDecoder Initial HW Telemetry Idle", condition: vtd.isHardwareAccelerated == false)
-        assertTest("VideoToolboxDecoder Initial Implementation Name", condition: vtd.decoderImplementationName == "VideoToolbox")
-        vtd.invalidate()
-        assertTest("VideoToolboxDecoder Invalidation Resets HW State", condition: vtd.isHardwareAccelerated == false && vtd.decoderImplementationName == "None")
+        if let vtd = VideoToolboxDecoder(track: telemetryTrack) {
+            assertTest("VideoToolboxDecoder Initial HW Telemetry Idle", condition: vtd.isHardwareAccelerated == false)
+            assertTest("VideoToolboxDecoder Initial Implementation Name", condition: vtd.decoderImplementationName == "VideoToolbox")
+            vtd.invalidate()
+            assertTest("VideoToolboxDecoder Invalidation Resets HW State", condition: vtd.isHardwareAccelerated == false && vtd.decoderImplementationName == "None")
+        } else {
+            assertTest("VideoToolboxDecoder Initialized", condition: false, "Failed to instantiate VideoToolboxDecoder")
+        }
 
         // PlaybackPipeline hardware acceleration forwarding
         let telemetryPipeline = PlaybackPipeline()
