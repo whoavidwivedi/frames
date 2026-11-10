@@ -60,7 +60,18 @@ public struct CustomScrubber: View {
                 .tint(ShadcnTheme.primaryHighlight)
                 .frame(width: totalWidth, height: 24)
                 .contentShape(Rectangle())
-                .pointingHand()
+                .accessibilityLabel("Playback progress")
+                .accessibilityValue("\(TimeFormatting.format(seconds: engine.currentTime)) of \(TimeFormatting.format(seconds: duration))")
+                .accessibilityAdjustableAction { direction in
+                    switch direction {
+                    case .increment:
+                        engine.skip(seconds: 10)
+                    case .decrement:
+                        engine.skip(seconds: -10)
+                    @unknown default:
+                        break
+                    }
+                }
                 .onContinuousHover { phase in
                     switch phase {
                     case .active(let location):

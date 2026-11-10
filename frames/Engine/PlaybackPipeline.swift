@@ -441,7 +441,7 @@ public func pthread_set_qos_class_np(_ thread: pthread_t, _ qosClass: qos_class_
 
 // MARK: - Dedicated E-Core Feeder Thread Controller
 
-nonisolated private final class FeederTaskController: @unchecked Sendable {
+nonisolated public final class FeederTaskController: @unchecked Sendable {
     private var _isCancelled: Bool = false
     private var cancelLock = os_unfair_lock()
     private let semaphore = DispatchSemaphore(value: 0)
@@ -554,11 +554,42 @@ public final class PlaybackPipeline: ObservableObject {
         }
         return .matroska
     }
+
+    // MARK: - Container Verification & Probing
+
+    /// Determines whether the native pipeline (MatroskaDemuxer or MP4Demuxer) can demux this container.
+    public static func isSupportedContainer(at url: URL) -> Bool {
+        // 1. Sniff magic bytes for EBML or ISO BMFF signatures
+        if url.isFileURL,
+           let values = try? url.resourceValues(forKeys: [.isRegularFileKey]),
+           values.isRegularFile == true,
+           let handle = try? FileHandle(forReadingFrom: url) {
+            defer { try? handle.close() }
+            let header = handle.readData(ofLength: 16)
+            if header.count >= 4 {
+                // EBML Header: 0x1A 0x45 0xDF 0xA3
+                if header[0] == 0x1A && header[1] == 0x45 && header[2] == 0xDF && header[3] == 0xA3 {
+                    return true
+                }
+                // ISO BMFF: bytes 4..<8 are 'ftyp', 'moov', 'wide', 'mdat', 'free', 'skip', 'styp'
+                if header.count >= 8 {
+                    let fourCC = String(decoding: header[4..<8], as: UTF8.self)
+                    if ["ftyp", "moov", "wide", "mdat", "free", "skip", "styp"].contains(fourCC) {
+                        return true
+                    }
+                }
+            }
+        }
+
+        // 2. Check known container extensions
+        let ext = url.pathExtension.lowercased()
+        return ["mkv", "webm", "mka", "mp4", "mov", "m4v", "m4a", "3gp", "3g2"].contains(ext)
+    }
     
     // Decoded Frame Ring Buffer & Scrub Frame Cache
-    private let frameQueue = FrameQueue(maxCount: 18)
+    public let frameQueue = FrameQueue(maxCount: 18)
     private let scrubCache = ScrubFrameCache(maxCapacity: 48)
-    private let packetChunkBuffer = PacketChunkBuffer(maxCapacity: 256)
+    public let packetChunkBuffer = PacketChunkBuffer(maxCapacity: 256)
     private var lastReportedUIClock: Double = -1.0
     private var nominalFrameDuration: Double = 1.0 / 30.0
     
@@ -572,12 +603,13 @@ public final class PlaybackPipeline: ObservableObject {
     // Concurrency & Feeder Task
     private let seekToken = SeekToken()
     private let feederQueue = DispatchQueue(label: "com.frames.playback.feeder", qos: .utility)
-    private var feederTask: FeederTaskController?
-    private var scrubTask: Task<Void, Never>?
+    public private(set) var feederTask: FeederTaskController?
+    public private(set) var scrubTask: Task<Void, Never>?
     private var pendingScrubTarget: Double?
     private var isScrubbingActive: Bool = false
     private var scrubGeneration = 0
     private var scrubResumeOnExit = false
+    private var scrubResiduePending: Bool = false
     private var audioSwitchTask: Task<Void, Never>?
     private var pendingAudioTrackNumber: UInt64?
     private var isPlaying = false
@@ -586,6 +618,22 @@ public final class PlaybackPipeline: ObservableObject {
     private var lastAudioClock: Double = -1
     private var lastAudioClockDate: CFTimeInterval = 0
     private var audioClockStalled = false
+
+    // Demuxer Stream End Tracking
+    private var eofLock = os_unfair_lock()
+    private var _isDemuxerEOF: Bool = false
+    public var isDemuxerEOF: Bool {
+        get {
+            os_unfair_lock_lock(&eofLock)
+            defer { os_unfair_lock_unlock(&eofLock) }
+            return _isDemuxerEOF
+        }
+        set {
+            os_unfair_lock_lock(&eofLock)
+            _isDemuxerEOF = newValue
+            os_unfair_lock_unlock(&eofLock)
+        }
+    }
     
     // Callbacks
     public var onTimeUpdate: (@MainActor @Sendable (Double) -> Void)?
@@ -612,6 +660,7 @@ public final class PlaybackPipeline: ObservableObject {
     public func loadSync(url: URL) -> Bool {
         stop()
         resetClockTracker()
+        self.isDemuxerEOF = false
         
         transition(to: .loading)
         self.currentURL = url
@@ -810,13 +859,21 @@ public final class PlaybackPipeline: ObservableObject {
         guard (state == .paused || state == .idle), let demuxer = demuxer else { return }
         
         let gen = seekToken.next()
+        self.isDemuxerEOF = false
         
+        let wasScrubbing = isScrubbingActive || scrubResiduePending
         isScrubbingActive = false
         pendingScrubTarget = nil
         // A scrub worker may still own the demuxer for a few milliseconds. Let it
         // finish and hand off to the feeder instead of racing it.
         let scrubInFlight = scrubTask != nil
         scrubResumeOnExit = scrubInFlight
+        
+        if !scrubInFlight && wasScrubbing {
+            frameQueue.reset(forSeek: currentTime)
+            packetChunkBuffer.removeAll()
+            scrubResiduePending = false
+        }
         
         isPlaying = true
         playbackStartTime = CACurrentMediaTime()
@@ -848,8 +905,21 @@ public final class PlaybackPipeline: ObservableObject {
         transition(to: .paused)
     }
     
+    /// Cleanly terminates playback upon reaching stream EOF or container duration.
+    public func markPlaybackEnded() {
+        guard isPlaying else { return }
+        self.isDemuxerEOF = true
+        isPlaying = false
+        audioEngine?.pause()
+        feederTask?.cancel()
+        feederTask = nil
+        transition(to: .paused)
+        onPlaybackEnded?()
+    }
+    
     public func stop() {
         isPlaying = false
+        self.isDemuxerEOF = false
         isScrubbingActive = false
         pendingScrubTarget = nil
         scrubResumeOnExit = false
@@ -882,9 +952,15 @@ public final class PlaybackPipeline: ObservableObject {
         guard let demuxer = demuxer else { return }
         
         let gen = seekToken.next()
+        self.isDemuxerEOF = false
+        
+        // Unconditionally cancel active feeder to eliminate concurrent demuxer reads during scrubbing or seek
+        feederTask?.cancel()
+        feederTask = nil
         
         if isScrubbing {
             isScrubbingActive = true
+            scrubResiduePending = true
             scrubResumeOnExit = false
             pendingScrubTarget = time
             currentTime = time
@@ -904,13 +980,11 @@ public final class PlaybackPipeline: ObservableObject {
 
         // Discrete timeline click or explicit seek
         isScrubbingActive = false
+        scrubResiduePending = false
         pendingScrubTarget = nil
         scrubResumeOnExit = false
         scrubTask?.cancel()
         scrubTask = nil
-
-        feederTask?.cancel()
-        feederTask = nil
         
         frameQueue.reset(forSeek: time)
         packetChunkBuffer.removeAll()
@@ -950,16 +1024,24 @@ public final class PlaybackPipeline: ObservableObject {
 
         if scrubTask == nil {
             scrubResumeOnExit = false
+            frameQueue.reset(forSeek: currentTime)
+            packetChunkBuffer.removeAll()
+            scrubResiduePending = false
         }
     }
 
     private func scrubTaskDidExit(generation: Int) {
         guard generation == scrubGeneration else { return }
         scrubTask = nil
+        
+        // Sanitize frame queue and packet chunk buffer immediately upon scrub task exit
+        frameQueue.reset(forSeek: currentTime)
+        packetChunkBuffer.removeAll()
+        scrubResiduePending = false
+        
         guard scrubResumeOnExit else { return }
         scrubResumeOnExit = false
         guard isPlaying, let demuxer = demuxer else { return }
-        frameQueue.reset(forSeek: currentTime)
         startFeederTask(demuxer: demuxer, targetSeekTime: nil, generation: seekToken.next())
     }
 
@@ -1083,12 +1165,7 @@ public final class PlaybackPipeline: ObservableObject {
                 }
 
                 if duration > 0 && masterClock >= duration {
-                    isPlaying = false
-                    audioEngine?.pause()
-                    feederTask?.cancel()
-                    feederTask = nil
-                    transition(to: .paused)
-                    onPlaybackEnded?()
+                    markPlaybackEnded()
                     return nil
                 }
             } else {
@@ -1096,6 +1173,9 @@ public final class PlaybackPipeline: ObservableObject {
             }
             
             guard let (frame, _) = frameQueue.dequeueNext(forMasterClock: masterClock, frameDuration: nominalFrameDuration) else {
+                if isPlaying && isDemuxerEOF && packetChunkBuffer.isEmpty && frameQueue.count == 0 {
+                    markPlaybackEnded()
+                }
                 return nil
             }
             
@@ -1267,6 +1347,7 @@ public final class PlaybackPipeline: ObservableObject {
 
                     // 2. Read next packet from container
                     guard let packet = try? demuxer.nextPacket() else {
+                        self.isDemuxerEOF = true
                         shouldSleepAfterEOF = true
                         return
                     }
@@ -1305,6 +1386,12 @@ public final class PlaybackPipeline: ObservableObject {
                 }
 
                 if shouldSleepAfterEOF {
+                    if packetBuffer.isEmpty && q.count == 0 {
+                        Task { @MainActor [weak self] in
+                            self?.markPlaybackEnded()
+                        }
+                        break
+                    }
                     controller.waitForHeadroom(timeoutMs: 30)
                 }
             }

@@ -2,9 +2,111 @@ import AppKit
 import SwiftUI
 
 public final class KeyboardHandler {
+    public enum KeyAction: Equatable, Sendable {
+        case playPause
+        case toggleMute
+        case stepForward
+        case stepBackward
+        case faster
+        case slower
+        case toggleFullscreen
+        case togglePictureInPicture
+        case toggleSubtitles
+        case toggleMetrics
+        case skip(Double)
+        case volumeDelta(Float)
+        case returnToDashboard
+        case replay
+        case escape
+    }
+
+    public static func resolveAction(
+        charactersIgnoringModifiers: String?,
+        keyCode: UInt16,
+        isShift: Bool = false,
+        isCommand: Bool = false,
+        isControl: Bool = false,
+        isOption: Bool = false
+    ) -> KeyAction? {
+        if isCommand || isControl || isOption {
+            return nil
+        }
+
+        switch keyCode {
+        case 123: // Left Arrow
+            let interval = Double(SettingsManager.shared.defaultSkipInterval)
+            return .skip(isShift ? -30.0 : -interval)
+        case 124: // Right Arrow
+            let interval = Double(SettingsManager.shared.defaultSkipInterval)
+            return .skip(isShift ? 30.0 : interval)
+        case 126: // Up Arrow
+            return .volumeDelta(0.05)
+        case 125: // Down Arrow
+            return .volumeDelta(-0.05)
+        case 36: // Return key
+            return .returnToDashboard
+        case 51: // Backspace / Delete
+            return .returnToDashboard
+        case 53: // Escape key
+            return .escape
+        default:
+            break
+        }
+
+        guard let chars = charactersIgnoringModifiers?.lowercased() else {
+            if keyCode == 49 {
+                return .playPause
+            }
+            return nil
+        }
+
+        switch chars {
+        case " ":
+            return .playPause
+        case "m":
+            return .toggleMute
+        case "f":
+            return .toggleFullscreen
+        case "p":
+            return .togglePictureInPicture
+        case "s":
+            return .toggleSubtitles
+        case "i":
+            return .toggleMetrics
+        case ".":
+            return .stepForward
+        case ",":
+            return .stepBackward
+        case "]":
+            return .faster
+        case "[":
+            return .slower
+        case "r":
+            return .replay
+        default:
+            if keyCode == 49 {
+                return .playPause
+            }
+            return nil
+        }
+    }
+
+    public static func resolveKeyAction(event: NSEvent) -> KeyAction? {
+        return resolveAction(
+            charactersIgnoringModifiers: event.charactersIgnoringModifiers,
+            keyCode: event.keyCode,
+            isShift: event.modifierFlags.contains(.shift),
+            isCommand: event.modifierFlags.contains(.command),
+            isControl: event.modifierFlags.contains(.control),
+            isOption: event.modifierFlags.contains(.option)
+        )
+    }
+
     private var localMonitor: Any?
+    public let engine: VideoPlayerEngine
 
     public init(engine: VideoPlayerEngine) {
+        self.engine = engine
         setupMonitor(engine: engine)
     }
 
@@ -14,10 +116,22 @@ public final class KeyboardHandler {
         }
     }
 
+    @discardableResult
+    public func handleKeyEvent(_ event: NSEvent) -> NSEvent? {
+        return Self.handleKeyEvent(event, engine: engine)
+    }
+
     private func setupMonitor(engine: VideoPlayerEngine) {
-        localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            // Don't intercept if user is typing into a text field, EXCEPT for Escape (dismiss focus) or Cmd+K
-            if let firstResponder = NSApp.keyWindow?.firstResponder, firstResponder is NSTextView || firstResponder is NSTextField {
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self = self else { return event }
+            return self.handleKeyEvent(event)
+        }
+    }
+
+    @discardableResult
+    public static func handleKeyEvent(_ event: NSEvent, engine: VideoPlayerEngine) -> NSEvent? {
+        // Don't intercept if user is typing into a text field, EXCEPT for Escape (dismiss focus) or Cmd+K
+        if let firstResponder = NSApp.keyWindow?.firstResponder, firstResponder is NSTextView || firstResponder is NSTextField {
                 if CommandPaletteManager.shared.isPresented {
                     return event
                 }
@@ -134,9 +248,6 @@ public final class KeyboardHandler {
             // Settings: Command + , (⌘,)
             if isCommand && !isControl && !isOption && keyCode == 43 {
                 Task { @MainActor in
-                    if engine.currentURL != nil {
-                        NotificationCenter.default.post(name: .returnToDashboardNotification, object: nil)
-                    }
                     SettingsManager.shared.toggleSettings()
                 }
                 return nil
@@ -174,49 +285,48 @@ public final class KeyboardHandler {
                 return event
             }
 
-            // MARK: - 2. Media Player & App Shortcuts (Unmodified Keys)
-            switch keyCode {
-            case 49: // Space
+            // MARK: - 2. Media Player & App Shortcuts (Unmodified Keys / International Layout Compatible)
+            guard let action = resolveAction(
+                charactersIgnoringModifiers: event.charactersIgnoringModifiers,
+                keyCode: keyCode,
+                isShift: isShift,
+                isCommand: isCommand,
+                isControl: isControl,
+                isOption: isOption
+            ) else {
+                return event
+            }
+
+            switch action {
+            case .playPause:
                 Task { @MainActor in engine.togglePlayPause() }
                 return nil
 
-            case 123: // Left Arrow
-                let interval = Double(SettingsManager.shared.defaultSkipInterval)
-                let delta = isShift ? -30.0 : -interval
+            case .skip(let delta):
                 Task { @MainActor in engine.skip(seconds: delta) }
                 return nil
 
-            case 124: // Right Arrow
-                let interval = Double(SettingsManager.shared.defaultSkipInterval)
-                let delta = isShift ? 30.0 : interval
-                Task { @MainActor in engine.skip(seconds: delta) }
+            case .volumeDelta(let delta):
+                Task { @MainActor in engine.setVolumeDelta(delta) }
                 return nil
 
-            case 126: // Up Arrow
-                Task { @MainActor in engine.setVolumeDelta(0.05) }
-                return nil
-
-            case 125: // Down Arrow
-                Task { @MainActor in engine.setVolumeDelta(-0.05) }
-                return nil
-
-            case 46: // M key (Mute)
+            case .toggleMute:
                 Task { @MainActor in engine.toggleMute() }
                 return nil
 
-            case 3: // F key (Standard video player toggle for Native Fullscreen)
+            case .toggleFullscreen:
                 Task { @MainActor in
                     WindowManager.shared.toggleNativeFullscreen()
                 }
                 return nil
 
-            case 35: // P key (Picture-in-Picture)
+            case .togglePictureInPicture:
                 Task { @MainActor in
                     PictureInPictureManager.shared.toggle(engine: engine)
                 }
                 return nil
 
-            case 1: // S key (Subtitles)
+            case .toggleSubtitles:
                 Task { @MainActor in
                     if engine.activeInspectorSheet == .subtitles {
                         engine.activeInspectorSheet = nil
@@ -226,7 +336,7 @@ public final class KeyboardHandler {
                 }
                 return nil
 
-            case 34: // I key (Hardware Stats)
+            case .toggleMetrics:
                 Task { @MainActor in
                     if engine.activeInspectorSheet == .stats {
                         engine.activeInspectorSheet = nil
@@ -236,36 +346,39 @@ public final class KeyboardHandler {
                 }
                 return nil
 
-            case 47: // Period (.) - Frame step forward
+            case .stepForward:
                 Task { @MainActor in engine.stepFrame(forward: true) }
                 return nil
 
-            case 43: // Comma (,) - Frame step backward
+            case .stepBackward:
                 Task { @MainActor in engine.stepFrame(forward: false) }
                 return nil
 
-            case 30: // ] key (Speed up)
+            case .faster:
                 Task { @MainActor in
-                    engine.playbackRate = min(3.0, engine.playbackRate + 0.1)
+                    engine.playbackRate = min(3.0, ((engine.playbackRate + 0.1) * 10).rounded() / 10)
                 }
                 return nil
 
-            case 33: // [ key (Slow down)
+            case .slower:
                 Task { @MainActor in
-                    engine.playbackRate = max(0.25, engine.playbackRate - 0.1)
+                    engine.playbackRate = max(0.25, ((engine.playbackRate - 0.1) * 10).rounded() / 10)
                 }
                 return nil
 
-            case 36: // Return key (Back to Dashboard on completion)
-                if engine.hasEnded {
-                    Task { @MainActor in
-                        NotificationCenter.default.post(name: .returnToDashboardNotification, object: nil)
-                    }
-                    return nil
+            case .returnToDashboard:
+                if keyCode == 36 && !engine.hasEnded {
+                    return event
                 }
-                return event
+                if keyCode == 51 && engine.currentURL == nil {
+                    return event
+                }
+                Task { @MainActor in
+                    NotificationCenter.default.post(name: .returnToDashboardNotification, object: nil)
+                }
+                return nil
 
-            case 15: // R key (Replay on completion)
+            case .replay:
                 if engine.hasEnded {
                     Task { @MainActor in
                         engine.replay()
@@ -274,16 +387,7 @@ public final class KeyboardHandler {
                 }
                 return event
 
-            case 51: // Backspace / Delete (Return to Dashboard)
-                if engine.currentURL != nil {
-                    Task { @MainActor in
-                        NotificationCenter.default.post(name: .returnToDashboardNotification, object: nil)
-                    }
-                    return nil
-                }
-                return event
-
-            case 53: // Escape key
+            case .escape:
                 Task { @MainActor in
                     if SettingsManager.shared.isSettingsPresented {
                         SettingsManager.shared.closeSettings()
@@ -308,10 +412,6 @@ public final class KeyboardHandler {
                     }
                 }
                 return nil
-
-            default:
-                return event
             }
         }
     }
-}

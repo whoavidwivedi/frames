@@ -14,8 +14,7 @@ public struct TopBarOverlay: View {
 
     public var body: some View {
         let isFs = windowManager.isAnyFullscreen
-        let isNarrow = windowManager.isCompact || windowManager.isQuarterScreen
-        let trafficLightSpacer: CGFloat = isFs ? 14 : (isNarrow ? 66 : 74)
+        let trafficLightSpacer: CGFloat = isFs ? 14 : 78
 
         ZStack {
             // Video title centered horizontally with no background
@@ -55,7 +54,7 @@ public struct TopBarOverlay: View {
                         .shadow(color: Color.black.opacity(0.4), radius: 2, x: 0, y: 1)
                 }
                 .buttonStyle(.plain)
-                .pointingHand()
+                .accessibilityLabel("Back to Dashboard")
                 .onHover { isBackHovered = $0 }
                 .help("Back (Esc or ⌘[)")
 
@@ -64,6 +63,13 @@ public struct TopBarOverlay: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: 50)
+        .background(
+            LinearGradient(
+                colors: [Color.black.opacity(0.60), Color.black.opacity(0.20), Color.clear],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
         .contentShape(Rectangle())
         .onTapGesture(count: 2) {
             WindowManager.shared.performTitleBarDoubleClickAction()

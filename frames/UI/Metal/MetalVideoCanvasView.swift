@@ -118,11 +118,16 @@ public final class NativeMetalView: NSView {
     private var lastEnqueuedBuffer: CVPixelBuffer?
     private var displayLink: CADisplayLink?
     private var settingsObserver: AnyObject?
-    private var needsRender = true
+    public private(set) var needsRender = true
     private var isPlaying = false
     private var videoFrameRate: Float = 60.0
     
     public var onFrameRequested: (@MainActor () -> CVPixelBuffer?)?
+
+    /// Active video frame buffer synchronized across both presentation engines
+    public var currentBuffer: CVPixelBuffer? {
+        return renderer?.currentBuffer ?? lastEnqueuedBuffer
+    }
     
     // MARK: - Init
     
@@ -207,6 +212,9 @@ public final class NativeMetalView: NSView {
             DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }
                 // Avoid redundant rendering if display link is already actively ticking
+                if self.renderer?.currentBuffer == nil {
+                    self.lastEnqueuedBuffer = nil
+                }
                 if !self.isPlaying {
                     self.needsRender = true
                     self.renderNow()
@@ -246,7 +254,10 @@ public final class NativeMetalView: NSView {
         let scale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2.0
         metalLayer?.frame = bounds
         metalLayer?.contentsScale = scale
-        metalLayer?.drawableSize = convertToBacking(bounds).size
+        let backingSize = convertToBacking(bounds).size
+        if backingSize.width > 0 && backingSize.height > 0 {
+            metalLayer?.drawableSize = backingSize
+        }
         sampleBufferDisplayLayer?.frame = bounds
         sampleBufferDisplayLayer?.contentsScale = scale
         if window != nil {
@@ -264,7 +275,10 @@ public final class NativeMetalView: NSView {
         if let metalLayer = metalLayer {
             metalLayer.frame = bounds
             metalLayer.contentsScale = scale
-            metalLayer.drawableSize = convertToBacking(bounds).size
+            let backingSize = convertToBacking(bounds).size
+            if backingSize.width > 0 && backingSize.height > 0 {
+                metalLayer.drawableSize = backingSize
+            }
         }
         if let sbdl = sampleBufferDisplayLayer {
             sbdl.frame = bounds
@@ -272,6 +286,9 @@ public final class NativeMetalView: NSView {
         }
         CATransaction.commit()
         needsRender = true
+        if !isPlaying && currentBuffer != nil && bounds.width > 0 && bounds.height > 0 {
+            renderNow()
+        }
     }
 
     public override func viewDidChangeBackingProperties() {
@@ -282,7 +299,10 @@ public final class NativeMetalView: NSView {
         if let metalLayer = metalLayer {
             metalLayer.frame = bounds
             metalLayer.contentsScale = scale
-            metalLayer.drawableSize = convertToBacking(bounds).size
+            let backingSize = convertToBacking(bounds).size
+            if backingSize.width > 0 && backingSize.height > 0 {
+                metalLayer.drawableSize = backingSize
+            }
         }
         if let sbdl = sampleBufferDisplayLayer {
             sbdl.frame = bounds
@@ -290,7 +310,9 @@ public final class NativeMetalView: NSView {
         }
         CATransaction.commit()
         needsRender = true
-        renderNow()
+        if !isPlaying && currentBuffer != nil && bounds.width > 0 && bounds.height > 0 {
+            renderNow()
+        }
     }
     
     // MARK: - Display Link Pacing & Dynamic Frame Rate Cadence
@@ -437,7 +459,7 @@ public final class NativeMetalView: NSView {
         switch engine {
         case .directHardwareScanout:
             sampleBufferDisplayLayer?.isHidden = false
-            if let buffer = lastEnqueuedBuffer ?? renderer?.currentBuffer {
+            if let buffer = currentBuffer {
                 presentDirectHardwareBuffer(buffer)
             }
         case .metalShaders, .auto:
