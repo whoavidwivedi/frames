@@ -65,40 +65,36 @@ public struct DashboardSidebarView: View {
                             } label: {
                                 Image(systemName: "plus")
                                     .font(.system(size: 11, weight: .semibold))
-                                    .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                                    .frame(width: 24, height: 24)
+                                    .foregroundStyle(Color.secondary)
+                                    .frame(width: 22, height: 22)
                                     .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                             .pointingHand()
                             .help("Add folder")
                         }
-                        .padding(.trailing, 8)
+                        .padding(.trailing, 6)
 
                         if library.folders.isEmpty {
                             Button {
                                 library.selectAndAddFolder()
                             } label: {
                                 HStack(spacing: 8) {
-                                    Image(systemName: "folder.badge.plus")
+                                    Image(systemName: "plus.circle")
                                         .font(.system(size: 12))
-                                        .foregroundStyle(ShadcnTheme.foregroundMuted)
-                                    Text("Add a folder...")
+                                        .foregroundStyle(Color.secondary)
+                                    Text("Add Folder...")
                                         .font(.system(size: 12))
-                                        .foregroundStyle(ShadcnTheme.foregroundMuted)
+                                        .foregroundStyle(Color.secondary)
                                     Spacer()
                                 }
                                 .padding(.horizontal, 10)
-                                .padding(.vertical, 8)
-                                .background(
-                                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                        .strokeBorder(ShadcnTheme.border.opacity(0.6), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
-                                )
+                                .frame(height: 28)
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                             .pointingHand()
-                            .padding(.top, 4)
+                            .padding(.top, 2)
                         } else {
                             ForEach(library.folders) { folder in
                                 folderRow(folder: folder)
@@ -106,7 +102,7 @@ public struct DashboardSidebarView: View {
                         }
                     }
                 }
-                .padding(.horizontal, 12)
+                .padding(.horizontal, 10)
                 .padding(.top, 12)
             }
 
@@ -123,13 +119,13 @@ public struct DashboardSidebarView: View {
                 }
                 .help("Settings (⌘,)")
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, 10)
             .padding(.bottom, 4)
 
-            // Footer: App Version & Apple Silicon Hardware Badge
+            // Footer: App Version & Check for Updates
             VStack(alignment: .leading, spacing: 6) {
                 Divider()
-                    .overlay(ShadcnTheme.border)
+                    .overlay(Color(nsColor: .separatorColor).opacity(0.35))
                     .padding(.bottom, 4)
 
                 // App Version & Update Status
@@ -139,21 +135,11 @@ public struct DashboardSidebarView: View {
                     HStack(spacing: 6) {
                         Text("Frames")
                             .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(ShadcnTheme.foreground)
+                            .foregroundStyle(Color.primary)
 
                         Text("v\(updateManager.currentVersionString)")
-                            .font(.system(size: 10, weight: .medium, design: .monospaced))
-                            .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1.5)
-                            .background(
-                                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                    .fill(ShadcnTheme.card.opacity(0.6))
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                    .strokeBorder(ShadcnTheme.border.opacity(0.7), lineWidth: 0.5)
-                            )
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color.secondary)
 
                         Spacer()
 
@@ -176,7 +162,7 @@ public struct DashboardSidebarView: View {
                             .clipShape(Capsule())
                         }
                     }
-                    .padding(.horizontal, 14)
+                    .padding(.horizontal, 12)
                     .padding(.vertical, 3)
                     .contentShape(Rectangle())
                 }
@@ -187,63 +173,61 @@ public struct DashboardSidebarView: View {
             }
         }
         .frame(width: width)
-        .background(ShadcnTheme.sidebar)
+        .background(Color(nsColor: .controlBackgroundColor))
         .overlay(
             Rectangle()
                 .frame(width: 1)
-                .foregroundStyle(ShadcnTheme.border),
+                .foregroundStyle(Color(nsColor: .separatorColor).opacity(0.35)),
             alignment: .trailing
         )
         .clipped()
     }
 
-    // MARK: - Row Components
+    // MARK: - Row Components (Default macOS Sidebar Style)
     private func sectionHeader(title: String) -> some View {
         Text(title)
-            .font(.system(size: 10, weight: .semibold, design: .monospaced))
-            .foregroundStyle(ShadcnTheme.foregroundMuted)
-            .padding(.horizontal, 8)
+            .font(.system(size: 11, weight: .bold))
+            .foregroundStyle(Color.secondary)
+            .padding(.horizontal, 10)
             .padding(.bottom, 4)
     }
 
     private func sidebarRow(title: String, icon: String, badge: String? = nil, isSelected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack(spacing: 9) {
+            HStack(spacing: 8) {
                 Image(systemName: icon)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
-                    .frame(width: 16)
+                    .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
+                    .foregroundStyle(
+                        isSelected ? Color.white : (title == "Favorites" ? Color.yellow : Color.secondary)
+                    )
+                    .frame(width: 18)
 
                 Text(title)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
+                    .font(.system(size: 13, weight: isSelected ? .medium : .regular))
+                    .foregroundStyle(isSelected ? Color.white : Color.primary)
                     .lineLimit(1)
 
                 Spacer()
 
                 if let badge = badge {
                     Text(badge)
-                        .font(.system(size: 10, weight: .medium, design: .monospaced))
-                        .foregroundStyle(isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundMuted)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(isSelected ? Color.white : Color.secondary)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 1)
                         .background(
                             Capsule()
-                                .fill(isSelected ? ShadcnTheme.accentActive : ShadcnTheme.muted)
+                                .fill(isSelected ? Color.white.opacity(0.25) : Color.primary.opacity(0.06))
                         )
                 }
             }
             .padding(.horizontal, 10)
-            .frame(height: 32)
+            .frame(height: 28)
             .background(
-                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                    .fill(isSelected ? ShadcnTheme.cardHover : (hoveredRow == title ? ShadcnTheme.card.opacity(0.6) : Color.clear))
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(isSelected ? Color.accentColor : (hoveredRow == title ? Color.primary.opacity(0.06) : Color.clear))
             )
-            .overlay(
-                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                    .strokeBorder(isSelected ? ShadcnTheme.border : (hoveredRow == title ? ShadcnTheme.borderSubtle : Color.clear), lineWidth: 1)
-            )
-            .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         }
         .buttonStyle(.plain)
         .pointingHand()
@@ -260,15 +244,15 @@ public struct DashboardSidebarView: View {
         let isSelected = library.selectedCategory == .folder(id: folder.id)
         let isHovered = hoveredFolderId == folder.id
 
-        return HStack(spacing: 9) {
-            Image(systemName: "folder")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
-                .frame(width: 16)
+        return HStack(spacing: 8) {
+            Image(systemName: isSelected ? "folder.fill" : "folder")
+                .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
+                .foregroundStyle(isSelected ? Color.white : Color.secondary)
+                .frame(width: 18)
 
             Text(folder.name)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
+                .font(.system(size: 13, weight: isSelected ? .medium : .regular))
+                .foregroundStyle(isSelected ? Color.white : Color.primary)
                 .lineLimit(1)
 
             Spacer()
@@ -277,18 +261,18 @@ public struct DashboardSidebarView: View {
             ZStack(alignment: .trailing) {
                 if folder.videoCount > 0 {
                     Text("\(folder.videoCount)")
-                        .font(.system(size: 10, weight: .medium, design: .monospaced))
-                        .foregroundStyle(isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundMuted)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(isSelected ? Color.white : Color.secondary)
                         .opacity(isHovered ? 0.0 : 1.0)
                 }
 
                 Button {
                     library.removeFolder(id: folder.id)
                 } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(ShadcnTheme.foregroundMuted)
-                        .frame(width: 22, height: 22)
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(isSelected ? Color.white.opacity(0.8) : Color.secondary)
+                        .frame(width: 20, height: 20)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -297,17 +281,13 @@ public struct DashboardSidebarView: View {
                 .opacity(isHovered ? 1.0 : 0.0)
                 .allowsHitTesting(isHovered)
             }
-            .frame(width: 28, height: 22, alignment: .trailing)
+            .frame(width: 24, height: 20, alignment: .trailing)
         }
         .padding(.horizontal, 10)
-        .frame(height: 32)
+        .frame(height: 28)
         .background(
-            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                .fill(isSelected ? ShadcnTheme.cardHover : (isHovered ? ShadcnTheme.accentActive : Color.clear))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                .strokeBorder(isSelected ? ShadcnTheme.border : Color.clear, lineWidth: 1)
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(isSelected ? Color.accentColor : (isHovered ? Color.primary.opacity(0.06) : Color.clear))
         )
         .contentShape(Rectangle())
         .pointingHand()

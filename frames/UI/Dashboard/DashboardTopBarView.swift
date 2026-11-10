@@ -44,8 +44,8 @@ public struct DashboardTopBarView: View {
                         WindowManager.shared.performTitleBarDoubleClickAction()
                     }
 
-                // MARK: - Navigation & Sidebar Toolbar Controls (Antigravity Style: Icon-Only)
-                HStack(spacing: 4) {
+                // MARK: - Navigation & Sidebar Toolbar Controls (macOS Standard Icon Style)
+                HStack(spacing: 3) {
                     // 1. Sidebar Toggle Icon
                     Button {
                         withAnimation(.snappy(duration: 0.2)) {
@@ -54,11 +54,11 @@ public struct DashboardTopBarView: View {
                     } label: {
                         ZStack {
                             RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(hoveredButton == .sidebar ? ShadcnTheme.cardHover : Color.black.opacity(0.0001))
+                                .fill(hoveredButton == .sidebar ? Color.primary.opacity(0.06) : Color.clear)
 
                             Image(systemName: "sidebar.leading")
                                 .font(.system(size: 13, weight: .regular))
-                                .foregroundStyle(library.isSidebarVisible ? ShadcnTheme.foreground : ShadcnTheme.foregroundMuted)
+                                .foregroundStyle(library.isSidebarVisible ? Color.primary : Color.secondary)
                         }
                         .frame(width: 28, height: 28)
                         .contentShape(Rectangle())
@@ -75,11 +75,11 @@ public struct DashboardTopBarView: View {
                     } label: {
                         ZStack {
                             RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(hoveredButton == .back && library.canGoBack ? ShadcnTheme.cardHover : Color.black.opacity(0.0001))
+                                .fill(hoveredButton == .back && library.canGoBack ? Color.primary.opacity(0.06) : Color.clear)
 
-                            Image(systemName: "arrow.left")
-                                .font(.system(size: 12, weight: .regular))
-                                .foregroundStyle(library.canGoBack ? ShadcnTheme.foreground : ShadcnTheme.foregroundMuted.opacity(0.35))
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(library.canGoBack ? Color.primary : Color.secondary.opacity(0.35))
                         }
                         .frame(width: 28, height: 28)
                         .contentShape(Rectangle())
@@ -98,11 +98,11 @@ public struct DashboardTopBarView: View {
                         } label: {
                             ZStack {
                                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(hoveredButton == .forward && library.canGoForward ? ShadcnTheme.cardHover : Color.black.opacity(0.0001))
+                                    .fill(hoveredButton == .forward && library.canGoForward ? Color.primary.opacity(0.06) : Color.clear)
 
-                                Image(systemName: "arrow.right")
-                                    .font(.system(size: 12, weight: .regular))
-                                    .foregroundStyle(library.canGoForward ? ShadcnTheme.foreground : ShadcnTheme.foregroundMuted.opacity(0.35))
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(library.canGoForward ? Color.primary : Color.secondary.opacity(0.35))
                             }
                             .frame(width: 28, height: 28)
                             .contentShape(Rectangle())
@@ -122,11 +122,11 @@ public struct DashboardTopBarView: View {
                     } label: {
                         ZStack {
                             RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(hoveredButton == .search || CommandPaletteManager.shared.isPresented ? ShadcnTheme.cardHover : Color.black.opacity(0.0001))
+                                .fill(hoveredButton == .search || CommandPaletteManager.shared.isPresented ? Color.primary.opacity(0.06) : Color.clear)
 
                             Image(systemName: "magnifyingglass")
                                 .font(.system(size: 12, weight: .regular))
-                                .foregroundStyle(hoveredButton == .search || CommandPaletteManager.shared.isPresented ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
+                                .foregroundStyle(hoveredButton == .search || CommandPaletteManager.shared.isPresented ? Color.primary : Color.secondary)
                         }
                         .frame(width: 28, height: 28)
                         .contentShape(Rectangle())
@@ -140,8 +140,8 @@ public struct DashboardTopBarView: View {
 
                 // Vertical hairline separator between toolbar buttons and app title
                 Rectangle()
-                    .fill(ShadcnTheme.border)
-                    .frame(width: 1, height: 12)
+                    .fill(Color(nsColor: .separatorColor).opacity(0.35))
+                    .frame(width: 1, height: 14)
                     .padding(.horizontal, 2)
 
                 // MARK: - App Wordmark / Breadcrumb (hide in ultra-narrow when search is active)
@@ -149,16 +149,16 @@ public struct DashboardTopBarView: View {
                     HStack(spacing: 5) {
                         Text("frames")
                             .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(ShadcnTheme.foreground)
+                            .foregroundStyle(Color.primary)
 
                         if !isNarrow && library.selectedCategory != .allVideos {
                             Text("/")
                                 .font(.system(size: 11))
-                                .foregroundStyle(ShadcnTheme.foregroundMuted)
+                                .foregroundStyle(Color.secondary.opacity(0.6))
 
                             Text(library.selectedCategoryTitle)
                                 .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                                .foregroundStyle(Color.secondary)
                                 .lineLimit(1)
                                 .truncationMode(.tail)
                                 .transition(.opacity.combined(with: .move(edge: .leading)))
@@ -167,18 +167,18 @@ public struct DashboardTopBarView: View {
                     .transition(.opacity.combined(with: .move(edge: .leading)))
                 }
 
-                // MARK: - Expandable Search Field
+                // MARK: - macOS Standard Search Field
                 if library.isSearchActive || !library.searchQuery.isEmpty {
-                    let searchWidth: CGFloat = isUltraNarrow ? 95 : (isNarrow ? 120 : 160)
-                    HStack(spacing: 4) {
+                    let searchWidth: CGFloat = isUltraNarrow ? 110 : (isNarrow ? 135 : 180)
+                    HStack(spacing: 5) {
                         Image(systemName: "magnifyingglass")
-                            .font(.system(size: 10))
-                            .foregroundStyle(ShadcnTheme.foregroundMuted)
-
-                        TextField("Search...", text: $library.searchQuery)
-                            .textFieldStyle(.plain)
                             .font(.system(size: 11))
-                            .foregroundStyle(ShadcnTheme.foreground)
+                            .foregroundStyle(Color.secondary)
+
+                        TextField("Search videos...", text: $library.searchQuery)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 12))
+                            .foregroundStyle(Color.primary)
                             .frame(width: searchWidth)
 
                         if !library.searchQuery.isEmpty {
@@ -188,8 +188,8 @@ public struct DashboardTopBarView: View {
                                 }
                             } label: {
                                 Image(systemName: "xmark.circle.fill")
-                                    .font(.system(size: 10))
-                                    .foregroundStyle(ShadcnTheme.foregroundMuted)
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(Color.secondary)
                                     .frame(width: 16, height: 16)
                             }
                             .buttonStyle(.plain)
@@ -197,15 +197,14 @@ public struct DashboardTopBarView: View {
                             .transition(.opacity.combined(with: .scale(scale: 0.9)))
                         }
                     }
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .frame(height: 20)
+                    .padding(.horizontal, 7)
+                    .frame(height: 24)
                     .background(
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .fill(ShadcnTheme.card)
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(Color(nsColor: .controlBackgroundColor))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                    .strokeBorder(ShadcnTheme.borderActive, lineWidth: 1)
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .strokeBorder(Color(nsColor: .separatorColor).opacity(0.4), lineWidth: 0.5)
                             )
                     )
                     .transition(
@@ -229,8 +228,8 @@ public struct DashboardTopBarView: View {
                         // Video Count Badge (visible when sufficient room)
                         if showBadge {
                             Text("\(library.filteredVideos.count) \(library.filteredVideos.count == 1 ? "video" : "videos")")
-                                .font(.system(size: 11, design: .monospaced))
-                                .foregroundStyle(ShadcnTheme.foregroundMuted)
+                                .font(.system(size: 11))
+                                .foregroundStyle(Color.secondary)
                                 .padding(.trailing, 2)
                                 .transition(.opacity.combined(with: .scale(scale: 0.92)))
                         }
@@ -243,7 +242,7 @@ public struct DashboardTopBarView: View {
                         } label: {
                             HStack(spacing: 4) {
                                 Image(systemName: "arrow.up.arrow.down")
-                                    .font(.system(size: 10, weight: .medium))
+                                    .font(.system(size: 11, weight: .medium))
                                 if !isCompactSort {
                                     Text(library.sortOption.rawValue)
                                         .font(.system(size: 11, weight: .medium))
@@ -251,14 +250,15 @@ public struct DashboardTopBarView: View {
                                         .fixedSize()
                                 }
                             }
-                            .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                            .frame(width: isCompactSort ? 28 : 92, height: 28)
+                            .foregroundStyle(Color.secondary)
+                            .padding(.horizontal, isCompactSort ? 0 : 8)
+                            .frame(width: isCompactSort ? 28 : nil, height: 24)
                             .background(
                                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(hoveredButton == .sort ? ShadcnTheme.cardHover : ShadcnTheme.card)
+                                    .fill(hoveredButton == .sort ? Color.primary.opacity(0.06) : Color(nsColor: .controlBackgroundColor).opacity(0.5))
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                            .strokeBorder(ShadcnTheme.border, lineWidth: 1)
+                                            .strokeBorder(Color(nsColor: .separatorColor).opacity(0.35), lineWidth: 0.5)
                                     )
                             )
                             .contentShape(Rectangle())
@@ -293,11 +293,11 @@ public struct DashboardTopBarView: View {
                         } label: {
                             ZStack {
                                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(hoveredButton == .viewMode ? ShadcnTheme.cardHover : Color.black.opacity(0.0001))
+                                    .fill(hoveredButton == .viewMode ? Color.primary.opacity(0.06) : Color.clear)
 
                                 Image(systemName: library.viewMode == .grid ? "list.bullet" : "square.grid.2x2")
                                     .font(.system(size: 12, weight: .medium))
-                                    .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                                    .foregroundStyle(Color.secondary)
                             }
                             .frame(width: 28, height: 28)
                             .contentShape(Rectangle())
@@ -319,13 +319,13 @@ public struct DashboardTopBarView: View {
                         } label: {
                             HStack(spacing: 4) {
                                 Circle()
-                                    .fill(Color(red: 249/255.0, green: 115/255.0, blue: 22/255.0))
+                                    .fill(Color.orange)
                                     .frame(width: 5, height: 5)
 
                                 if !isNarrow {
                                     Text("Update")
                                         .font(.system(size: 10, weight: .medium))
-                                        .foregroundStyle(ShadcnTheme.foreground)
+                                        .foregroundStyle(Color.primary)
                                 }
                             }
                             .padding(.horizontal, isNarrow ? 5 : 7)
@@ -333,10 +333,10 @@ public struct DashboardTopBarView: View {
                             .frame(height: 24)
                             .background(
                                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(ShadcnTheme.card)
+                                    .fill(Color(nsColor: .controlBackgroundColor))
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                            .strokeBorder(Color(red: 249/255.0, green: 115/255.0, blue: 22/255.0).opacity(0.4), lineWidth: 1)
+                                            .strokeBorder(Color.orange.opacity(0.4), lineWidth: 1)
                                     )
                             )
                             .contentShape(Rectangle())
@@ -346,7 +346,7 @@ public struct DashboardTopBarView: View {
                         .transition(.opacity.combined(with: .scale(scale: 0.9)))
                     }
 
-                    // 1-Click Theme Toggle Button - Changed from whole button to just icon
+                    // 1-Click Theme Toggle Button
                     Button {
                         withAnimation(.snappy(duration: 0.2)) {
                             themeManager.toggleTheme()
@@ -354,11 +354,11 @@ public struct DashboardTopBarView: View {
                     } label: {
                         ZStack {
                             RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(hoveredButton == .theme ? ShadcnTheme.cardHover : Color.black.opacity(0.0001))
+                                .fill(hoveredButton == .theme ? Color.primary.opacity(0.06) : Color.clear)
 
                             Image(systemName: "circle.righthalf.filled")
                                 .font(.system(size: 12, weight: .regular))
-                                .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                                .foregroundStyle(Color.secondary)
                                 .rotationEffect(.degrees(themeManager.isDark ? 180 : 0))
                         }
                         .frame(width: 28, height: 28)
@@ -376,7 +376,7 @@ public struct DashboardTopBarView: View {
             .frame(width: geo.size.width, height: 32)
             .background(
                 ZStack {
-                    ShadcnTheme.background
+                    Color(nsColor: .windowBackgroundColor)
                     TitleBarDragArea()
                 }
             )
