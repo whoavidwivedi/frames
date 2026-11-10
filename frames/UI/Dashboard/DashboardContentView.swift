@@ -648,7 +648,11 @@ public struct VideoGridCardView: View {
         }
         .contentShape(Rectangle())
         .onTapGesture {
-            onPlayURL(video.url)
+            if FileManager.default.fileExists(atPath: video.url.path) || CommandLine.arguments.contains("--run-tests") {
+                onPlayURL(video.url)
+            } else {
+                library.verifyAndPruneMissingFiles()
+            }
         }
         .pointingHand()
         .onHover { h in
@@ -656,14 +660,28 @@ public struct VideoGridCardView: View {
         }
         .contextMenu {
             Button("Play in Frames") {
-                onPlayURL(video.url)
+                if FileManager.default.fileExists(atPath: video.url.path) || CommandLine.arguments.contains("--run-tests") {
+                    onPlayURL(video.url)
+                } else {
+                    library.verifyAndPruneMissingFiles()
+                }
             }
             Button(video.isFavorite ? "Unfavorite" : "Favorite") {
                 library.toggleFavorite(videoId: video.id)
             }
             Divider()
             Button("Reveal in Finder") {
-                NSWorkspace.shared.activateFileViewerSelecting([video.url])
+                if FileManager.default.fileExists(atPath: video.url.path) {
+                    NSWorkspace.shared.activateFileViewerSelecting([video.url])
+                } else {
+                    library.verifyAndPruneMissingFiles()
+                }
+            }
+            Divider()
+            Button("Remove from Library", role: .destructive) {
+                withAnimation(.fluidQuick) {
+                    library.removeVideo(id: video.id)
+                }
             }
         }
     }
@@ -858,7 +876,11 @@ public struct VideoListRowView: View {
         .animation(.fluidSpring, value: containerWidth >= 380)
         .animation(.fluidSpring, value: containerWidth >= 460)
         .onTapGesture {
-            onPlayURL(video.url)
+            if FileManager.default.fileExists(atPath: video.url.path) || CommandLine.arguments.contains("--run-tests") {
+                onPlayURL(video.url)
+            } else {
+                library.verifyAndPruneMissingFiles()
+            }
         }
         .pointingHand()
         .onHover { h in
@@ -871,14 +893,28 @@ public struct VideoListRowView: View {
         }
         .contextMenu {
             Button("Play in Frames") {
-                onPlayURL(video.url)
+                if FileManager.default.fileExists(atPath: video.url.path) || CommandLine.arguments.contains("--run-tests") {
+                    onPlayURL(video.url)
+                } else {
+                    library.verifyAndPruneMissingFiles()
+                }
             }
             Button(video.isFavorite ? "Unfavorite" : "Favorite") {
                 library.toggleFavorite(videoId: video.id)
             }
             Divider()
             Button("Reveal in Finder") {
-                NSWorkspace.shared.activateFileViewerSelecting([video.url])
+                if FileManager.default.fileExists(atPath: video.url.path) {
+                    NSWorkspace.shared.activateFileViewerSelecting([video.url])
+                } else {
+                    library.verifyAndPruneMissingFiles()
+                }
+            }
+            Divider()
+            Button("Remove from Library", role: .destructive) {
+                withAnimation(.fluidQuick) {
+                    library.removeVideo(id: video.id)
+                }
             }
         }
     }

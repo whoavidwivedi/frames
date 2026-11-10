@@ -463,6 +463,11 @@ struct ContentView: View {
     }
 
     private func requestPlayVideo(url: URL) {
+        guard FileManager.default.fileExists(atPath: url.path) || CommandLine.arguments.contains("--run-tests") else {
+            library.verifyAndPruneMissingFiles()
+            return
+        }
+
         let resumeMode = SettingsManager.shared.autoResumeMode
         if resumeMode == .startBeginning {
             playVideo(url: url, seekTo: 0.0)

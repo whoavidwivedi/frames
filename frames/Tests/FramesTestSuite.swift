@@ -250,6 +250,24 @@ public enum FramesTestSuite {
             assertTest("Recent Timestamp Recorded", condition: updated.lastPlayedDate != nil)
         }
 
+        // Dynamic File Deletion & Pruning Sync Verification
+        let tempVideoPath = NSTemporaryDirectory().appending("frames_sync_test_\(UUID().uuidString).mp4")
+        FileManager.default.createFile(atPath: tempVideoPath, contents: Data("frames_sync_verification".utf8), attributes: nil)
+        let realTempURL = URL(fileURLWithPath: tempVideoPath)
+        lib.addSingleVideoFile(url: realTempURL)
+        assertTest("Dynamic Sync: Ingestion Before Disk Deletion", condition: lib.videos.contains(where: { $0.url == realTempURL }))
+        try? FileManager.default.removeItem(atPath: tempVideoPath)
+        lib.verifyAndPruneMissingFiles()
+        assertTest("Dynamic Sync: Deleted Finder File Pruned Instantly", condition: !lib.videos.contains(where: { $0.url == realTempURL }))
+
+        // Explicit Video Removal Verification
+        let removeTargetURL = URL(fileURLWithPath: "/tmp/frames_to_remove_\(UUID().uuidString).mp4")
+        lib.addSingleVideoFile(url: removeTargetURL)
+        if let targetItem = lib.videos.first(where: { $0.url == removeTargetURL }) {
+            lib.removeVideo(id: targetItem.id)
+            assertTest("Library Explicit Remove Video Action", condition: !lib.videos.contains(where: { $0.url == removeTargetURL }))
+        }
+
         // Library Selection Verification
         lib.selectedCategory = .favorites
         assertTest("Library Category Selection Update", condition: lib.selectedCategory == .favorites)
