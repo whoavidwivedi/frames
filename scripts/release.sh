@@ -283,7 +283,9 @@ echo "==> [7/7] Publishing release on GitHub..."
 # Prepare Release Notes
 TEMP_NOTES_FILE="/tmp/Frames_release_notes_${VERSION}.md"
 if [[ -n "${NOTES_FILE}" && -f "${NOTES_FILE}" ]]; then
-    cp "${NOTES_FILE}" "${TEMP_NOTES_FILE}"
+    if [[ "${NOTES_FILE}" != "${TEMP_NOTES_FILE}" ]]; then
+        cp "${NOTES_FILE}" "${TEMP_NOTES_FILE}"
+    fi
 elif [[ -n "${CUSTOM_NOTES}" ]]; then
     echo "${CUSTOM_NOTES}" > "${TEMP_NOTES_FILE}"
 else
