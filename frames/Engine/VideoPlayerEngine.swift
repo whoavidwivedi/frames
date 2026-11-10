@@ -282,12 +282,19 @@ public final class VideoPlayerEngine {
         self.selectedAudioTrack = nil
         self.playbackError = nil
 
-        // If format is a Matroska-family container, immediately start native pipeline
-        if canUseNativeMatroskaPipeline(for: url) {
+        // Milestone 2 Unified Playback Core: Route all supported media containers
+        // (MKV, WebM, MKA, MP4, MOV, M4V, 3GP) to the zero-copy Apple Silicon native pipeline.
+        if canUseNativePipeline(for: url) {
             startNativePipeline(url: url, initialSeekTime: initialSeekTime)
             return
         }
 
+        loadAVPlayerPipeline(url: url, initialSeekTime: initialSeekTime, generation: generation)
+    }
+
+    /// Secondary fallback pipeline leveraging AVFoundation for streaming protocols
+    /// and formats outside of Frames' native binary demuxer suite.
+    private func loadAVPlayerPipeline(url: URL, initialSeekTime: Double?, generation: UInt) {
         self.isNativePipelineActive = false
 
         let asset = AVURLAsset(url: url)
@@ -792,17 +799,18 @@ public final class VideoPlayerEngine {
         return PlaybackPipeline.isSupportedContainer(at: url)
     }
 
-    private func canUseNativeMatroskaPipeline(for url: URL) -> Bool {
-        switch url.pathExtension.lowercased() {
-        case "mkv", "webm", "mka":
-            return true
-        default:
-            return false
-        }
+    public func canUseNativePipeline(for url: URL) -> Bool {
+        return PlaybackPipeline.isSupportedContainer(at: url)
     }
 
-    /// Falls back only after AVFoundation rejects a Matroska-family container.
-    /// The new generation invalidates pending AVFoundation metadata tasks.
+    @available(*, deprecated, renamed: "canUseNativePipeline")
+    public func canUseNativeMatroskaPipeline(for url: URL) -> Bool {
+        return canUseNativePipeline(for: url)
+    }
+
+    /// Launches the zero-copy Apple Silicon native pipeline (Metal + VideoToolbox).
+    /// If the native demuxer or hardware decoder rejects the stream, it gracefully
+    /// falls back to AVFoundation without interrupting user playback.
     private func startNativePipeline(url: URL, initialSeekTime: Double? = nil) {
         loadGeneration &+= 1
         let generation = loadGeneration
@@ -826,8 +834,9 @@ public final class VideoPlayerEngine {
             }
 
             guard success else {
-                isNativePipelineActive = false
-                playbackError = "This \(url.pathExtension.uppercased()) file uses a codec that Frames cannot decode on this Mac."
+                // Milestone 2 Fallback: Gracefully fall back to AVFoundation
+                // if the native demuxer encounters an unsupported track layout or codec.
+                self.loadAVPlayerPipeline(url: url, initialSeekTime: initialSeekTime, generation: generation)
                 return
             }
 
@@ -844,7 +853,7 @@ public final class VideoPlayerEngine {
                 let codecStr = LanguageHelper.audioCodecDescription(codecID: t.codecID)
                 let title = LanguageHelper.formattedTrackTitle(displayName: t.name, language: langCode, details: channelStr)
                 audios.append(AudioTrack(
-                    id: "mkv_audio_\(t.trackNumber)",
+                    id: "native_audio_\(t.trackNumber)",
                     title: title,
                     languageCode: langCode,
                     channelLayout: channelStr,
@@ -871,7 +880,7 @@ public final class VideoPlayerEngine {
                 let langCode = t.language
                 let title = LanguageHelper.formattedTrackTitle(displayName: t.name, language: langCode)
                 subs.append(SubtitleTrack(
-                    id: "mkv_sub_\(t.trackNumber)",
+                    id: "native_sub_\(t.trackNumber)",
                     title: title,
                     languageCode: langCode,
                     isExternal: false,

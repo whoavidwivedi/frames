@@ -75,11 +75,11 @@ public final class UpdateManager: NSObject {
     }
 
     public var currentVersionString: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.6.6"
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.6.7"
     }
 
     public var currentVersion: SemanticVersion {
-        SemanticVersion(string: currentVersionString) ?? SemanticVersion(major: 1, minor: 6, patch: 6)
+        SemanticVersion(string: currentVersionString) ?? SemanticVersion(major: 1, minor: 6, patch: 7)
     }
 
     public var hasUpdate: Bool {

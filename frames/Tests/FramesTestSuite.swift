@@ -4072,6 +4072,22 @@ public enum FramesTestSuite {
         assertTest("isSupportedContainer Recognizes MOV Extension", condition: PlaybackPipeline.isSupportedContainer(at: dummyMov))
         assertTest("isSupportedContainer Rejects PDF Extension", condition: !PlaybackPipeline.isSupportedContainer(at: dummyPdf))
 
+        let dummyMp4 = URL(fileURLWithPath: "/tmp/fake.mp4")
+        let dummyM4v = URL(fileURLWithPath: "/tmp/fake.m4v")
+        let dummy3gp = URL(fileURLWithPath: "/tmp/fake.3gp")
+        assertTest("isSupportedContainer Recognizes MP4 Extension", condition: PlaybackPipeline.isSupportedContainer(at: dummyMp4))
+        assertTest("isSupportedContainer Recognizes M4V Extension", condition: PlaybackPipeline.isSupportedContainer(at: dummyM4v))
+        assertTest("isSupportedContainer Recognizes 3GP Extension", condition: PlaybackPipeline.isSupportedContainer(at: dummy3gp))
+
+        let engineForPipeline = VideoPlayerEngine()
+        assertTest("VideoPlayerEngine canUseNativePipeline Recognizes MKV", condition: engineForPipeline.canUseNativePipeline(for: dummyMkv))
+        assertTest("VideoPlayerEngine canUseNativePipeline Recognizes MP4", condition: engineForPipeline.canUseNativePipeline(for: dummyMp4))
+        assertTest("VideoPlayerEngine canUseNativePipeline Recognizes MOV", condition: engineForPipeline.canUseNativePipeline(for: dummyMov))
+        assertTest("VideoPlayerEngine canUseNativePipeline Rejects PDF", condition: !engineForPipeline.canUseNativePipeline(for: dummyPdf))
+
+        assertTest("probeContainerType Identifies EBML Magic as Matroska", condition: PlaybackPipeline.probeContainerType(at: ebmlUrl) == .matroska)
+        assertTest("probeContainerType Identifies ISO BMFF Magic as MP4", condition: PlaybackPipeline.probeContainerType(at: bmffUrl) == .mp4)
+
         try? FileManager.default.removeItem(at: ebmlUrl)
         try? FileManager.default.removeItem(at: bmffUrl)
         try? FileManager.default.removeItem(at: txtUrl)

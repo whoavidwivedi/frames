@@ -541,13 +541,11 @@ public final class PlaybackPipeline: ObservableObject {
                 if header[0] == 0x1A && header[1] == 0x45 && header[2] == 0xDF && header[3] == 0xA3 {
                     return .matroska
                 }
-                // ISO BMFF: bytes 4..<8 are 'ftyp', 'moov', 'wide', 'mdat', 'free', 'skip'
+                // ISO BMFF: bytes 4..<8 are 'ftyp', 'moov', 'wide', 'mdat', 'free', 'skip', 'styp'
                 if header.count >= 8 {
-                    let fourCCData = header.subdata(in: 4..<8)
-                    if let fourCC = String(data: fourCCData, encoding: .ascii) {
-                        if ["ftyp", "moov", "wide", "mdat", "free", "skip"].contains(fourCC) {
-                            return .mp4
-                        }
+                    let fourCC = String(decoding: header[4..<8], as: UTF8.self)
+                    if ["ftyp", "moov", "wide", "mdat", "free", "skip", "styp"].contains(fourCC) {
+                        return .mp4
                     }
                 }
             }
@@ -676,7 +674,11 @@ public final class PlaybackPipeline: ObservableObject {
             let containerType = Self.probeContainerType(at: url)
             let d: any MediaDemuxer
             if containerType == .mp4 {
-                d = try MP4Demuxer(url: url)
+                do {
+                    d = try MP4Demuxer(url: url)
+                } catch {
+                    d = try MatroskaDemuxer(url: url)
+                }
             } else {
                 do {
                     d = try MatroskaDemuxer(url: url)
