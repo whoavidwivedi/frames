@@ -97,12 +97,110 @@ public struct SettingsDivider: View {
     }
 }
 
+// MARK: - Emil Kowalski Tactile Button Styles
+public struct SettingsPillButtonStyle: ButtonStyle {
+    public init() {}
+    public func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
+            .animation(.spring(response: 0.22, dampingFraction: 0.75), value: configuration.isPressed)
+    }
+}
+
+public struct SettingsTabButtonStyle: ButtonStyle {
+    public init() {}
+    public func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .animation(.spring(response: 0.22, dampingFraction: 0.75), value: configuration.isPressed)
+    }
+}
+
+// MARK: - Custom Fluid Slider with Thumb Hover Expansion
+public struct SettingsSlider: View {
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+    let step: Double
+    @State private var isHovered = false
+    @State private var isDragging = false
+
+    public init(value: Binding<Double>, in range: ClosedRange<Double>, step: Double = 1.0) {
+        self._value = value
+        self.range = range
+        self.step = step
+    }
+
+    public var body: some View {
+        GeometryReader { geo in
+            let width = geo.size.width
+            let thumbDiameter: CGFloat = isDragging ? 16 : (isHovered ? 16 : 12)
+            let span = range.upperBound - range.lowerBound
+            let normalized = span > 0 ? max(0.0, min(1.0, (value - range.lowerBound) / span)) : 0.0
+            let availableWidth = max(0, width - thumbDiameter)
+            let xOffset = normalized * availableWidth
+
+            ZStack(alignment: .leading) {
+                // Background Track
+                Capsule()
+                    .fill(ShadcnTheme.secondary)
+                    .frame(height: 5)
+                    .overlay(
+                        Capsule().strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 0.5)
+                    )
+
+                // Active Track
+                Capsule()
+                    .fill(ShadcnTheme.primary)
+                    .frame(width: max(5, min(width, xOffset + thumbDiameter / 2)), height: 5)
+
+                // Expanding Thumb
+                Circle()
+                    .fill(ShadcnTheme.primaryHighlight)
+                    .frame(width: thumbDiameter, height: thumbDiameter)
+                    .overlay(
+                        Circle().strokeBorder(isHovered || isDragging ? ShadcnTheme.borderActive : ShadcnTheme.border, lineWidth: 1)
+                    )
+                    .shadow(color: Color.black.opacity(isHovered ? 0.30 : 0.12), radius: isHovered ? 4 : 2, x: 0, y: 1)
+                    .offset(x: xOffset)
+                    .animation(.spring(response: 0.22, dampingFraction: 0.75), value: isHovered)
+                    .animation(.spring(response: 0.22, dampingFraction: 0.75), value: isDragging)
+            }
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .pointingHand()
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { gesture in
+                        isDragging = true
+                        let pct = max(0.0, min(1.0, gesture.location.x / width))
+                        let rawValue = range.lowerBound + pct * (range.upperBound - range.lowerBound)
+                        let stepped = (rawValue / step).rounded() * step
+                        let clamped = max(range.lowerBound, min(range.upperBound, stepped))
+                        withAnimation(.spring(response: 0.15, dampingFraction: 0.8)) {
+                            value = clamped
+                        }
+                    }
+                    .onEnded { _ in
+                        isDragging = false
+                    }
+            )
+            .onHover { h in
+                withAnimation(.spring(response: 0.22, dampingFraction: 0.75)) {
+                    isHovered = h
+                }
+            }
+        }
+        .frame(height: 22)
+    }
+}
+
 // MARK: - Root Settings View
 
 public struct SettingsView: View {
     @Bindable private var settings = SettingsManager.shared
     @State private var hoveredTab: SettingsTab? = nil
     @State private var windowManager = WindowManager.shared
+    @Namespace private var settingsTabNamespace
 
     public init() {}
 
@@ -134,14 +232,14 @@ public struct SettingsView: View {
 
                     Spacer(minLength: 4)
 
-                    // Shadcn Pill Tabs
+                    // Shadcn Pill Tabs with Fluid Spring Sliding Pill
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 3) {
                             ForEach(SettingsTab.allCases) { tab in
                                 let isSelected = settings.selectedSettingsTab == tab
 
                                 Button {
-                                    withAnimation(.snappy(duration: 0.18)) {
+                                    withAnimation(.spring(response: 0.28, dampingFraction: 0.78)) {
                                         settings.selectedSettingsTab = tab
                                     }
                                 } label: {
@@ -156,21 +254,30 @@ public struct SettingsView: View {
                                     .padding(.horizontal, 10)
                                     .padding(.vertical, 5)
                                     .foregroundStyle(isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                            .fill(isSelected ? ShadcnTheme.cardHover : (hoveredTab == tab ? ShadcnTheme.muted.opacity(0.4) : Color.clear))
-                                    )
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                            .strokeBorder(isSelected ? ShadcnTheme.border : Color.clear, lineWidth: 1)
-                                    )
+                                    .background {
+                                        if isSelected {
+                                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                                .fill(ShadcnTheme.card)
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                                        .strokeBorder(ShadcnTheme.border, lineWidth: 1)
+                                                )
+                                                .shadow(color: Color.black.opacity(0.08), radius: 3, x: 0, y: 1)
+                                                .matchedGeometryEffect(id: "activeSettingsTabPill", in: settingsTabNamespace)
+                                        } else if hoveredTab == tab {
+                                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                                .fill(ShadcnTheme.muted.opacity(0.4))
+                                        }
+                                    }
                                     .contentShape(Rectangle())
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(SettingsTabButtonStyle())
                                 .pointingHand()
                                 .help(tab.title)
                                 .onHover { h in
-                                    hoveredTab = h ? tab : nil
+                                    withAnimation(.spring(response: 0.22, dampingFraction: 0.75)) {
+                                        hoveredTab = h ? tab : nil
+                                    }
                                 }
                             }
                         }
@@ -223,6 +330,7 @@ public struct GeneralSettingsTab: View {
     @State private var showClearConfirm = false
     @State private var historyClearedNotice = false
     @State private var windowManager = WindowManager.shared
+    @Namespace private var viewModeNamespace
 
     public init() {}
 
@@ -280,6 +388,7 @@ public struct GeneralSettingsTab: View {
                             Toggle("", isOn: $settings.showAddVideoTile)
                                 .toggleStyle(.switch)
                                 .pointingHand()
+                                .animation(.spring(response: 0.24, dampingFraction: 0.74), value: settings.showAddVideoTile)
                         }
                     }
 
@@ -416,7 +525,7 @@ public struct GeneralSettingsTab: View {
     private func viewModeButton(mode: ViewMode, icon: String, title: String) -> some View {
         let isSelected = settings.defaultViewMode == mode
         return Button {
-            withAnimation(.snappy(duration: 0.18)) {
+            withAnimation(.spring(response: 0.26, dampingFraction: 0.76)) {
                 settings.defaultViewMode = mode
             }
         } label: {
@@ -430,17 +539,21 @@ public struct GeneralSettingsTab: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
             .frame(width: 72, height: 26)
-            .background(
-                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                    .fill(isSelected ? ShadcnTheme.cardHover : Color.clear)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                            .strokeBorder(isSelected ? ShadcnTheme.border : Color.clear, lineWidth: 1)
-                    )
-            )
+            .background {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                        .fill(ShadcnTheme.card)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                .strokeBorder(ShadcnTheme.border, lineWidth: 1)
+                        )
+                        .shadow(color: Color.black.opacity(0.06), radius: 2, x: 0, y: 1)
+                        .matchedGeometryEffect(id: "activeViewModePill", in: viewModeNamespace)
+                }
+            }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SettingsPillButtonStyle())
         .pointingHand()
     }
 }
@@ -450,6 +563,7 @@ public struct GeneralSettingsTab: View {
 public struct PlaybackSettingsTab: View {
     @Bindable private var settings = SettingsManager.shared
     @State private var windowManager = WindowManager.shared
+    @Namespace private var skipIntervalNamespace
 
     public init() {}
 
@@ -486,6 +600,7 @@ public struct PlaybackSettingsTab: View {
                             Toggle("", isOn: $settings.hardwareAccelerationEnabled)
                                 .toggleStyle(.switch)
                                 .pointingHand()
+                                .animation(.spring(response: 0.24, dampingFraction: 0.74), value: settings.hardwareAccelerationEnabled)
                         }
 
                         SettingsDivider()
@@ -628,6 +743,7 @@ public struct PlaybackSettingsTab: View {
                             Toggle("", isOn: $settings.proMotionSyncEnabled)
                                 .toggleStyle(.switch)
                                 .pointingHand()
+                                .animation(.spring(response: 0.24, dampingFraction: 0.74), value: settings.proMotionSyncEnabled)
                         }
                     }
 
@@ -673,7 +789,7 @@ public struct PlaybackSettingsTab: View {
             ForEach([5, 10, 15, 30], id: \.self) { seconds in
                 let isSelected = settings.defaultSkipInterval == seconds
                 Button {
-                    withAnimation(.snappy(duration: 0.15)) {
+                    withAnimation(.spring(response: 0.26, dampingFraction: 0.76)) {
                         settings.defaultSkipInterval = seconds
                     }
                 } label: {
@@ -683,17 +799,21 @@ public struct PlaybackSettingsTab: View {
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
                         .frame(width: 44, height: 26)
-                        .background(
-                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                .fill(isSelected ? ShadcnTheme.cardHover : Color.clear)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                        .strokeBorder(isSelected ? ShadcnTheme.border : Color.clear, lineWidth: 1)
-                                )
-                        )
+                        .background {
+                            if isSelected {
+                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                    .fill(ShadcnTheme.card)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                            .strokeBorder(ShadcnTheme.border, lineWidth: 1)
+                                    )
+                                    .shadow(color: Color.black.opacity(0.06), radius: 2, x: 0, y: 1)
+                                    .matchedGeometryEffect(id: "activeSkipIntervalPill", in: skipIntervalNamespace)
+                            }
+                        }
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SettingsPillButtonStyle())
                 .pointingHand()
             }
         }
@@ -752,6 +872,7 @@ public struct AudioSettingsTab: View {
                             Toggle("", isOn: $settings.spatialAudioEnabled)
                                 .toggleStyle(.switch)
                                 .pointingHand()
+                                .animation(.spring(response: 0.24, dampingFraction: 0.74), value: settings.spatialAudioEnabled)
                         }
                     }
 
@@ -817,6 +938,7 @@ public struct AudioSettingsTab: View {
                             Toggle("", isOn: $settings.volumeNormalizationEnabled)
                                 .toggleStyle(.switch)
                                 .pointingHand()
+                                .animation(.spring(response: 0.24, dampingFraction: 0.74), value: settings.volumeNormalizationEnabled)
                         }
                     }
                 }
@@ -895,8 +1017,9 @@ public struct SubtitlesSettingsTab: View {
                                                     .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
                                             )
                                     )
+                                    .contentShape(Rectangle())
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(SettingsPillButtonStyle())
                                 .pointingHand()
                                 .help("Cycle sample dialogue text")
                             }
@@ -1033,7 +1156,7 @@ public struct SubtitlesSettingsTab: View {
                                         )
                                         .contentShape(Rectangle())
                                     }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(SettingsPillButtonStyle())
                                     .pointingHand()
                                 }
 
@@ -1084,7 +1207,7 @@ public struct SubtitlesSettingsTab: View {
                                     )
                                     .contentShape(Rectangle())
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(SettingsPillButtonStyle())
                                 .pointingHand()
                                 .help("Choose custom subtitle text color")
                             }
@@ -1149,15 +1272,13 @@ public struct SubtitlesSettingsTab: View {
                                             )
                                             .contentShape(Rectangle())
                                     }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(SettingsPillButtonStyle())
                                     .pointingHand()
                                 }
                             }
 
-                            Slider(value: $settings.subtitleFontSize, in: 14...36, step: 1)
-                                .tint(ShadcnTheme.primary)
+                            SettingsSlider(value: $settings.subtitleFontSize, in: 14...36, step: 1)
                                 .padding(.top, 2)
-                                .pointingHand()
                         }
                     }
 
@@ -1216,15 +1337,13 @@ public struct SubtitlesSettingsTab: View {
                                             )
                                             .contentShape(Rectangle())
                                     }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(SettingsPillButtonStyle())
                                     .pointingHand()
                                 }
                             }
 
-                            Slider(value: $settings.subtitleBackgroundScrimOpacity, in: 0.20...1.0, step: 0.05)
-                                .tint(ShadcnTheme.primary)
+                            SettingsSlider(value: $settings.subtitleBackgroundScrimOpacity, in: 0.20...1.0, step: 0.05)
                                 .padding(.top, 2)
-                                .pointingHand()
 
                             HStack(spacing: 6) {
                                 Image(systemName: "checkmark.seal.fill")
@@ -1255,6 +1374,7 @@ public struct SubtitlesSettingsTab: View {
                             Toggle("", isOn: $settings.liveCaptionsEnabled)
                                 .toggleStyle(.switch)
                                 .pointingHand()
+                                .animation(.spring(response: 0.24, dampingFraction: 0.74), value: settings.liveCaptionsEnabled)
                         }
 
                         if settings.liveCaptionsEnabled {
@@ -1319,6 +1439,7 @@ public struct SubtitlesSettingsTab: View {
                                 Toggle("", isOn: $settings.batterySaverGuardEnabled)
                                     .toggleStyle(.switch)
                                     .pointingHand()
+                                    .animation(.spring(response: 0.24, dampingFraction: 0.74), value: settings.batterySaverGuardEnabled)
                             }
                         }
                     }
@@ -1335,6 +1456,7 @@ public struct SoftwareUpdatesSettingsCard: View {
     @Bindable private var settings = SettingsManager.shared
     private var updateManager = UpdateManager.shared
     @State private var windowManager = WindowManager.shared
+    @Namespace private var channelNamespace
     public var isCompact: Bool = false
 
     public init(isCompact: Bool = false) {
@@ -1371,6 +1493,7 @@ public struct SoftwareUpdatesSettingsCard: View {
                 Toggle("", isOn: $settings.automaticallyCheckForUpdates)
                     .toggleStyle(.switch)
                     .pointingHand()
+                    .animation(.spring(response: 0.24, dampingFraction: 0.74), value: settings.automaticallyCheckForUpdates)
             }
 
             SettingsDivider()
@@ -1395,6 +1518,7 @@ public struct SoftwareUpdatesSettingsCard: View {
                 ))
                 .toggleStyle(.switch)
                 .pointingHand()
+                .animation(.spring(response: 0.24, dampingFraction: 0.74), value: settings.isBetaUpdatesEnabled)
             }
 
             SettingsDivider()
@@ -1495,7 +1619,8 @@ public struct SoftwareUpdatesSettingsCard: View {
             ForEach(UpdateChannel.allCases) { channel in
                 ChannelButton(
                     channel: channel,
-                    isSelected: settings.updateChannel == channel
+                    isSelected: settings.updateChannel == channel,
+                    namespace: channelNamespace
                 ) {
                     settings.updateChannel = channel
                 }
@@ -1516,10 +1641,15 @@ public struct SoftwareUpdatesSettingsCard: View {
 private struct ChannelButton: View {
     let channel: UpdateChannel
     let isSelected: Bool
+    let namespace: Namespace.ID
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
+        Button(action: {
+            withAnimation(.spring(response: 0.26, dampingFraction: 0.76)) {
+                action()
+            }
+        }) {
             HStack(spacing: 4) {
                 Image(systemName: channel.badgeIcon)
                     .font(.system(size: 10, weight: .medium))
@@ -1530,17 +1660,21 @@ private struct ChannelButton: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
             .frame(width: 86, height: 26)
-            .background(
-                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                    .fill(isSelected ? ShadcnTheme.cardHover : Color.clear)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                            .strokeBorder(isSelected ? ShadcnTheme.border : Color.clear, lineWidth: 1)
-                    )
-            )
+            .background {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                        .fill(ShadcnTheme.card)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                .strokeBorder(ShadcnTheme.border, lineWidth: 1)
+                        )
+                        .shadow(color: Color.black.opacity(0.06), radius: 2, x: 0, y: 1)
+                        .matchedGeometryEffect(id: "activeChannelPill", in: namespace)
+                }
+            }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SettingsPillButtonStyle())
         .pointingHand()
     }
 }
@@ -1549,13 +1683,10 @@ private struct ChannelInfoBanner: View {
     let channel: UpdateChannel
 
     var body: some View {
-        let isBeta = channel == .beta
-        let accentColor: Color = isBeta ? Color.orange : Color.green
-
         HStack(spacing: 6) {
-            Image(systemName: isBeta ? "info.circle.fill" : "checkmark.seal.fill")
+            Image(systemName: channel == .beta ? "info.circle.fill" : "checkmark.seal.fill")
                 .font(.system(size: 11))
-                .foregroundStyle(accentColor)
+                .foregroundStyle(ShadcnTheme.foreground)
             Text(channel.subtitle)
                 .font(.system(size: 11))
                 .foregroundStyle(ShadcnTheme.foregroundSecondary)
@@ -1566,10 +1697,10 @@ private struct ChannelInfoBanner: View {
         .frame(maxWidth: .infinity, minHeight: 34, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                .fill(accentColor.opacity(0.08))
+                .fill(ShadcnTheme.secondary.opacity(0.40))
                 .overlay(
                     RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                        .strokeBorder(accentColor.opacity(0.20), lineWidth: 1)
+                        .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
                 )
         )
     }

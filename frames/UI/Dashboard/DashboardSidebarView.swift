@@ -1,6 +1,25 @@
 import SwiftUI
 import AppKit
 
+// MARK: - Tactile Button Styles for Sidebar Controls
+public struct SidebarRowButtonStyle: ButtonStyle {
+    public init() {}
+    public func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+            .animation(.spring(response: 0.22, dampingFraction: 0.75), value: configuration.isPressed)
+    }
+}
+
+public struct TactileIconButtonStyle: ButtonStyle {
+    public init() {}
+    public func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.92 : 1.0)
+            .animation(.spring(response: 0.22, dampingFraction: 0.75), value: configuration.isPressed)
+    }
+}
+
 public struct DashboardSidebarView: View {
     @Bindable var library: LibraryManager
     public var width: CGFloat
@@ -9,6 +28,7 @@ public struct DashboardSidebarView: View {
     @State private var hoveredRow: String? = nil
     @State private var windowManager = WindowManager.shared
     @State private var updateManager = UpdateManager.shared
+    @Namespace private var sidebarNamespace
 
     public init(library: LibraryManager, width: CGFloat = 210, onPlayURL: @escaping (URL) -> Void) {
         self.library = library
@@ -31,7 +51,9 @@ public struct DashboardSidebarView: View {
                             badge: "\(library.videos.count)",
                             isSelected: library.selectedCategory == .allVideos
                         ) {
-                            library.navigate(to: .allVideos)
+                            withAnimation(.spring(response: 0.28, dampingFraction: 0.78)) {
+                                library.navigate(to: .allVideos)
+                            }
                         }
 
                         let recentCount = library.videos.filter { $0.lastPlayedDate != nil }.count
@@ -41,7 +63,9 @@ public struct DashboardSidebarView: View {
                             badge: recentCount > 0 ? "\(recentCount)" : nil,
                             isSelected: library.selectedCategory == .recent
                         ) {
-                            library.navigate(to: .recent)
+                            withAnimation(.spring(response: 0.28, dampingFraction: 0.78)) {
+                                library.navigate(to: .recent)
+                            }
                         }
 
                         let favCount = library.videos.filter { $0.isFavorite }.count
@@ -51,7 +75,9 @@ public struct DashboardSidebarView: View {
                             badge: favCount > 0 ? "\(favCount)" : nil,
                             isSelected: library.selectedCategory == .favorites
                         ) {
-                            library.navigate(to: .favorites)
+                            withAnimation(.spring(response: 0.28, dampingFraction: 0.78)) {
+                                library.navigate(to: .favorites)
+                            }
                         }
                     }
 
@@ -69,7 +95,7 @@ public struct DashboardSidebarView: View {
                                     .frame(width: 22, height: 22)
                                     .contentShape(Rectangle())
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(TactileIconButtonStyle())
                             .pointingHand()
                             .help("Add folder")
                         }
@@ -96,7 +122,7 @@ public struct DashboardSidebarView: View {
                                 )
                                 .contentShape(Rectangle())
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(SidebarRowButtonStyle())
                             .pointingHand()
                             .padding(.top, 4)
                         } else {
@@ -109,6 +135,7 @@ public struct DashboardSidebarView: View {
                 .padding(.horizontal, 10)
                 .padding(.top, 12)
             }
+            .animation(.spring(response: 0.28, dampingFraction: 0.78), value: library.selectedCategory)
 
             Spacer()
 
@@ -119,7 +146,9 @@ public struct DashboardSidebarView: View {
                     icon: "gearshape",
                     isSelected: library.selectedCategory == .settings
                 ) {
-                    library.navigate(to: .settings)
+                    withAnimation(.spring(response: 0.28, dampingFraction: 0.78)) {
+                        library.navigate(to: .settings)
+                    }
                 }
                 .help("Settings (⌘,)")
             }
@@ -180,7 +209,7 @@ public struct DashboardSidebarView: View {
                     .padding(.vertical, 3)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SidebarRowButtonStyle())
                 .pointingHand()
                 .help("Frames v\(updateManager.currentVersionString) • Click to check for updates")
                 .padding(.bottom, 8)
@@ -241,100 +270,124 @@ public struct DashboardSidebarView: View {
             }
             .padding(.horizontal, 10)
             .frame(height: 30)
-            .background(
-                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                    .fill(isSelected ? ShadcnTheme.cardHover : (hoveredRow == title ? ShadcnTheme.card.opacity(0.6) : Color.clear))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                    .strokeBorder(isSelected ? ShadcnTheme.border : (hoveredRow == title ? ShadcnTheme.borderSubtle : Color.clear), lineWidth: 1)
-            )
+            .background {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                        .fill(ShadcnTheme.cardHover)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                .strokeBorder(ShadcnTheme.border, lineWidth: 1)
+                        )
+                        .matchedGeometryEffect(id: "activeSidebarPill", in: sidebarNamespace)
+                } else if hoveredRow == title {
+                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                        .fill(ShadcnTheme.card.opacity(0.6))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
+                        )
+                }
+            }
             .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SidebarRowButtonStyle())
         .pointingHand()
         .onHover { h in
-            withAnimation(.fluidQuick) {
+            withAnimation(.spring(response: 0.22, dampingFraction: 0.75)) {
                 hoveredRow = h ? title : nil
             }
         }
-        .animation(.fluidQuick, value: isSelected)
-        .animation(.fluidQuick, value: hoveredRow == title)
     }
 
     private func folderRow(folder: FolderItem) -> some View {
         let isSelected = library.selectedCategory == .folder(id: folder.id)
         let isHovered = hoveredFolderId == folder.id
 
-        return HStack(spacing: 9) {
-            Image(systemName: isSelected ? "folder.fill" : "folder")
-                .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
-                .foregroundStyle(isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
-                .frame(width: 18)
-
-            Text(folder.name)
-                .font(.system(size: 13, weight: isSelected ? .medium : .regular))
-                .foregroundStyle(isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
-                .lineLimit(1)
-
-            Spacer()
-
-            // Fixed-dimension trailing container: zero layout shift or row resizing on hover
-            ZStack(alignment: .trailing) {
-                if folder.videoCount > 0 {
-                    Text("\(folder.videoCount)")
-                        .font(.system(size: 10, weight: .medium, design: .monospaced))
-                        .foregroundStyle(isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundMuted)
-                        .opacity(isHovered ? 0.0 : 1.0)
-                }
-
-                Button {
-                    library.removeFolder(id: folder.id)
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(ShadcnTheme.foregroundMuted)
-                        .frame(width: 20, height: 20)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .pointingHand()
-                .help("Remove folder from library")
-                .opacity(isHovered ? 1.0 : 0.0)
-                .allowsHitTesting(isHovered)
+        return Button {
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.78)) {
+                library.navigate(to: .folder(id: folder.id))
             }
-            .frame(width: 24, height: 20, alignment: .trailing)
+        } label: {
+            HStack(spacing: 9) {
+                Image(systemName: isSelected ? "folder.fill" : "folder")
+                    .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
+                    .foregroundStyle(isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
+                    .frame(width: 18)
+
+                Text(folder.name)
+                    .font(.system(size: 13, weight: isSelected ? .medium : .regular))
+                    .foregroundStyle(isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
+                    .lineLimit(1)
+
+                Spacer()
+
+                // Fixed-dimension trailing container: zero layout shift or row resizing on hover
+                ZStack(alignment: .trailing) {
+                    if folder.videoCount > 0 {
+                        Text("\(folder.videoCount)")
+                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                            .foregroundStyle(isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundMuted)
+                            .opacity(isHovered ? 0.0 : 1.0)
+                    }
+
+                    Button {
+                        withAnimation(.spring(response: 0.24, dampingFraction: 0.74)) {
+                            library.removeFolder(id: folder.id)
+                        }
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(ShadcnTheme.foregroundMuted)
+                            .frame(width: 20, height: 20)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(TactileIconButtonStyle())
+                    .pointingHand()
+                    .help("Remove folder from library")
+                    .opacity(isHovered ? 1.0 : 0.0)
+                    .allowsHitTesting(isHovered)
+                }
+                .frame(width: 24, height: 20, alignment: .trailing)
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 30)
+            .background {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                        .fill(ShadcnTheme.cardHover)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                .strokeBorder(ShadcnTheme.border, lineWidth: 1)
+                        )
+                        .matchedGeometryEffect(id: "activeSidebarPill", in: sidebarNamespace)
+                } else if isHovered {
+                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                        .fill(ShadcnTheme.accentActive)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
+                        )
+                }
+            }
+            .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
         }
-        .padding(.horizontal, 10)
-        .frame(height: 30)
-        .background(
-            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                .fill(isSelected ? ShadcnTheme.cardHover : (isHovered ? ShadcnTheme.accentActive : Color.clear))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                .strokeBorder(isSelected ? ShadcnTheme.border : Color.clear, lineWidth: 1)
-        )
-        .contentShape(Rectangle())
+        .buttonStyle(SidebarRowButtonStyle())
         .pointingHand()
-        .onTapGesture {
-            library.navigate(to: .folder(id: folder.id))
-        }
         .onHover { h in
-            withAnimation(.fluidQuick) {
+            withAnimation(.spring(response: 0.22, dampingFraction: 0.75)) {
                 hoveredFolderId = h ? folder.id : nil
             }
         }
-        .animation(.fluidQuick, value: isHovered)
-        .animation(.fluidQuick, value: isSelected)
         .contextMenu {
             Button("Rescan Folder") {
                 library.scanFolder(folder: folder)
             }
+            .pointingHand()
             Divider()
             Button("Remove from Library", role: .destructive) {
                 library.removeFolder(id: folder.id)
             }
+            .pointingHand()
         }
     }
 }
