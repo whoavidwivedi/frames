@@ -4372,7 +4372,7 @@ public enum FramesTestSuite {
         assertTest("VideoMetadata Explicit Implementation Description", condition: explicitMeta.decoderDescription == "Apple Silicon ASIC (VideoToolbox)")
 
         // VideoToolboxDecoder properties and lifecycle reset
-        let dummyTrack = DemuxedTrack(
+        let telemetryTrack = DemuxedTrack(
             trackNumber: 1,
             type: .video,
             codecID: "V_MPEG4/ISO/AVC",
@@ -4383,7 +4383,7 @@ public enum FramesTestSuite {
             isDefault: true,
             isForced: false
         )
-        let vtd = VideoToolboxDecoder(track: dummyTrack)
+        let vtd = VideoToolboxDecoder(track: telemetryTrack)
         assertTest("VideoToolboxDecoder Initial HW Telemetry Idle", condition: vtd.isHardwareAccelerated == false)
         assertTest("VideoToolboxDecoder Initial Implementation Name", condition: vtd.decoderImplementationName == "VideoToolbox")
         vtd.invalidate()
