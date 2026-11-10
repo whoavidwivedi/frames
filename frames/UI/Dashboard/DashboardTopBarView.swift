@@ -4,20 +4,9 @@ import AppKit
 public struct DashboardTopBarView: View {
     @Bindable var library: LibraryManager
     public var onPlayURL: (URL) -> Void
-    @State private var hoveredButton: HoveredButton? = nil
     @State private var themeManager = ThemeManager.shared
     @State private var windowManager = WindowManager.shared
     @State private var updateManager = UpdateManager.shared
-
-    private enum HoveredButton {
-        case sidebar
-        case back
-        case forward
-        case search
-        case sort
-        case viewMode
-        case theme
-    }
 
     public init(library: LibraryManager, onPlayURL: @escaping (URL) -> Void) {
         self.library = library
@@ -44,98 +33,50 @@ public struct DashboardTopBarView: View {
                         WindowManager.shared.performTitleBarDoubleClickAction()
                     }
 
-                // MARK: - Navigation & Sidebar Toolbar Controls (macOS Standard Icon Style)
-                HStack(spacing: 3) {
-                    // 1. Sidebar Toggle Icon
+                // MARK: - Navigation & Sidebar Toolbar Controls (Default macOS Buttons)
+                HStack(spacing: 4) {
+                    // 1. Sidebar Toggle Button (Default macOS Bordered Button)
                     Button {
                         withAnimation(.snappy(duration: 0.2)) {
                             library.toggleSidebar()
                         }
                     } label: {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(hoveredButton == .sidebar ? Color.primary.opacity(0.06) : Color.clear)
-
-                            Image(systemName: "sidebar.leading")
-                                .font(.system(size: 13, weight: .regular))
-                                .foregroundStyle(library.isSidebarVisible ? Color.primary : Color.secondary)
-                        }
-                        .frame(width: 28, height: 28)
-                        .contentShape(Rectangle())
+                        Image(systemName: "sidebar.leading")
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.bordered)
+                    .controlSize(.regular)
                     .help("Toggle Sidebar (⌘B)")
-                    .onHover { h in
-                        hoveredButton = h ? .sidebar : nil
-                    }
 
-                    // 2. Back Arrow Icon
-                    Button {
-                        library.goBack()
-                    } label: {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(hoveredButton == .back && library.canGoBack ? Color.primary.opacity(0.06) : Color.clear)
-
+                    // 2. Navigation Controls: Back & Forward (Default macOS Navigation ControlGroup)
+                    ControlGroup {
+                        Button {
+                            library.goBack()
+                        } label: {
                             Image(systemName: "chevron.left")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(library.canGoBack ? Color.primary : Color.secondary.opacity(0.35))
                         }
-                        .frame(width: 28, height: 28)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!library.canGoBack)
-                    .help("Back (⌘[)")
-                    .onHover { h in
-                        hoveredButton = h ? .back : nil
-                    }
+                        .disabled(!library.canGoBack)
+                        .help("Back (⌘[)")
 
-                    // 3. Forward Arrow Icon (hide when disabled in ultra-narrow)
-                    if !isUltraNarrow || library.canGoForward {
                         Button {
                             library.goForward()
                         } label: {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(hoveredButton == .forward && library.canGoForward ? Color.primary.opacity(0.06) : Color.clear)
-
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundStyle(library.canGoForward ? Color.primary : Color.secondary.opacity(0.35))
-                            }
-                            .frame(width: 28, height: 28)
-                            .contentShape(Rectangle())
+                            Image(systemName: "chevron.right")
                         }
-                        .buttonStyle(.plain)
                         .disabled(!library.canGoForward)
                         .help("Forward (⌘])")
-                        .onHover { h in
-                            hoveredButton = h ? .forward : nil
-                        }
-                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
                     }
+                    .controlGroupStyle(.navigation)
+                    .controlSize(.regular)
 
-                    // 4. Search & Command Menu (⌘K, ⌘F) Icon
+                    // 3. Search & Command Menu (⌘K, ⌘F) Button (Default macOS Bordered Button)
                     Button {
                         CommandPaletteManager.shared.toggle()
                     } label: {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(hoveredButton == .search || CommandPaletteManager.shared.isPresented ? Color.primary.opacity(0.06) : Color.clear)
-
-                            Image(systemName: "magnifyingglass")
-                                .font(.system(size: 12, weight: .regular))
-                                .foregroundStyle(hoveredButton == .search || CommandPaletteManager.shared.isPresented ? Color.primary : Color.secondary)
-                        }
-                        .frame(width: 28, height: 28)
-                        .contentShape(Rectangle())
+                        Image(systemName: "magnifyingglass")
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.bordered)
+                    .controlSize(.regular)
                     .help("Search Videos & Commands (⌘K, ⌘F)")
-                    .onHover { h in
-                        hoveredButton = h ? .search : nil
-                    }
                 }
 
                 // Vertical hairline separator between toolbar buttons and app title
@@ -192,7 +133,7 @@ public struct DashboardTopBarView: View {
                                     .foregroundStyle(Color.secondary)
                                     .frame(width: 16, height: 16)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.borderless)
                             .pointingHand()
                             .transition(.opacity.combined(with: .scale(scale: 0.9)))
                         }
@@ -234,83 +175,44 @@ public struct DashboardTopBarView: View {
                                 .transition(.opacity.combined(with: .scale(scale: 0.92)))
                         }
 
-                        // Dedicated Sort Button (Click to cycle, right-click for direct choice)
-                        Button {
-                            withAnimation(.snappy(duration: 0.15)) {
-                                library.cycleSortOption()
+                        // Dedicated Sort Pop-up Menu (Default macOS Bordered Menu Button)
+                        Menu {
+                            Picker("Sort By", selection: $library.sortOption) {
+                                ForEach(SortOption.allCases) { opt in
+                                    Text(opt.rawValue).tag(opt)
+                                }
                             }
                         } label: {
-                            HStack(spacing: 4) {
+                            HStack(spacing: 3) {
                                 Image(systemName: "arrow.up.arrow.down")
                                     .font(.system(size: 11, weight: .medium))
                                 if !isCompactSort {
                                     Text(library.sortOption.rawValue)
                                         .font(.system(size: 11, weight: .medium))
                                         .lineLimit(1)
-                                        .fixedSize()
-                                }
-                            }
-                            .foregroundStyle(Color.secondary)
-                            .padding(.horizontal, isCompactSort ? 0 : 8)
-                            .frame(width: isCompactSort ? 28 : nil, height: 24)
-                            .background(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(hoveredButton == .sort ? Color.primary.opacity(0.06) : Color(nsColor: .controlBackgroundColor).opacity(0.5))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                            .strokeBorder(Color(nsColor: .separatorColor).opacity(0.35), lineWidth: 0.5)
-                                    )
-                            )
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .contextMenu {
-                            ForEach(SortOption.allCases) { opt in
-                                Button {
-                                    withAnimation(.snappy(duration: 0.15)) {
-                                        library.sortOption = opt
-                                    }
-                                } label: {
-                                    HStack {
-                                        Text(opt.rawValue)
-                                        if library.sortOption == opt {
-                                            Image(systemName: "checkmark")
-                                        }
-                                    }
                                 }
                             }
                         }
-                        .help("Sort: \(library.sortOption.rawValue) (Click to cycle)")
-                        .onHover { h in
-                            hoveredButton = h ? .sort : nil
-                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.regular)
+                        .help("Sort videos: \(library.sortOption.rawValue)")
 
-                        // 1-Click View Mode Toggle Button (Grid <-> List) - Icon-Only
-                        Button {
-                            withAnimation(.snappy(duration: 0.18)) {
-                                library.toggleViewMode()
-                            }
-                        } label: {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(hoveredButton == .viewMode ? Color.primary.opacity(0.06) : Color.clear)
-
-                                Image(systemName: library.viewMode == .grid ? "list.bullet" : "square.grid.2x2")
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundStyle(Color.secondary)
-                            }
-                            .frame(width: 28, height: 28)
-                            .contentShape(Rectangle())
+                        // View Mode Switcher: Grid vs List (Default macOS Segmented Picker)
+                        Picker("", selection: $library.viewMode) {
+                            Image(systemName: "square.grid.2x2")
+                                .tag(ViewMode.grid)
+                                .help("Switch to Grid View")
+                            Image(systemName: "list.bullet")
+                                .tag(ViewMode.list)
+                                .help("Switch to List View")
                         }
-                        .buttonStyle(.plain)
-                        .animation(.snappy(duration: 0.18), value: library.viewMode)
-                        .help(library.viewMode == .grid ? "Switch to List View" : "Switch to Grid View")
-                        .onHover { h in
-                            hoveredButton = h ? .viewMode : nil
-                        }
+                        .pickerStyle(.segmented)
+                        .controlSize(.regular)
+                        .labelsHidden()
+                        .frame(width: 64)
                     }
 
-                    // OTA Update Available Pill Button
+                    // OTA Update Available Button (Default macOS Bordered Button)
                     if updateManager.hasUpdate {
                         Button {
                             withAnimation(.snappy(duration: 0.18)) {
@@ -320,56 +222,34 @@ public struct DashboardTopBarView: View {
                             HStack(spacing: 4) {
                                 Circle()
                                     .fill(Color.orange)
-                                    .frame(width: 5, height: 5)
+                                    .frame(width: 6, height: 6)
 
                                 if !isNarrow {
                                     Text("Update")
-                                        .font(.system(size: 10, weight: .medium))
-                                        .foregroundStyle(Color.primary)
+                                        .font(.system(size: 11, weight: .medium))
                                 }
                             }
-                            .padding(.horizontal, isNarrow ? 5 : 7)
-                            .padding(.vertical, 2)
-                            .frame(height: 24)
-                            .background(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(Color(nsColor: .controlBackgroundColor))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                            .strokeBorder(Color.orange.opacity(0.4), lineWidth: 1)
-                                    )
-                            )
-                            .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.bordered)
+                        .controlSize(.regular)
                         .help("Update Available: \(updateManager.availableUpdate?.tagName ?? "")")
                         .transition(.opacity.combined(with: .scale(scale: 0.9)))
                     }
 
-                    // 1-Click Theme Toggle Button
+                    // Theme Toggle Button (Default macOS Bordered Button)
                     Button {
                         withAnimation(.snappy(duration: 0.2)) {
                             themeManager.toggleTheme()
                         }
                     } label: {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(hoveredButton == .theme ? Color.primary.opacity(0.06) : Color.clear)
-
-                            Image(systemName: "circle.righthalf.filled")
-                                .font(.system(size: 12, weight: .regular))
-                                .foregroundStyle(Color.secondary)
-                                .rotationEffect(.degrees(themeManager.isDark ? 180 : 0))
-                        }
-                        .frame(width: 28, height: 28)
-                        .contentShape(Rectangle())
+                        Image(systemName: "circle.righthalf.filled")
+                            .font(.system(size: 12, weight: .regular))
+                            .rotationEffect(.degrees(themeManager.isDark ? 180 : 0))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.bordered)
+                    .controlSize(.regular)
                     .animation(.snappy(duration: 0.2), value: themeManager.isDark)
                     .help(themeManager.isDark ? "Switch to Light Mode" : "Switch to Dark Mode")
-                    .onHover { h in
-                        hoveredButton = h ? .theme : nil
-                    }
                 }
                 .padding(.trailing, isNarrow ? 10 : 16)
             }

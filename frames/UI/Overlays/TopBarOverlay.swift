@@ -5,7 +5,6 @@ public struct TopBarOverlay: View {
     @Bindable var engine: VideoPlayerEngine
     public var onReturnToDashboard: (() -> Void)?
     @State private var windowManager = WindowManager.shared
-    @State private var isBackHovered = false
 
     public init(engine: VideoPlayerEngine, onReturnToDashboard: (() -> Void)? = nil) {
         self.engine = engine
@@ -24,6 +23,7 @@ public struct TopBarOverlay: View {
                         .frame(width: trafficLightSpacer, height: 32)
                         .fixedSize(horizontal: true, vertical: false)
 
+                    // Default macOS Bordered Button
                     Button {
                         if let onReturn = onReturnToDashboard {
                             onReturn()
@@ -32,22 +32,10 @@ public struct TopBarOverlay: View {
                         }
                     } label: {
                         Image(systemName: "chevron.left")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(Color.white)
-                            .frame(width: 28, height: 28)
-                            .background(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(isBackHovered ? Color.white.opacity(0.24) : Color.white.opacity(0.14))
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .strokeBorder(Color.white.opacity(0.20), lineWidth: 1)
-                            )
-                            .shadow(color: Color.black.opacity(0.4), radius: 2, x: 0, y: 1)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.bordered)
+                    .controlSize(.regular)
                     .accessibilityLabel("Back to Dashboard")
-                    .onHover { isBackHovered = $0 }
                     .help("Back (Esc or ⌘[)")
 
                     Spacer()
