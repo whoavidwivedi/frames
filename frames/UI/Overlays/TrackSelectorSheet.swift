@@ -7,6 +7,23 @@ import UniformTypeIdentifiers
 public struct SubtitleSelectorPanel: View {
     @Bindable var engine: VideoPlayerEngine
     @State private var hoveredTrackId: String? = nil
+    @State private var selectedTab: SubtitleTab = .tracks
+    @State private var settings = SettingsManager.shared
+
+    public enum SubtitleTab: String, CaseIterable, Identifiable {
+        case tracks = "Tracks"
+        case style = "Sync & Style"
+
+        public var id: String { rawValue }
+    }
+
+    private let colorPresets: [(name: String, color: Color, hex: String)] = [
+        ("Green", Color(red: 0.29, green: 0.87, blue: 0.50), "#4ADE80"),
+        ("Mint", Color(red: 0.20, green: 0.83, blue: 0.60), "#34D399"),
+        ("Yellow", Color(red: 0.98, green: 0.80, blue: 0.08), "#FACC15"),
+        ("White", Color.white, "#FFFFFF"),
+        ("Cyan", Color(red: 0.22, green: 0.74, blue: 0.97), "#38BDF8")
+    ]
 
     public init(engine: VideoPlayerEngine) {
         self.engine = engine
@@ -14,7 +31,7 @@ public struct SubtitleSelectorPanel: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            // Header
+            // Header Bar
             HStack(spacing: 8) {
                 Image(systemName: "captions.bubble.fill")
                     .font(.system(size: 13, weight: .semibold))
@@ -27,7 +44,7 @@ public struct SubtitleSelectorPanel: View {
                 let nonOffTracks = engine.availableSubtitleTracks.filter { $0.id != SubtitleTrack.off.id }
                 if !nonOffTracks.isEmpty {
                     Text("\(nonOffTracks.count)")
-                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .font(.system(size: 9.5, weight: .bold, design: .monospaced))
                         .foregroundStyle(ShadcnTheme.foregroundSecondary)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 1.5)
@@ -37,29 +54,7 @@ public struct SubtitleSelectorPanel: View {
 
                 Spacer()
 
-                Button {
-                    openExternalSubtitlePicker()
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "plus")
-                            .font(.system(size: 9, weight: .bold))
-                        Text("Add File...")
-                            .font(.system(size: 10, weight: .medium))
-                    }
-                    .foregroundStyle(ShadcnTheme.foreground)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 3.5)
-                    .background(ShadcnTheme.secondary.opacity(0.5))
-                    .clipShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                            .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
-                    )
-                }
-                .buttonStyle(.plain)
-                .pointingHand()
-                .help("Import external .srt or .vtt subtitle file")
-
+                // Close Button
                 Button {
                     withAnimation(.fluidSpring) {
                         engine.activeInspectorSheet = nil
@@ -77,11 +72,60 @@ public struct SubtitleSelectorPanel: View {
                 .help("Close (Esc)")
             }
 
+            // Shadcn Segmented Tab Bar (Tracks vs Sync & Style)
+            HStack(spacing: 3) {
+                ForEach(SubtitleTab.allCases) { tab in
+                    let isTabActive = selectedTab == tab
+                    Button {
+                        withAnimation(.fluidQuick) {
+                            selectedTab = tab
+                        }
+                    } label: {
+                        Text(tab.rawValue)
+                            .font(.system(size: 11, weight: isTabActive ? .semibold : .medium))
+                            .foregroundStyle(isTabActive ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 4.5)
+                            .background(
+                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                    .fill(isTabActive ? ShadcnTheme.card : Color.clear)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                    .strokeBorder(isTabActive ? ShadcnTheme.border : Color.clear, lineWidth: 1)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .pointingHand()
+                }
+            }
+            .padding(2.5)
+            .background(
+                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm + 2, style: .continuous)
+                    .fill(ShadcnTheme.secondary.opacity(0.45))
+            )
+
             Rectangle()
                 .fill(ShadcnTheme.borderSubtle)
                 .frame(height: 1)
 
-            // Subtitle Tracks List
+            // Content per Tab
+            if selectedTab == .tracks {
+                tracksView
+            } else {
+                syncAndStyleView
+            }
+        }
+        .padding(14)
+        .frame(width: 318)
+        .shadcnCard(cornerRadius: ShadcnTheme.radiusLg, padding: 0)
+        .environment(\.colorScheme, .dark)
+    }
+
+    // MARK: - Tracks Tab View
+
+    private var tracksView: some View {
+        VStack(alignment: .leading, spacing: 8) {
             ScrollView(.vertical, showsIndicators: true) {
                 VStack(alignment: .leading, spacing: 3) {
                     // Off Option
@@ -193,16 +237,45 @@ public struct SubtitleSelectorPanel: View {
                     }
                 }
             }
-            .frame(maxHeight: 160)
+            .frame(maxHeight: 180)
 
             Rectangle()
                 .fill(ShadcnTheme.borderSubtle)
                 .frame(height: 1)
 
-            // Subtitle Delay Adjustment
-            VStack(alignment: .leading, spacing: 6) {
+            // Add Subtitle File Button
+            Button {
+                openExternalSubtitlePicker()
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 10, weight: .bold))
+                    Text("Add Subtitle File (.srt, .vtt)...")
+                        .font(.system(size: 11, weight: .medium))
+                }
+                .foregroundStyle(ShadcnTheme.foreground)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 6)
+                .background(ShadcnTheme.secondary.opacity(0.45))
+                .clipShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                        .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
+            .pointingHand()
+        }
+    }
+
+    // MARK: - Sync & Style Tab View
+
+    private var syncAndStyleView: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            // 1. Timing Offset
+            VStack(alignment: .leading, spacing: 5) {
                 HStack {
-                    Text("Subtitle Delay")
+                    Text("Subtitle Sync Offset")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(ShadcnTheme.foregroundSecondary)
                     Spacer()
@@ -214,7 +287,7 @@ public struct SubtitleSelectorPanel: View {
                 HStack(spacing: 4) {
                     delayStepButton(label: "-250ms") { engine.subtitleDelay -= 0.25 }
                     delayStepButton(label: "-100ms") { engine.subtitleDelay -= 0.1 }
-                    delayStepButton(label: "Reset", isReset: true) { engine.subtitleDelay = 0 }
+                    delayStepButton(label: "0.0s", isReset: true) { engine.subtitleDelay = 0 }
                     delayStepButton(label: "+100ms") { engine.subtitleDelay += 0.1 }
                     delayStepButton(label: "+250ms") { engine.subtitleDelay += 0.25 }
                 }
@@ -224,8 +297,8 @@ public struct SubtitleSelectorPanel: View {
                 .fill(ShadcnTheme.borderSubtle)
                 .frame(height: 1)
 
-            // Subtitle Font Size
-            VStack(alignment: .leading, spacing: 6) {
+            // 2. Font Size
+            VStack(alignment: .leading, spacing: 5) {
                 HStack {
                     Text("Typography Size")
                         .font(.system(size: 11, weight: .medium))
@@ -236,22 +309,65 @@ public struct SubtitleSelectorPanel: View {
                         .foregroundStyle(ShadcnTheme.foreground)
                 }
 
-                HStack(spacing: 5) {
-                    fontSizePresetButton(label: "Small", size: 18)
-                    fontSizePresetButton(label: "Medium", size: 24)
-                    fontSizePresetButton(label: "Large", size: 30)
-                    fontSizePresetButton(label: "XL", size: 36)
+                HStack(spacing: 4) {
+                    fontSizePresetButton(label: "Small", size: 16)
+                    fontSizePresetButton(label: "Standard", size: 20)
+                    fontSizePresetButton(label: "Large", size: 24)
+                    fontSizePresetButton(label: "XL", size: 28)
                 }
 
-                Slider(value: $engine.subtitleFontSize, in: 16...36, step: 2)
+                Slider(value: $engine.subtitleFontSize, in: 14...34, step: 2)
                     .tint(ShadcnTheme.primaryHighlight)
                     .pointingHand()
             }
+
+            Rectangle()
+                .fill(ShadcnTheme.borderSubtle)
+                .frame(height: 1)
+
+            // 3. Text Color Quick Presets
+            VStack(alignment: .leading, spacing: 5) {
+                HStack {
+                    Text("Text Color")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                    Spacer()
+                }
+
+                HStack(spacing: 5) {
+                    ForEach(colorPresets, id: \.hex) { preset in
+                        let isSelected = settings.subtitleTextColorHex.uppercased() == preset.hex.uppercased()
+                        Button {
+                            withAnimation(.snappy(duration: 0.15)) {
+                                settings.subtitleTextColorHex = preset.hex
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Circle()
+                                    .fill(preset.color)
+                                    .frame(width: 8, height: 8)
+                                Text(preset.name)
+                                    .font(.system(size: 9.5, weight: isSelected ? .bold : .medium))
+                                    .lineLimit(1)
+                            }
+                            .foregroundStyle(isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 4)
+                            .background(
+                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                    .fill(isSelected ? ShadcnTheme.cardHover : ShadcnTheme.secondary.opacity(0.35))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                            .strokeBorder(isSelected ? ShadcnTheme.border : Color.clear, lineWidth: 1)
+                                    )
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .pointingHand()
+                    }
+                }
+            }
         }
-        .padding(14)
-        .frame(width: 290)
-        .shadcnCard(cornerRadius: ShadcnTheme.radiusLg, padding: 0)
-        .environment(\.colorScheme, .dark)
     }
 
     private func delayStepButton(label: String, isReset: Bool = false, action: @escaping () -> Void) -> some View {
@@ -280,7 +396,7 @@ public struct SubtitleSelectorPanel: View {
             }
         } label: {
             Text(label)
-                .font(.system(size: 10, weight: isSelected ? .bold : .medium))
+                .font(.system(size: 9.5, weight: isSelected ? .bold : .medium))
                 .foregroundStyle(isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 4)
@@ -302,9 +418,11 @@ public struct SubtitleSelectorPanel: View {
         panel.allowsMultipleSelection = false
         panel.allowedContentTypes = [
             UTType(filenameExtension: "srt") ?? .item,
-            UTType(filenameExtension: "vtt") ?? .item
+            UTType(filenameExtension: "vtt") ?? .item,
+            UTType(filenameExtension: "ass") ?? .item,
+            UTType(filenameExtension: "sub") ?? .item
         ]
-        panel.message = "Choose an SRT or WebVTT file"
+        panel.message = "Choose an SRT, WebVTT, ASS, or Sub file"
 
         if panel.runModal() == .OK, let url = panel.url {
             engine.loadExternalSubtitleFile(from: url)
@@ -324,7 +442,7 @@ public struct AudioSelectorPanel: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            // Header
+            // Header Bar
             HStack(spacing: 8) {
                 Image(systemName: "speaker.wave.2.fill")
                     .font(.system(size: 13, weight: .semibold))
@@ -336,7 +454,7 @@ public struct AudioSelectorPanel: View {
 
                 if !engine.availableAudioTracks.isEmpty {
                     Text("\(engine.availableAudioTracks.count)")
-                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .font(.system(size: 9.5, weight: .bold, design: .monospaced))
                         .foregroundStyle(ShadcnTheme.foregroundSecondary)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 1.5)
@@ -367,7 +485,7 @@ public struct AudioSelectorPanel: View {
                 .fill(ShadcnTheme.borderSubtle)
                 .frame(height: 1)
 
-            // Audio Tracks List
+            // Audio Streams List
             if engine.availableAudioTracks.isEmpty {
                 HStack(spacing: 8) {
                     Image(systemName: "checkmark.circle.fill")
@@ -476,7 +594,7 @@ public struct AudioSelectorPanel: View {
             }
         }
         .padding(14)
-        .frame(width: 290)
+        .frame(width: 308)
         .shadcnCard(cornerRadius: ShadcnTheme.radiusLg, padding: 0)
         .environment(\.colorScheme, .dark)
     }

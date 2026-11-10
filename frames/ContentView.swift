@@ -164,45 +164,29 @@ struct ContentView: View {
                         )
                     }
 
-                    // Inspector Popover Panels (Hardware Stats, Subtitles, Audio, Speed Shortcuts)
-                    if let sheet = engine.activeInspectorSheet {
+                    // Dismiss Active Inspector Sheets on outside click (Transparent, NO BLACK CURTAIN)
+                    if engine.activeInspectorSheet != nil {
                         Color.clear
+                            .ignoresSafeArea()
                             .contentShape(Rectangle())
                             .onTapGesture {
                                 withAnimation(.fluidSpring) {
                                     engine.activeInspectorSheet = nil
                                 }
                             }
+                            .zIndex(35)
+                    }
 
+                    // Top-anchored Hardware Stats Panel (when active)
+                    if engine.activeInspectorSheet == .stats {
                         VStack {
-                            if sheet == .stats {
-                                HStack {
-                                    Spacer()
-                                    HardwareStatsPanel(engine: engine)
-                                        .padding(.top, engine.controlsVisible ? 58 : 16)
-                                        .padding(.trailing, 16)
-                                }
+                            HStack {
                                 Spacer()
-                            } else {
-                                Spacer()
-                                HStack {
-                                    Spacer()
-                                    Group {
-                                        switch sheet {
-                                        case .subtitles:
-                                            SubtitleSelectorPanel(engine: engine)
-                                        case .audio:
-                                            AudioSelectorPanel(engine: engine)
-                                        case .speed:
-                                            SpeedSelectorPanel(engine: engine)
-                                        case .stats:
-                                            EmptyView()
-                                        }
-                                    }
-                                    .padding(.bottom, engine.controlsVisible ? 84 : 20)
+                                HardwareStatsPanel(engine: engine)
+                                    .padding(.top, engine.controlsVisible ? 58 : 16)
                                     .padding(.trailing, 16)
-                                }
                             }
+                            Spacer()
                         }
                         .transition(
                             .asymmetric(

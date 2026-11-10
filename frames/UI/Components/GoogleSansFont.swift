@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import CoreText
+import Foundation
 
 // MARK: - Google Sans Flex Font Manager
 
@@ -50,8 +51,8 @@ public final class GoogleSansFontManager {
             } else {
                 // If already registered or harmless duplicate, treat as registered
                 if let error = errorRef?.takeRetainedValue() {
-                    let nsError = error as NSError
-                    if nsError.code == 105 || nsError.code == 305 { // kCTFontManagerErrorAlreadyRegistered
+                    let code = CFErrorGetCode(error)
+                    if code == 105 || code == 305 { // kCTFontManagerErrorAlreadyRegistered
                         isRegistered = true
                         return true
                     }

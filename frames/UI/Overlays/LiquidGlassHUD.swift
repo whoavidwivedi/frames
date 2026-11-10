@@ -21,23 +21,50 @@ public struct LiquidGlassHUD: View {
         let isNarrow = windowManager.isCompact || windowManager.isQuarterScreen
         let showVolumeSlider = !isNarrow
 
-        VStack(spacing: 8) {
-            // MARK: - Timeline Scrubber & Monospaced Clocks
-            HStack(spacing: 10) {
-                Text(TimeFormatting.format(seconds: engine.currentTime))
-                    .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundStyle(ShadcnTheme.foreground)
-
-                CustomScrubber(engine: engine)
-                    .frame(height: 20)
-
-                let remaining = max(0, engine.duration - engine.currentTime)
-                Text("-\(TimeFormatting.format(seconds: remaining))")
-                    .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundStyle(ShadcnTheme.foregroundSecondary)
+        VStack(alignment: .trailing, spacing: 8) {
+            // MARK: - Anchored Inspector Sheet (Subtitles, Audio, Speed)
+            if let sheet = engine.activeInspectorSheet, sheet != .stats {
+                HStack {
+                    Spacer(minLength: 0)
+                    Group {
+                        switch sheet {
+                        case .subtitles:
+                            SubtitleSelectorPanel(engine: engine)
+                        case .audio:
+                            AudioSelectorPanel(engine: engine)
+                        case .speed:
+                            SpeedSelectorPanel(engine: engine)
+                        case .stats:
+                            EmptyView()
+                        }
+                    }
+                }
+                .transition(
+                    .asymmetric(
+                        insertion: .opacity.combined(with: .scale(scale: 0.96, anchor: .bottomTrailing)).combined(with: .offset(y: 8)),
+                        removal: .opacity.combined(with: .scale(scale: 0.98, anchor: .bottomTrailing)).combined(with: .offset(y: 4))
+                    )
+                )
             }
-            .padding(.horizontal, 14)
-            .padding(.top, 9)
+
+            // MARK: - Main Floating Dock Bar
+            VStack(spacing: 8) {
+                // MARK: - Timeline Scrubber & Monospaced Clocks
+                HStack(spacing: 10) {
+                    Text(TimeFormatting.format(seconds: engine.currentTime))
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .foregroundStyle(ShadcnTheme.foreground)
+
+                    CustomScrubber(engine: engine)
+                        .frame(height: 20)
+
+                    let remaining = max(0, engine.duration - engine.currentTime)
+                    Text("-\(TimeFormatting.format(seconds: remaining))")
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                }
+                .padding(.horizontal, 14)
+                .padding(.top, 9)
 
             // MARK: - Primary Controls Bar
             HStack(spacing: isNarrow ? 8 : 12) {
@@ -201,11 +228,12 @@ public struct LiquidGlassHUD: View {
             .padding(.horizontal, 14)
             .padding(.bottom, 9)
         }
-        .frame(maxWidth: 720)
         .shadcnCard(cornerRadius: ShadcnTheme.radiusLg, padding: 0)
-        .padding(.horizontal, 20)
-        .padding(.bottom, 20)
-        .environment(\.colorScheme, .dark)
+    }
+    .frame(maxWidth: 720)
+    .padding(.horizontal, 20)
+    .padding(.bottom, 20)
+    .environment(\.colorScheme, .dark)
     }
 
     public static func formatRate(_ rate: Float) -> String {
@@ -255,11 +283,11 @@ public struct LiquidGlassHUD: View {
             .frame(height: 28)
             .background(
                 RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                    .fill(isOpen ? ShadcnTheme.cardHover : (isAudioHovered ? ShadcnTheme.muted.opacity(0.4) : ShadcnTheme.secondary.opacity(0.35)))
+                    .fill(isOpen ? ShadcnTheme.card : (isAudioHovered ? ShadcnTheme.muted.opacity(0.4) : ShadcnTheme.secondary.opacity(0.35)))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                    .strokeBorder(isOpen ? ShadcnTheme.border : ShadcnTheme.borderSubtle, lineWidth: 1)
+                    .strokeBorder(isOpen ? ShadcnTheme.primaryHighlight.opacity(0.75) : ShadcnTheme.borderSubtle, lineWidth: 1)
             )
             .contentShape(Rectangle())
         }
@@ -299,11 +327,11 @@ public struct LiquidGlassHUD: View {
             .frame(height: 28)
             .background(
                 RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                    .fill(isOpen ? ShadcnTheme.cardHover : (isSubtitlesHovered ? ShadcnTheme.muted.opacity(0.4) : ShadcnTheme.secondary.opacity(0.35)))
+                    .fill(isOpen ? ShadcnTheme.card : (isSubtitlesHovered ? ShadcnTheme.muted.opacity(0.4) : ShadcnTheme.secondary.opacity(0.35)))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                    .strokeBorder(isOpen ? ShadcnTheme.border : (isSubOn ? ShadcnTheme.primaryHighlight.opacity(0.4) : ShadcnTheme.borderSubtle), lineWidth: 1)
+                    .strokeBorder(isOpen ? ShadcnTheme.primaryHighlight.opacity(0.75) : (isSubOn ? ShadcnTheme.primaryHighlight.opacity(0.4) : ShadcnTheme.borderSubtle), lineWidth: 1)
             )
             .contentShape(Rectangle())
         }
@@ -331,11 +359,11 @@ public struct LiquidGlassHUD: View {
                 .frame(height: 28)
                 .background(
                     RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                        .fill(isOpen ? ShadcnTheme.cardHover : (isSpeedHovered ? ShadcnTheme.muted.opacity(0.4) : ShadcnTheme.secondary.opacity(0.35)))
+                        .fill(isOpen ? ShadcnTheme.card : (isSpeedHovered ? ShadcnTheme.muted.opacity(0.4) : ShadcnTheme.secondary.opacity(0.35)))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                        .strokeBorder(isOpen ? ShadcnTheme.border : (isNonStandard ? ShadcnTheme.primaryHighlight.opacity(0.4) : ShadcnTheme.borderSubtle), lineWidth: 1)
+                        .strokeBorder(isOpen ? ShadcnTheme.primaryHighlight.opacity(0.75) : (isNonStandard ? ShadcnTheme.primaryHighlight.opacity(0.4) : ShadcnTheme.borderSubtle), lineWidth: 1)
                 )
                 .contentShape(Rectangle())
         }
