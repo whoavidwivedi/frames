@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 
+@MainActor
 public final class KeyboardHandler {
     public enum KeyAction: Equatable, Sendable {
         case playPause
