@@ -13,6 +13,7 @@ public struct VideoMetadata: Sendable, Equatable {
     public var fileSize: Int64
     public var bitrate: Double
     public var isHardwareAccelerated: Bool
+    public var decoderImplementationName: String
 
     public init(
         title: String = "Untitled",
@@ -25,7 +26,8 @@ public struct VideoMetadata: Sendable, Equatable {
         colorPrimaries: String = "BT.709",
         fileSize: Int64 = 0,
         bitrate: Double = 0,
-        isHardwareAccelerated: Bool = true
+        isHardwareAccelerated: Bool = false,
+        decoderImplementationName: String = ""
     ) {
         self.title = title
         self.duration = duration
@@ -38,6 +40,14 @@ public struct VideoMetadata: Sendable, Equatable {
         self.fileSize = fileSize
         self.bitrate = bitrate
         self.isHardwareAccelerated = isHardwareAccelerated
+        self.decoderImplementationName = decoderImplementationName
+    }
+
+    public var decoderDescription: String {
+        if !decoderImplementationName.isEmpty {
+            return decoderImplementationName
+        }
+        return isHardwareAccelerated ? "VideoToolbox (Hardware ASIC)" : "Software (CPU / Emulation)"
     }
 
     public var resolutionDescription: String {

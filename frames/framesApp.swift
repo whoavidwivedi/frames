@@ -102,6 +102,39 @@ struct framesApp: App {
                 .keyboardShortcut("w", modifiers: .command)
             }
 
+            SwiftUI.CommandGroup(replacing: .sidebar) {
+                Button("Toggle Sidebar") {
+                    LibraryManager.shared.toggleSidebar()
+                }
+                .keyboardShortcut("b", modifiers: .command)
+
+                Divider()
+
+                Button(WindowManager.shared.isAnyFullscreen ? "Exit Full Screen" : "Enter Full Screen") {
+                    WindowManager.shared.toggleNativeFullscreen()
+                }
+                .keyboardShortcut("f", modifiers: [.control, .command])
+
+                Button(PictureInPictureManager.shared.isPictureInPicture ? "Exit Picture in Picture" : "Picture in Picture") {
+                    PictureInPictureManager.shared.toggle(engine: engine)
+                }
+                .keyboardShortcut("p", modifiers: [])
+                .disabled(engine.currentURL == nil)
+
+                Button("Hardware Metrics Inspector") {
+                    engine.activeInspectorSheet = (engine.activeInspectorSheet == .stats ? nil : .stats)
+                }
+                .keyboardShortcut("i", modifiers: .command)
+                .disabled(engine.currentURL == nil)
+
+                Divider()
+
+                Button("Command Palette...") {
+                    CommandPaletteManager.shared.toggle()
+                }
+                .keyboardShortcut("k", modifiers: .command)
+            }
+
             CommandMenu("Playback") {
                 Button(engine.isPlaying ? "Pause" : (engine.hasEnded ? "Replay" : "Play")) {
                     engine.togglePlayPause()
@@ -193,39 +226,6 @@ struct framesApp: App {
                     }
                 }
                 .disabled(engine.currentURL == nil)
-            }
-
-            SwiftUI.CommandGroup(replacing: .sidebar) {
-                Button("Toggle Sidebar") {
-                    LibraryManager.shared.toggleSidebar()
-                }
-                .keyboardShortcut("b", modifiers: .command)
-
-                Divider()
-
-                Button(WindowManager.shared.isAnyFullscreen ? "Exit Full Screen" : "Enter Full Screen") {
-                    WindowManager.shared.toggleNativeFullscreen()
-                }
-                .keyboardShortcut("f", modifiers: [.control, .command])
-
-                Button(PictureInPictureManager.shared.isPictureInPicture ? "Exit Picture in Picture" : "Picture in Picture") {
-                    PictureInPictureManager.shared.toggle(engine: engine)
-                }
-                .keyboardShortcut("p", modifiers: [])
-                .disabled(engine.currentURL == nil)
-
-                Button("Hardware Metrics Inspector") {
-                    engine.activeInspectorSheet = (engine.activeInspectorSheet == .stats ? nil : .stats)
-                }
-                .keyboardShortcut("i", modifiers: .command)
-                .disabled(engine.currentURL == nil)
-
-                Divider()
-
-                Button("Command Palette...") {
-                    CommandPaletteManager.shared.toggle()
-                }
-                .keyboardShortcut("k", modifiers: .command)
             }
 
             CommandMenu("Navigate") {

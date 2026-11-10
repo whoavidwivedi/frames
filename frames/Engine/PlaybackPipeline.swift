@@ -516,6 +516,12 @@ public final class PlaybackPipeline: ObservableObject {
     public var demuxedSubtitleTracks: [DemuxedTrack] {
         demuxer?.subtitleTracks ?? []
     }
+    public var isHardwareAccelerated: Bool {
+        videoDecoder?.isHardwareAccelerated ?? false
+    }
+    public var decoderImplementationName: String {
+        videoDecoder?.decoderImplementationName ?? "VideoToolbox"
+    }
     @Published public private(set) var activeAudioTrackNumber: UInt64?
     @Published public private(set) var activeSubtitleTrackNumber: UInt64?
     public var onSubtitleCue: (@MainActor @Sendable (SubtitleCue) -> Void)?

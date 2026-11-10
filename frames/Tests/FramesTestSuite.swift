@@ -4361,6 +4361,37 @@ public enum FramesTestSuite {
             assertTest("Synthetic AZERTY Comma Event Resolves to Step Backward", condition: false, "Could not create synthetic event")
         }
 
+        // 11. VideoToolbox & Hardware Acceleration Telemetry Verification
+        let hwMeta = VideoMetadata(isHardwareAccelerated: true)
+        assertTest("VideoMetadata Hardware ASIC Fallback Description", condition: hwMeta.decoderDescription == "VideoToolbox (Hardware ASIC)")
+
+        let swMeta = VideoMetadata(isHardwareAccelerated: false)
+        assertTest("VideoMetadata Software Fallback Description", condition: swMeta.decoderDescription == "Software (CPU / Emulation)")
+
+        let explicitMeta = VideoMetadata(isHardwareAccelerated: true, decoderImplementationName: "Apple Silicon ASIC (VideoToolbox)")
+        assertTest("VideoMetadata Explicit Implementation Description", condition: explicitMeta.decoderDescription == "Apple Silicon ASIC (VideoToolbox)")
+
+        // VideoToolboxDecoder properties and lifecycle reset
+        let dummyTrack = DemuxedTrack(trackNumber: 1, type: .video, codecID: "V_MPEG4/ISO/AVC", name: "AVC Track", language: "eng", isDefault: true, isForced: false, displayWidth: 1920, displayHeight: 1080)
+        let vtd = VideoToolboxDecoder(track: dummyTrack)
+        assertTest("VideoToolboxDecoder Initial HW Telemetry Idle", condition: vtd.isHardwareAccelerated == false)
+        assertTest("VideoToolboxDecoder Initial Implementation Name", condition: vtd.decoderImplementationName == "VideoToolbox")
+        vtd.invalidate()
+        assertTest("VideoToolboxDecoder Invalidation Resets HW State", condition: vtd.isHardwareAccelerated == false && vtd.decoderImplementationName == "None")
+
+        // PlaybackPipeline hardware acceleration forwarding
+        let pipeline = PlaybackPipeline()
+        assertTest("PlaybackPipeline Initial HW Acceleration Forwarding", condition: pipeline.isHardwareAccelerated == false)
+        assertTest("PlaybackPipeline Initial Decoder Implementation", condition: pipeline.decoderImplementationName == "VideoToolbox")
+
+        // Menu bar deduplication verification
+        let testMenu = NSMenu(title: "Main")
+        testMenu.addItem(NSMenuItem(title: "View", action: nil, keyEquivalent: ""))
+        testMenu.addItem(NSMenuItem(title: "Playback", action: nil, keyEquivalent: ""))
+        testMenu.addItem(NSMenuItem(title: "View", action: nil, keyEquivalent: ""))
+        let removedCount = AppDelegate.deduplicateMenus(in: testMenu)
+        assertTest("AppDelegate Menu Deduplication Removes Duplicate View Menu", condition: removedCount == 1 && testMenu.items.count == 2)
+
         // Summary
         logs.append("\n==========================================")
         logs.append("RESULTS: \(passed) PASSED, \(failed) FAILED")
@@ -4518,6 +4549,7 @@ public enum FramesTestSuite {
         let containerValid = isCustomMedia ? (!engine.metadata.container.isEmpty || !targetURL.pathExtension.isEmpty) : (engine.metadata.container == "MP4" || targetURL.pathExtension.uppercased() == "MP4")
         let containerTestName = isCustomMedia ? "Container Format Identified" : "Container Format MP4"
         assert(containerTestName, containerValid, "Container: \(engine.metadata.container), Ext: \(targetURL.pathExtension)")
+        assert("Hardware Acceleration Telemetry Computed", !engine.metadata.decoderDescription.isEmpty)
 
         // 3. Verify Playback Start
         engine.play()

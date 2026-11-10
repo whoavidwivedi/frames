@@ -3,6 +3,7 @@ import AVFoundation
 import Combine
 import CoreMedia
 import SwiftUI
+import VideoToolbox
 
 // MARK: - Isolated High-Frequency Playback Clock Store
 /// Decouples high-frequency presentation clock updates from VideoPlayerEngine
@@ -899,6 +900,8 @@ public final class VideoPlayerEngine {
                         self.metadata.bitrate = Double(Int64(size) * 8) / self.duration
                     }
                 }
+                self.metadata.isHardwareAccelerated = self.nativePipeline.isHardwareAccelerated
+                self.metadata.decoderImplementationName = self.nativePipeline.decoderImplementationName
             }
 
             self.nativePipeline.onSubtitleCue = { [weak self] cue in
@@ -983,6 +986,10 @@ public final class VideoPlayerEngine {
                 let subType = CMFormatDescriptionGetMediaSubType(desc)
                 let fourCC = subType.fourCCString
                 meta.codec = friendlyCodecName(fourCC)
+
+                let isHW = VTIsHardwareDecodeSupported(subType)
+                meta.isHardwareAccelerated = isHW
+                meta.decoderImplementationName = isHW ? "AVFoundation (Apple Silicon Hardware Engine)" : "AVFoundation (Software Fallback)"
 
                 // Inspect color primaries
                 if let extensions = CMFormatDescriptionGetExtensions(desc) as? [String: Any] {

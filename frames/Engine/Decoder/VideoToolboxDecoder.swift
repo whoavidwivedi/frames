@@ -36,6 +36,8 @@ nonisolated public final class VideoToolboxDecoder: @unchecked Sendable {
     public let track: DemuxedTrack
     public let is10Bit: Bool
     public let isAnnexBStream: Bool
+    public private(set) var isHardwareAccelerated: Bool = false
+    public private(set) var decoderImplementationName: String = "VideoToolbox"
     
     private let frameLock = NSLock()
     private var sessionGeneration: Int = 0
@@ -83,6 +85,8 @@ nonisolated public final class VideoToolboxDecoder: @unchecked Sendable {
         sessionGeneration &+= 1
         let s = session
         session = nil
+        isHardwareAccelerated = false
+        decoderImplementationName = "None"
         bufferedFrames.removeAll()
         frameLock.unlock()
         
@@ -232,6 +236,8 @@ nonisolated public final class VideoToolboxDecoder: @unchecked Sendable {
         }
 
         guard status == noErr, let session = session else {
+            self.isHardwareAccelerated = false
+            self.decoderImplementationName = "VideoToolbox (Failed)"
             return false
         }
         
@@ -247,6 +253,27 @@ nonisolated public final class VideoToolboxDecoder: @unchecked Sendable {
             key: kVTDecompressionPropertyKey_MaximizePowerEfficiency,
             value: kCFBooleanTrue
         )
+        
+        // Runtime verification of hardware acceleration
+        var isHW: CFTypeRef?
+        let propStatus = VTSessionCopyProperty(
+            session,
+            key: kVTDecompressionPropertyKey_UsingHardwareAcceleratedVideoDecoder,
+            allocator: kCFAllocatorDefault,
+            valueOut: &isHW
+        )
+        if propStatus == noErr, let isHW = isHW {
+            if CFGetTypeID(isHW) == CFBooleanGetTypeID() {
+                self.isHardwareAccelerated = CFBooleanGetValue((isHW as! CFBoolean))
+            } else if let b = isHW as? Bool {
+                self.isHardwareAccelerated = b
+            } else {
+                self.isHardwareAccelerated = false
+            }
+        } else {
+            self.isHardwareAccelerated = false
+        }
+        self.decoderImplementationName = self.isHardwareAccelerated ? "Apple Silicon ASIC (VideoToolbox)" : "VideoToolbox (Software)"
         
         return true
     }
