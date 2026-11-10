@@ -120,6 +120,7 @@ public struct LiquidGlassHUD: View {
                             .frame(width: 120)
                             .tint(ShadcnTheme.primary)
                             .accessibilityLabel("Volume")
+                            .pointingHand()
 
                             Button(engine.isMuted ? "Unmute" : "Mute") {
                                 engine.toggleMute()

@@ -279,6 +279,7 @@ public struct GeneralSettingsTab: View {
                             Spacer(minLength: 12)
                             Toggle("", isOn: $settings.showAddVideoTile)
                                 .toggleStyle(.switch)
+                                .pointingHand()
                         }
                     }
 
@@ -302,6 +303,7 @@ public struct GeneralSettingsTab: View {
                                 }
                                 .pickerStyle(.menu)
                                 .frame(maxWidth: .infinity, alignment: .leading)
+                                .pointingHand()
                             }
                         } else {
                             HStack(alignment: .center, spacing: 16) {
@@ -322,6 +324,7 @@ public struct GeneralSettingsTab: View {
                                 }
                                 .pickerStyle(.menu)
                                 .frame(width: 210)
+                                .pointingHand()
                             }
                         }
                     }
@@ -482,6 +485,7 @@ public struct PlaybackSettingsTab: View {
                             Spacer(minLength: 12)
                             Toggle("", isOn: $settings.hardwareAccelerationEnabled)
                                 .toggleStyle(.switch)
+                                .pointingHand()
                         }
 
                         SettingsDivider()
@@ -538,6 +542,7 @@ public struct PlaybackSettingsTab: View {
                                 }
                                 .pickerStyle(.menu)
                                 .frame(maxWidth: .infinity, alignment: .leading)
+                                .pointingHand()
                             }
                         } else {
                             HStack(alignment: .center, spacing: 16) {
@@ -558,6 +563,7 @@ public struct PlaybackSettingsTab: View {
                                 }
                                 .pickerStyle(.menu)
                                 .frame(width: 210)
+                                .pointingHand()
                             }
                         }
 
@@ -581,6 +587,7 @@ public struct PlaybackSettingsTab: View {
                                 }
                                 .pickerStyle(.menu)
                                 .frame(maxWidth: .infinity, alignment: .leading)
+                                .pointingHand()
                             }
                         } else {
                             HStack(alignment: .center, spacing: 16) {
@@ -601,6 +608,7 @@ public struct PlaybackSettingsTab: View {
                                 }
                                 .pickerStyle(.menu)
                                 .frame(width: 210)
+                                .pointingHand()
                             }
                         }
 
@@ -619,6 +627,7 @@ public struct PlaybackSettingsTab: View {
                             Spacer(minLength: 12)
                             Toggle("", isOn: $settings.proMotionSyncEnabled)
                                 .toggleStyle(.switch)
+                                .pointingHand()
                         }
                     }
 
@@ -742,6 +751,7 @@ public struct AudioSettingsTab: View {
                             Spacer(minLength: 12)
                             Toggle("", isOn: $settings.spatialAudioEnabled)
                                 .toggleStyle(.switch)
+                                .pointingHand()
                         }
                     }
 
@@ -765,6 +775,7 @@ public struct AudioSettingsTab: View {
                                 }
                                 .pickerStyle(.menu)
                                 .frame(maxWidth: .infinity, alignment: .leading)
+                                .pointingHand()
                             }
                         } else {
                             HStack(alignment: .center, spacing: 16) {
@@ -785,6 +796,7 @@ public struct AudioSettingsTab: View {
                                 }
                                 .pickerStyle(.menu)
                                 .frame(width: 180)
+                                .pointingHand()
                             }
                         }
                     }
@@ -804,6 +816,7 @@ public struct AudioSettingsTab: View {
                             Spacer(minLength: 12)
                             Toggle("", isOn: $settings.volumeNormalizationEnabled)
                                 .toggleStyle(.switch)
+                                .pointingHand()
                         }
                     }
                 }
@@ -1144,6 +1157,7 @@ public struct SubtitlesSettingsTab: View {
                             Slider(value: $settings.subtitleFontSize, in: 14...36, step: 1)
                                 .tint(ShadcnTheme.primary)
                                 .padding(.top, 2)
+                                .pointingHand()
                         }
                     }
 
@@ -1210,6 +1224,7 @@ public struct SubtitlesSettingsTab: View {
                             Slider(value: $settings.subtitleBackgroundScrimOpacity, in: 0.20...1.0, step: 0.05)
                                 .tint(ShadcnTheme.primary)
                                 .padding(.top, 2)
+                                .pointingHand()
 
                             HStack(spacing: 6) {
                                 Image(systemName: "checkmark.seal.fill")
@@ -1239,6 +1254,7 @@ public struct SubtitlesSettingsTab: View {
                             Spacer(minLength: 12)
                             Toggle("", isOn: $settings.liveCaptionsEnabled)
                                 .toggleStyle(.switch)
+                                .pointingHand()
                         }
 
                         if settings.liveCaptionsEnabled {
@@ -1262,6 +1278,7 @@ public struct SubtitlesSettingsTab: View {
                                     }
                                     .pickerStyle(.menu)
                                     .frame(maxWidth: .infinity, alignment: .leading)
+                                    .pointingHand()
                                 }
                             } else {
                                 HStack(alignment: .center, spacing: 16) {
@@ -1282,6 +1299,7 @@ public struct SubtitlesSettingsTab: View {
                                     }
                                     .pickerStyle(.menu)
                                     .frame(width: 250)
+                                    .pointingHand()
                                 }
                             }
 
@@ -1300,6 +1318,7 @@ public struct SubtitlesSettingsTab: View {
                                 Spacer(minLength: 12)
                                 Toggle("", isOn: $settings.batterySaverGuardEnabled)
                                     .toggleStyle(.switch)
+                                    .pointingHand()
                             }
                         }
                     }
@@ -1351,6 +1370,7 @@ public struct SoftwareUpdatesSettingsCard: View {
                 Spacer(minLength: 12)
                 Toggle("", isOn: $settings.automaticallyCheckForUpdates)
                     .toggleStyle(.switch)
+                    .pointingHand()
             }
 
             SettingsDivider()
@@ -1374,6 +1394,7 @@ public struct SoftwareUpdatesSettingsCard: View {
                     }
                 ))
                 .toggleStyle(.switch)
+                .pointingHand()
             }
 
             SettingsDivider()

@@ -314,6 +314,7 @@ struct ContentView: View {
                                     .foregroundStyle(ShadcnTheme.foregroundSecondary)
                             }
                             .buttonStyle(.plain)
+                            .pointingHand()
                             .padding(.trailing, 16)
                             .padding(.top, 12)
                         }

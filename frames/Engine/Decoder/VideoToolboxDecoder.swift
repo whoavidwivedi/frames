@@ -447,6 +447,7 @@ nonisolated public final class VideoToolboxDecoder: @unchecked Sendable {
                 frameLock.unlock()
                 return false
             }
+            frameLock.unlock()
 
             let decodeStatus = VTDecompressionSessionDecodeFrame(
                 activeSession,
@@ -470,7 +471,6 @@ nonisolated public final class VideoToolboxDecoder: @unchecked Sendable {
                     presentationDuration: presentationDuration
                 )
             }
-            frameLock.unlock()
 
             return decodeStatus == noErr
         }

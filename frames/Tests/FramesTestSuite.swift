@@ -4194,6 +4194,18 @@ public enum FramesTestSuite {
         let pointerHost = NSHostingView(rootView: testPointerContent)
         assertTest("PointerCursor Preserves Native Control Behavior", condition: pointerHost.fittingSize.width >= 0)
 
+        let testSlider = Slider(value: .constant(0.5)).pointingHand()
+        let sliderHost = NSHostingView(rootView: testSlider)
+        assertTest("Slider with pointingHand mounts operable", condition: sliderHost.fittingSize.width >= 0)
+
+        let testToggle = Toggle("", isOn: .constant(true)).pointingHand()
+        let toggleHost = NSHostingView(rootView: testToggle)
+        assertTest("Toggle with pointingHand mounts operable", condition: toggleHost.fittingSize.width >= 0)
+
+        let testButton = Button("Action") {}.pointingHand()
+        let buttonHost = NSHostingView(rootView: testButton)
+        assertTest("Button with pointingHand mounts operable", condition: buttonHost.fittingSize.width >= 0)
+
         // 5. Dashboard Top Bar Geometry & Hit Targets
         let wmState = WindowManager.shared
         let savedFs = wmState.isNativeFullscreen
