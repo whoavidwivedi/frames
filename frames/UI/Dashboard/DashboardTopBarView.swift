@@ -65,6 +65,7 @@ public struct DashboardTopBarView: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .pointingHand()
                     .help("Toggle Sidebar (⌘B)")
                     .onHover { h in
                         hoveredButton = h ? .sidebar : nil
@@ -86,6 +87,7 @@ public struct DashboardTopBarView: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .pointingHand()
                     .disabled(!library.canGoBack)
                     .help("Back (⌘[)")
                     .onHover { h in
@@ -109,6 +111,7 @@ public struct DashboardTopBarView: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .pointingHand()
                         .disabled(!library.canGoForward)
                         .help("Forward (⌘])")
                         .onHover { h in
@@ -133,6 +136,7 @@ public struct DashboardTopBarView: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .pointingHand()
                     .help("Search Videos & Commands (⌘K, ⌘F)")
                     .onHover { h in
                         hoveredButton = h ? .search : nil
@@ -265,6 +269,7 @@ public struct DashboardTopBarView: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .pointingHand()
                         .contextMenu {
                             ForEach(SortOption.allCases) { opt in
                                 Button {
@@ -304,6 +309,7 @@ public struct DashboardTopBarView: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .pointingHand()
                         .animation(.snappy(duration: 0.18), value: library.viewMode)
                         .help(library.viewMode == .grid ? "Switch to List View" : "Switch to Grid View")
                         .onHover { h in
@@ -343,6 +349,7 @@ public struct DashboardTopBarView: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .pointingHand()
                         .help("Update Available: \(updateManager.availableUpdate?.tagName ?? "")")
                         .transition(.opacity.combined(with: .scale(scale: 0.9)))
                     }
@@ -366,6 +373,7 @@ public struct DashboardTopBarView: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .pointingHand()
                     .animation(.snappy(duration: 0.2), value: themeManager.isDark)
                     .help(themeManager.isDark ? "Switch to Light Mode" : "Switch to Dark Mode")
                     .onHover { h in

@@ -149,6 +149,7 @@ public struct LiquidGlassHUD: View {
                         )
                         .frame(width: 60)
                         .tint(ShadcnTheme.primary)
+                        .pointingHand()
                         .accessibilityLabel("Volume")
                         .accessibilityValue("\(Int(engine.volume * 100))%")
                     }

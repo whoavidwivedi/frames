@@ -1,13 +1,34 @@
 import SwiftUI
 import AppKit
 
+// MARK: - Pointing Hand Mouse Cursor Modifier
+
 public struct PointerCursorModifier: ViewModifier {
+    @State private var isHovering = false
+
     public init() {}
 
     public func body(content: Content) -> some View {
-        // macOS HIG Compliance: Standard interactive controls maintain the standard arrow cursor.
-        // Hyperlink hand cursor on UI controls is a web convention that violates macOS HIG.
         content
+            .onHover { hovering in
+                if hovering {
+                    if !isHovering {
+                        isHovering = true
+                        NSCursor.pointingHand.push()
+                    }
+                } else {
+                    if isHovering {
+                        isHovering = false
+                        NSCursor.pop()
+                    }
+                }
+            }
+            .onDisappear {
+                if isHovering {
+                    isHovering = false
+                    NSCursor.pop()
+                }
+            }
     }
 }
 
