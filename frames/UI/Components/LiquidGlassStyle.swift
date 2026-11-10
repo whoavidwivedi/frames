@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 
-// MARK: - Dual-Mode Liquid Glass (macOS Material + Shadcn b3lnoM3QO Tokens)
+// MARK: - Dual-Mode Liquid Glass (macOS Material + Shadcn b1VlK05Q Tokens)
 public struct LiquidGlassCardModifier: ViewModifier {
     public var cornerRadius: CGFloat = ShadcnTheme.radiusLg
     public var padding: CGFloat = 12

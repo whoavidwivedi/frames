@@ -101,7 +101,7 @@ func dynamicColor(
     })
 }
 
-// MARK: - Shadcn Design Tokens: Preset `b3lnoM3QO` (base-luma + neutral, dual-mode)
+// MARK: - Shadcn Design Tokens: Preset `b1VlK05Q` (base-luma + neutral theme + pointer, dual-mode)
 public enum ShadcnTheme {
     // MARK: - Background Surfaces (Neutral Base)
     /// Light: oklch(1 0 0) -> #ffffff | Dark: oklch(0.145 0 0) -> #0a0a0a
@@ -180,38 +180,41 @@ public enum ShadcnTheme {
 
     /// Focus ring
     public static let ring: Color = dynamicColor(
-        light: (0.63, 0.63, 0.63, 1.0),
-        dark: (0.452, 0.452, 0.452, 1.0)
+        light: (0.708, 0.708, 0.708, 1.0),
+        dark: (0.556, 0.556, 0.556, 1.0)
     )
 
-    // MARK: - Primary & Brand Highlights (Luma Terracotta & Copper)
-    /// Light: oklch(0.553 0.195 38.402) -> #ca3500 | Dark: oklch(0.47 0.157 37.304) -> #9f2d00
+    // MARK: - Primary & Brand Highlights (Preset b1VlK05Q: Monochrome Neutral)
+    /// Light: oklch(0.205 0 0) -> #171717 | Dark: oklch(0.985 0 0) -> #fafafa
     public static let primary: Color = dynamicColor(
-        light: (0.792, 0.207, 0.0, 1.0),
-        dark: (0.624, 0.177, 0.0, 1.0)
+        light: (0.091, 0.091, 0.091, 1.0),
+        dark: (0.980, 0.980, 0.980, 1.0)
     )
 
-    /// Light: oklch(0.98 0.016 73.684) -> #fff7ed | Dark: oklch(0.98 0.016 73.684) -> #fff7ed
-    public static let primaryForeground: Color = Color(red: 1.0, green: 0.969, blue: 0.929)
+    /// Light: oklch(0.985 0 0) -> #fafafa | Dark: oklch(0.205 0 0) -> #171717
+    public static let primaryForeground: Color = dynamicColor(
+        light: (0.980, 0.980, 0.980, 1.0),
+        dark: (0.091, 0.091, 0.091, 1.0)
+    )
 
-    /// Light: oklch(0.646 0.222 41.116) -> #f54900 | Dark: oklch(0.705 0.213 47.604) -> #ff6900
+    /// Light: oklch(0.145 0 0) -> #0a0a0a | Dark: oklch(1 0 0) -> #ffffff
     public static let primaryHighlight: Color = dynamicColor(
-        light: (0.961, 0.288, 0.0, 1.0),
-        dark: (1.0, 0.411, 0.0, 1.0)
+        light: (0.039, 0.039, 0.039, 1.0),
+        dark: (1.0, 1.0, 1.0, 1.0)
     )
 
     /// Secondary container
-    /// Light: oklch(0.967 0.001 286.375) -> #f4f4f5 | Dark: oklch(0.274 0.006 286.033) -> #27272a
+    /// Light: oklch(0.97 0 0) -> #f5f5f5 | Dark: oklch(0.269 0 0) -> #262626
     public static let secondary: Color = dynamicColor(
-        light: (0.956, 0.956, 0.959, 1.0),
-        dark: (0.153, 0.153, 0.166, 1.0)
+        light: (0.961, 0.961, 0.961, 1.0),
+        dark: (0.149, 0.149, 0.149, 1.0)
     )
 
     /// Secondary text
-    /// Light: oklch(0.21 0.006 285.885) -> #18181b | Dark: oklch(0.985 0 0) -> #fafafa
+    /// Light: oklch(0.205 0 0) -> #171717 | Dark: oklch(0.985 0 0) -> #fafafa
     public static let secondaryForeground: Color = dynamicColor(
-        light: (0.094, 0.094, 0.106, 1.0),
-        dark: (0.98, 0.98, 0.98, 1.0)
+        light: (0.091, 0.091, 0.091, 1.0),
+        dark: (0.980, 0.980, 0.980, 1.0)
     )
 
     /// Muted / Accent
