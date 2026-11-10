@@ -147,10 +147,10 @@ public enum ShadcnTheme {
         dark: (0.63, 0.63, 0.63, 1.0)
     )
 
-    /// Light: #8e8e8e | Dark: oklch(0.556 0 0) -> #737373
+    /// Light: #616161 (contrast ratio ~5.8:1 against #ffffff) | Dark: #adadad (contrast ratio ~6.5:1 against #0a0a0a)
     public static let foregroundMuted = dynamicColor(
-        light: (0.55, 0.55, 0.55, 1.0),
-        dark: (0.452, 0.452, 0.452, 1.0)
+        light: (0.38, 0.38, 0.38, 1.0),
+        dark: (0.68, 0.68, 0.68, 1.0)
     )
 
     // MARK: - Borders & Outlines

@@ -23,7 +23,6 @@ public struct LiquidGlassHUD: View {
             CustomScrubber(engine: engine)
                 .frame(height: 24)
                 .padding(.horizontal, 16)
-                .pointingHand()
 
             // Primary Playback Controls Dock
             HStack(spacing: isNarrow ? 8 : 12) {
@@ -47,16 +46,25 @@ public struct LiquidGlassHUD: View {
                             )
                     }
                     .buttonStyle(.plain)
-                    .pointingHand()
+                    .accessibilityLabel(engine.isPlaying ? "Pause" : (engine.hasEnded ? "Replay" : "Play"))
+                    .accessibilityHint("Toggles video playback")
                     .help(engine.isPlaying ? "Pause (Space)" : (engine.hasEnded ? "Replay (Space)" : "Play (Space)"))
 
                     // Skip -10s
-                    dockedButton(icon: "gobackward.10", help: "Skip back 10s (← or J)") {
+                    dockedButton(
+                        icon: "gobackward.10",
+                        help: "Skip back 10s (← or J)",
+                        accessibilityLabel: "Skip backward 10 seconds"
+                    ) {
                         engine.skip(seconds: -10)
                     }
 
                     // Skip +10s
-                    dockedButton(icon: "goforward.10", help: "Skip forward 10s (→ or L)") {
+                    dockedButton(
+                        icon: "goforward.10",
+                        help: "Skip forward 10s (→ or L)",
+                        accessibilityLabel: "Skip forward 10 seconds"
+                    ) {
                         engine.skip(seconds: 10)
                     }
 
@@ -83,7 +91,8 @@ public struct LiquidGlassHUD: View {
                                 )
                         }
                         .buttonStyle(.plain)
-                        .pointingHand()
+                        .accessibilityLabel(engine.isMuted ? "Unmute" : "Mute")
+                        .accessibilityValue("\(Int(engine.volume * 100))%")
                         .help(isNarrow ? "Volume Slider" : (engine.isMuted ? "Unmute (M)" : "Mute (M)"))
                         .popover(isPresented: $showVolumePopover) {
                             VStack(spacing: 8) {
@@ -108,6 +117,8 @@ public struct LiquidGlassHUD: View {
                                 )
                                 .frame(width: 120)
                                 .tint(Color.white)
+                                .accessibilityLabel("Volume")
+                                .accessibilityValue("\(Int(engine.volume * 100))%")
 
                                 Button(engine.isMuted ? "Unmute" : "Mute") {
                                     engine.toggleMute()
@@ -136,7 +147,8 @@ public struct LiquidGlassHUD: View {
                             )
                             .frame(width: 58)
                             .tint(Color.white)
-                            .pointingHand()
+                            .accessibilityLabel("Volume")
+                            .accessibilityValue("\(Int(engine.volume * 100))%")
                         }
                     }
 
@@ -155,7 +167,8 @@ public struct LiquidGlassHUD: View {
                     // Picture-in-Picture Toggle
                     dockedButton(
                         icon: PictureInPictureManager.shared.isPictureInPicture ? "pip.exit" : "pip.enter",
-                        help: PictureInPictureManager.shared.isPictureInPicture ? "Exit Picture in Picture" : "Enter Picture in Picture (P)"
+                        help: PictureInPictureManager.shared.isPictureInPicture ? "Exit Picture in Picture" : "Enter Picture in Picture (P)",
+                        accessibilityLabel: PictureInPictureManager.shared.isPictureInPicture ? "Exit Picture in Picture" : "Enter Picture in Picture"
                     ) {
                         PictureInPictureManager.shared.toggle(engine: engine)
                     }
@@ -163,7 +176,8 @@ public struct LiquidGlassHUD: View {
                     // Native Fullscreen Toggle
                     dockedButton(
                         icon: windowManager.isNativeFullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right",
-                        help: windowManager.isNativeFullscreen ? "Exit Fullscreen (Esc)" : "Enter Fullscreen (F)"
+                        help: windowManager.isNativeFullscreen ? "Exit Fullscreen (Esc)" : "Enter Fullscreen (F)",
+                        accessibilityLabel: windowManager.isNativeFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"
                     ) {
                         windowManager.toggleNativeFullscreen()
                     }
@@ -246,7 +260,8 @@ public struct LiquidGlassHUD: View {
             )
         }
         .buttonStyle(.plain)
-        .pointingHand()
+        .accessibilityLabel("Audio track")
+        .accessibilityValue(audioButtonLabel)
         .onHover { isAudioHovered = $0 }
         .help(isOpen ? "Close Audio Settings" : "Select Audio Track & Channels")
     }
@@ -288,7 +303,8 @@ public struct LiquidGlassHUD: View {
             )
         }
         .buttonStyle(.plain)
-        .pointingHand()
+        .accessibilityLabel("Subtitles")
+        .accessibilityValue(subTitle)
         .onHover { isSubtitlesHovered = $0 }
         .help(isOpen ? "Close Subtitle Settings" : "Subtitles, Captions & Timing")
     }
@@ -319,12 +335,13 @@ public struct LiquidGlassHUD: View {
                 )
         }
         .buttonStyle(.plain)
-        .pointingHand()
+        .accessibilityLabel("Playback speed")
+        .accessibilityValue(Self.formatRate(engine.playbackRate))
         .onHover { isSpeedHovered = $0 }
         .help(isOpen ? "Close Speed Settings" : "Playback Speed")
     }
 
-    private func dockedButton(icon: String, help: String, action: @escaping () -> Void) -> some View {
+    private func dockedButton(icon: String, help: String, accessibilityLabel: String? = nil, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: 12, weight: .medium))
@@ -340,8 +357,8 @@ public struct LiquidGlassHUD: View {
                 )
         }
         .buttonStyle(.plain)
-        .pointingHand()
         .help(help)
+        .accessibilityLabel(accessibilityLabel ?? help)
     }
 
     private func openExternalSubtitlePicker() {
@@ -364,21 +381,32 @@ public struct LiquidGlassHUD: View {
 // MARK: - Decoupled Playback Time Display
 public struct PlaybackTimeDisplay: View {
     public let clockStore: PlaybackClockStore
+    @State private var showRemainingTime: Bool = false
 
     public init(clockStore: PlaybackClockStore) {
         self.clockStore = clockStore
     }
 
     public var body: some View {
-        HStack(spacing: 4) {
-            Text(TimeFormatting.format(seconds: clockStore.currentTime))
-                .foregroundStyle(Color.white)
-            Text("/")
-                .foregroundStyle(Color.white.opacity(0.45))
-            Text(TimeFormatting.format(seconds: clockStore.duration))
-                .foregroundStyle(Color.white.opacity(0.75))
+        Button {
+            showRemainingTime.toggle()
+        } label: {
+            HStack(spacing: 4) {
+                Text(TimeFormatting.format(seconds: clockStore.currentTime))
+                    .foregroundStyle(Color.white)
+                Text("/")
+                    .foregroundStyle(Color.white.opacity(0.45))
+                Text(showRemainingTime
+                    ? "-\(TimeFormatting.format(seconds: max(0, clockStore.duration - clockStore.currentTime)))"
+                    : TimeFormatting.format(seconds: clockStore.duration))
+                    .foregroundStyle(Color.white.opacity(0.75))
+            }
+            .font(.system(size: 11, weight: .medium, design: .monospaced))
+            .padding(.leading, 4)
         }
-        .font(.system(size: 11, weight: .medium, design: .monospaced))
-        .padding(.leading, 4)
+        .buttonStyle(.plain)
+        .help(showRemainingTime ? "Click to show duration" : "Click to show remaining time")
+        .accessibilityLabel(showRemainingTime ? "Remaining time display" : "Playback time display")
+        .accessibilityValue("\(TimeFormatting.format(seconds: clockStore.currentTime)) of \(TimeFormatting.format(seconds: clockStore.duration))")
     }
 }

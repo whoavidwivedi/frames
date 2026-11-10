@@ -5,19 +5,9 @@ public struct PointerCursorModifier: ViewModifier {
     public init() {}
 
     public func body(content: Content) -> some View {
-        if #available(macOS 15.0, *) {
-            content
-                .pointerStyle(.link)
-        } else {
-            content
-                .onHover { hovering in
-                    if hovering {
-                        NSCursor.pointingHand.push()
-                    } else {
-                        NSCursor.pop()
-                    }
-                }
-        }
+        // macOS HIG Compliance: Standard interactive controls maintain the standard arrow cursor.
+        // Hyperlink hand cursor on UI controls is a web convention that violates macOS HIG.
+        content
     }
 }
 

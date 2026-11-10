@@ -80,15 +80,16 @@ nonisolated public final class VideoToolboxDecoder: @unchecked Sendable {
     
     public func invalidate() {
         frameLock.lock()
-        defer { frameLock.unlock() }
-        
         sessionGeneration &+= 1
-        if let s = session {
+        let s = session
+        session = nil
+        bufferedFrames.removeAll()
+        frameLock.unlock()
+        
+        if let s = s {
             VTDecompressionSessionWaitForAsynchronousFrames(s)
             VTDecompressionSessionInvalidate(s)
-            session = nil
         }
-        bufferedFrames.removeAll()
     }
     
     public func flush() {

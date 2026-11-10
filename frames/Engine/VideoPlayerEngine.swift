@@ -159,6 +159,7 @@ public final class VideoPlayerEngine {
     private var bufferingTimer: Timer?
     private let securityBox = SecurityScopedBox()
     private var loadGeneration: UInt = 0
+    private var seekGeneration: UInt = 0
     private var pendingInitialSeekTime: Double?
 
     private func updateBufferingStatus(_ isWaiting: Bool) {
@@ -203,6 +204,9 @@ public final class VideoPlayerEngine {
 
         PictureInPictureManager.shared.exitPictureInPicture()
         loadGeneration &+= 1
+        seekGeneration &+= 1
+        isSeekInProgress = false
+        chaseTime = .zero
         clearPlayerItemObservers()
 
         if isNativePipelineActive {
@@ -219,6 +223,7 @@ public final class VideoPlayerEngine {
         currentTime = 0.0
         lastSyncTime = 0.0
         lastSyncDate = Date()
+        displayTime = 0.0
         duration = 0.0
         isPlaying = false
         isBuffering = false
@@ -418,8 +423,21 @@ public final class VideoPlayerEngine {
     }
 
     public func seek(to seconds: Double, exact: Bool = false) {
+        // Guard against NaN, positive infinity, and negative infinity
+        guard seconds.isFinite else { return }
+
+        // If no media is loaded and native pipeline is inactive, clamp to zero and exit
+        guard currentURL != nil || isNativePipelineActive else {
+            currentTime = 0.0
+            lastSyncTime = 0.0
+            lastSyncDate = Date()
+            displayTime = 0.0
+            return
+        }
+
         hasEnded = false
-        let clamped = max(0.0, min(seconds, duration > 0 ? duration : seconds))
+        let effectiveDuration = duration > 0 ? duration : (metadata.duration > 0 ? metadata.duration : 0.0)
+        let clamped = effectiveDuration > 0 ? max(0.0, min(seconds, effectiveDuration)) : max(0.0, seconds)
         currentTime = clamped
         lastSyncTime = clamped
         lastSyncDate = Date()
@@ -431,17 +449,27 @@ public final class VideoPlayerEngine {
         }
 
         let targetTime = CMTime(seconds: clamped, preferredTimescale: 600)
+        guard targetTime.isValid else { return }
         chaseTime = targetTime
+        seekGeneration &+= 1
+        let currentSeekGen = seekGeneration
+        let currentLoadGen = loadGeneration
 
         if exact {
             isSeekInProgress = false
-            player.seek(to: targetTime, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
+            player.seek(to: targetTime, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] finished in
                 Task { @MainActor [weak self] in
                     guard let self = self else { return }
-                    self.currentTime = clamped
-                    self.lastSyncTime = clamped
+                    guard finished,
+                          self.seekGeneration == currentSeekGen,
+                          self.loadGeneration == currentLoadGen,
+                          self.currentURL != nil,
+                          self.player.currentItem != nil else { return }
+                    let finalTime = self.duration > 0 ? min(clamped, self.duration) : clamped
+                    self.currentTime = finalTime
+                    self.lastSyncTime = finalTime
                     self.lastSyncDate = Date()
-                    self.displayTime = clamped
+                    self.displayTime = finalTime
                 }
             }
         } else {
@@ -451,15 +479,26 @@ public final class VideoPlayerEngine {
     }
 
     private func performChaseSeek() {
+        guard currentURL != nil, player.currentItem != nil else {
+            isSeekInProgress = false
+            return
+        }
         isSeekInProgress = true
         let seekTarget = chaseTime
+        let currentLoadGen = loadGeneration
         let tolerance = CMTime(seconds: 0.1, preferredTimescale: 600)
 
-        player.seek(to: seekTarget, toleranceBefore: tolerance, toleranceAfter: tolerance) { [weak self] _ in
+        player.seek(to: seekTarget, toleranceBefore: tolerance, toleranceAfter: tolerance) { [weak self] finished in
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
+                guard self.loadGeneration == currentLoadGen,
+                      self.currentURL != nil,
+                      self.player.currentItem != nil else {
+                    self.isSeekInProgress = false
+                    return
+                }
                 self.isSeekInProgress = false
-                if CMTimeCompare(seekTarget, self.chaseTime) != 0 {
+                if finished && CMTimeCompare(seekTarget, self.chaseTime) != 0 {
                     self.performChaseSeek()
                 }
             }
@@ -647,7 +686,10 @@ public final class VideoPlayerEngine {
         let interval = CMTime(seconds: 0.05, preferredTimescale: 600)
         timeObserverToken = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
             Task { @MainActor [weak self] in
-                guard let self = self, !self.isScrubbing else { return }
+                guard let self = self,
+                      !self.isScrubbing,
+                      self.currentURL != nil,
+                      self.player.currentItem != nil else { return }
                 let secs = time.seconds
                 if !secs.isNaN && !secs.isInfinite {
                     self.currentTime = secs
@@ -668,8 +710,14 @@ public final class VideoPlayerEngine {
                 guard let self = self else { return }
                 if playerItem.status == .readyToPlay {
                     let d = playerItem.duration.seconds
-                    if !d.isNaN && !d.isInfinite {
+                    if !d.isNaN && !d.isInfinite && d > 0 {
                         self.duration = d
+                        if self.currentTime > d {
+                            self.currentTime = d
+                            self.lastSyncTime = d
+                            self.lastSyncDate = Date()
+                            self.displayTime = d
+                        }
                     }
                     if self.isPlaying {
                         self.player.defaultRate = self.playbackRate
@@ -679,18 +727,25 @@ public final class VideoPlayerEngine {
                         let targetTime = seekTime
                         self.pendingInitialSeekTime = nil
                         let target = CMTime(seconds: targetTime, preferredTimescale: 600)
-                        self.player.seek(to: target, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
+                        let currentLoadGen = self.loadGeneration
+                        self.player.seek(to: target, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] finished in
                             Task { @MainActor [weak self] in
-                                self?.currentTime = targetTime
-                                self?.lastSyncTime = targetTime
-                                self?.lastSyncDate = Date()
+                                guard let self = self, finished,
+                                      self.loadGeneration == currentLoadGen,
+                                      self.currentURL != nil,
+                                      self.player.currentItem != nil else { return }
+                                self.currentTime = targetTime
+                                self.lastSyncTime = targetTime
+                                self.lastSyncDate = Date()
+                                self.displayTime = targetTime
                             }
                         }
                     }
                 } else if playerItem.status == .failed {
                     guard self.player.currentItem === playerItem else { return }
-                    if let url = self.currentURL, self.canUseNativeMatroskaPipeline(for: url) {
-                        self.startNativePipeline(url: url, initialSeekTime: self.pendingInitialSeekTime)
+                    if let url = self.currentURL, self.canFallbackToNativePipeline(for: url) {
+                        let resumeTime = (self.currentTime > 0) ? self.currentTime : self.pendingInitialSeekTime
+                        self.startNativePipeline(url: url, initialSeekTime: resumeTime)
                         return
                     }
                     self.isBuffering = false
@@ -730,6 +785,10 @@ public final class VideoPlayerEngine {
             NotificationCenter.default.removeObserver(endObserver)
         }
         itemDidPlayToEndObserver = nil
+    }
+
+    private func canFallbackToNativePipeline(for url: URL) -> Bool {
+        return PlaybackPipeline.isSupportedContainer(at: url)
     }
 
     private func canUseNativeMatroskaPipeline(for url: URL) -> Bool {
@@ -895,8 +954,11 @@ public final class VideoPlayerEngine {
 
         if let durationTime = try? await asset.load(.duration) {
             let secs = durationTime.seconds
-            if !secs.isNaN && !secs.isInfinite {
+            if !secs.isNaN && !secs.isInfinite && secs > 0 {
                 meta.duration = secs
+                if self.duration <= 0 {
+                    self.duration = secs
+                }
                 if meta.fileSize > 0 && secs > 0 {
                     meta.bitrate = Double(meta.fileSize * 8) / secs
                 }

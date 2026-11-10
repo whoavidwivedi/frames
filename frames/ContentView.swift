@@ -2,8 +2,9 @@ import SwiftUI
 import AVFoundation
 import AppKit
 
+@MainActor
 struct ContentView: View {
-    @State private var engine = VideoPlayerEngine()
+    var engine: VideoPlayerEngine
     @State private var library = LibraryManager.shared
     @State private var themeManager = ThemeManager.shared
     @State private var windowManager = WindowManager.shared
@@ -12,10 +13,20 @@ struct ContentView: View {
     @State private var hideControlsTimer: Timer?
     @State private var isTargetedForDrop: Bool = false
     @State private var lastControlsTimerReset = Date.distantPast
-    @State private var showSplash: Bool = true
+    @State private var showSplash: Bool = false
     @State private var pendingResumePrompt: ResumePromptData? = nil
     @State private var updateManager = UpdateManager.shared
     @State private var settings = SettingsManager.shared
+
+    @MainActor
+    init(engine: VideoPlayerEngine) {
+        self.engine = engine
+    }
+
+    @MainActor
+    init() {
+        self.engine = VideoPlayerEngine()
+    }
 
     var body: some View {
         ZStack {
@@ -297,9 +308,46 @@ struct ContentView: View {
                 .zIndex(150)
             }
 
+            // Non-Destructive Settings Modal Overlay during Video Playback
+            if settings.isSettingsPresented && engine.currentURL != nil {
+                ZStack {
+                    Color.black.opacity(0.55)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            withAnimation(.fluidSpring) {
+                                settings.closeSettings()
+                            }
+                        }
 
+                    VStack(spacing: 0) {
+                        HStack {
+                            Spacer()
+                            Button {
+                                settings.closeSettings()
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 16))
+                                    .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.trailing, 16)
+                            .padding(.top, 12)
+                        }
 
-            // Update Available Modal Dialog
+                        SettingsView()
+                    }
+                    .frame(maxWidth: 820, maxHeight: 560)
+                    .background(ShadcnTheme.background)
+                    .clipShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusLg, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: ShadcnTheme.radiusLg, style: .continuous)
+                            .strokeBorder(ShadcnTheme.border, lineWidth: 1)
+                    )
+                    .shadow(color: Color.black.opacity(0.4), radius: 24, x: 0, y: 12)
+                }
+                .zIndex(140)
+                .transition(.opacity.combined(with: .scale(scale: 0.96)))
+            }
             if updateManager.isUpdatePromptPresented, let update = updateManager.availableUpdate {
                 UpdateAvailableOverlay(
                     update: update,
@@ -363,6 +411,12 @@ struct ContentView: View {
             if hasEnded {
                 returnToDashboard()
             }
+        }
+        .onChange(of: engine.metadata.title) { _, _ in
+            updateWindowRepresentation(for: engine.currentURL)
+        }
+        .onChange(of: engine.currentURL) { _, newURL in
+            updateWindowRepresentation(for: newURL)
         }
         .onAppear {
             keyboardHandler = KeyboardHandler(engine: engine)
@@ -440,6 +494,7 @@ struct ContentView: View {
     private func playVideo(url: URL, seekTo: Double = 0.0) {
         library.addSingleVideoFile(url: url)
         engine.loadMedia(from: url, initialSeekTime: seekTo > 0 ? seekTo : nil)
+        updateWindowRepresentation(for: url)
     }
 
     private func returnToDashboard() {
@@ -450,9 +505,22 @@ struct ContentView: View {
         }
         hideControlsTimer?.invalidate()
         NSCursor.setHiddenUntilMouseMoves(false)
+        updateWindowRepresentation(for: nil)
         withAnimation(.fluidSpring) {
             engine.controlsVisible = true
             engine.unloadMedia()
+        }
+    }
+
+    private func updateWindowRepresentation(for url: URL?) {
+        guard let window = NSApp.keyWindow ?? NSApp.mainWindow ?? NSApp.windows.first(where: { $0.canBecomeMain }) else { return }
+        if let url = url {
+            let displayName = engine.metadata.title.isEmpty ? url.lastPathComponent : engine.metadata.title
+            window.title = displayName
+            window.representedURL = url
+        } else {
+            window.title = "Frames"
+            window.representedURL = nil
         }
     }
 

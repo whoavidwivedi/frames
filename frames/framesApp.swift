@@ -7,20 +7,29 @@ extension Notification.Name {
     public static let returnToDashboardNotification = Notification.Name("FramesReturnToDashboardNotification")
     public static let toggleCommandPaletteNotification = Notification.Name("FramesToggleCommandPaletteNotification")
     public static let requestOpenFilePickerNotification = Notification.Name("FramesRequestOpenFilePickerNotification")
+    public static let triggerSnapshotNotification = Notification.Name("FramesTriggerSnapshotNotification")
 }
 
 @main
 struct framesApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @State private var engine = VideoPlayerEngine()
 
     init() {
+        UserDefaults.standard.register(defaults: [
+            "NSQuitAlwaysKeepsWindows": false,
+            "ApplePersistenceIgnoreState": true
+        ])
         NSWindow.allowsAutomaticWindowTabbing = false
         ThemeManager.shared.applyAppearance()
     }
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(engine: engine)
+                .onOpenURL { url in
+                    NotificationCenter.default.post(name: .openVideoNotification, object: url)
+                }
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 980, height: 620)
@@ -44,10 +53,146 @@ struct framesApp: App {
                 }
                 .keyboardShortcut("o", modifiers: .command)
 
+                Menu("Open Recent") {
+                    let recentVideos = LibraryManager.shared.videos.filter { $0.lastPlayedDate != nil }
+                    if recentVideos.isEmpty {
+                        Text("No Recent Videos")
+                    } else {
+                        ForEach(recentVideos) { video in
+                            Button(video.title) {
+                                NotificationCenter.default.post(name: .openVideoNotification, object: video.url)
+                            }
+                        }
+                        Divider()
+                        Button("Clear Menu") {
+                            SettingsManager.shared.clearWatchHistory()
+                        }
+                    }
+                }
+
+                Divider()
+
+                Button("Save Frame Snapshot") {
+                    NotificationCenter.default.post(
+                        name: .triggerSnapshotNotification,
+                        object: nil
+                    )
+                    if let currentURL = engine.currentURL {
+                        do {
+                            let metadata = try FrameCaptureEngine.shared.saveFrame(
+                                pixelBuffer: nil,
+                                videoTitle: currentURL.deletingPathExtension().lastPathComponent,
+                                timestampSeconds: engine.currentTime
+                            )
+                            NotificationCenter.default.post(
+                                name: Notification.Name("FramesSnapshotCapturedNotification"),
+                                object: metadata
+                            )
+                        } catch {
+                            print("Frame capture error: \(error)")
+                        }
+                    }
+                }
+                .keyboardShortcut("s", modifiers: .command)
+                .disabled(engine.currentURL == nil)
+
                 Button("Close Window") {
                     NSApp.keyWindow?.performClose(nil)
                 }
                 .keyboardShortcut("w", modifiers: .command)
+            }
+
+            CommandMenu("Playback") {
+                Button(engine.isPlaying ? "Pause" : (engine.hasEnded ? "Replay" : "Play")) {
+                    engine.togglePlayPause()
+                }
+                .keyboardShortcut(.space, modifiers: [])
+                .disabled(engine.currentURL == nil)
+
+                Divider()
+
+                Button("Skip Forward 10s") {
+                    engine.skip(seconds: 10)
+                }
+                .keyboardShortcut(.rightArrow, modifiers: [])
+                .disabled(engine.currentURL == nil)
+
+                Button("Skip Backward 10s") {
+                    engine.skip(seconds: -10)
+                }
+                .keyboardShortcut(.leftArrow, modifiers: [])
+                .disabled(engine.currentURL == nil)
+
+                Button("Next Frame") {
+                    engine.stepFrame(forward: true)
+                }
+                .keyboardShortcut(".", modifiers: [])
+                .disabled(engine.currentURL == nil)
+
+                Button("Previous Frame") {
+                    engine.stepFrame(forward: false)
+                }
+                .keyboardShortcut(",", modifiers: [])
+                .disabled(engine.currentURL == nil)
+
+                Divider()
+
+                Button("Faster") {
+                    engine.playbackRate = min(3.0, ((engine.playbackRate + 0.1) * 10).rounded() / 10)
+                }
+                .keyboardShortcut("]", modifiers: [])
+                .disabled(engine.currentURL == nil)
+
+                Button("Slower") {
+                    engine.playbackRate = max(0.25, ((engine.playbackRate - 0.1) * 10).rounded() / 10)
+                }
+                .keyboardShortcut("[", modifiers: [])
+                .disabled(engine.currentURL == nil)
+
+                Button("Normal Speed (1.0×)") {
+                    engine.playbackRate = 1.0
+                }
+                .disabled(engine.currentURL == nil)
+
+                Divider()
+
+                Button("Volume Up") {
+                    engine.setVolumeDelta(0.05)
+                }
+                .keyboardShortcut(.upArrow, modifiers: [])
+
+                Button("Volume Down") {
+                    engine.setVolumeDelta(-0.05)
+                }
+                .keyboardShortcut(.downArrow, modifiers: [])
+
+                Button(engine.isMuted ? "Unmute" : "Mute") {
+                    engine.toggleMute()
+                }
+                .keyboardShortcut("m", modifiers: [])
+
+                Divider()
+
+                Menu("Subtitles") {
+                    Button("Off") {
+                        engine.selectSubtitleTrack(SubtitleTrack.off)
+                    }
+                    ForEach(engine.availableSubtitleTracks.filter { $0.id != SubtitleTrack.off.id }) { track in
+                        Button(track.title) {
+                            engine.selectSubtitleTrack(track)
+                        }
+                    }
+                }
+                .disabled(engine.currentURL == nil)
+
+                Menu("Audio Track") {
+                    ForEach(engine.availableAudioTracks) { track in
+                        Button(track.title) {
+                            engine.selectAudioTrack(track)
+                        }
+                    }
+                }
+                .disabled(engine.currentURL == nil)
             }
 
             CommandMenu("View") {
@@ -55,6 +200,25 @@ struct framesApp: App {
                     LibraryManager.shared.toggleSidebar()
                 }
                 .keyboardShortcut("b", modifiers: .command)
+
+                Divider()
+
+                Button(WindowManager.shared.isAnyFullscreen ? "Exit Full Screen" : "Enter Full Screen") {
+                    WindowManager.shared.toggleNativeFullscreen()
+                }
+                .keyboardShortcut("f", modifiers: [.control, .command])
+
+                Button(PictureInPictureManager.shared.isPictureInPicture ? "Exit Picture in Picture" : "Picture in Picture") {
+                    PictureInPictureManager.shared.toggle(engine: engine)
+                }
+                .keyboardShortcut("p", modifiers: [])
+                .disabled(engine.currentURL == nil)
+
+                Button("Hardware Metrics Inspector") {
+                    engine.activeInspectorSheet = (engine.activeInspectorSheet == .stats ? nil : .stats)
+                }
+                .keyboardShortcut("i", modifiers: .command)
+                .disabled(engine.currentURL == nil)
 
                 Divider()
 
@@ -122,6 +286,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             exit(result.failed == 0 ? 0 : 1)
         }
 
+        if let smokeIndex = CommandLine.arguments.firstIndex(of: "--smoke-test") {
+            var mediaURL: URL? = nil
+            if smokeIndex + 1 < CommandLine.arguments.count {
+                let candidate = CommandLine.arguments[smokeIndex + 1]
+                if !candidate.hasPrefix("-") {
+                    let url = URL(fileURLWithPath: candidate)
+                    var isDir: ObjCBool = false
+                    if !FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) || isDir.boolValue {
+                        print("✖ ERROR: Specified smoke test media file not found or is a directory: \(candidate)")
+                        fflush(stdout)
+                        exit(1)
+                    }
+                    mediaURL = url
+                }
+            }
+            let result = FramesTestSuite.runSmokeTest(mediaURL: mediaURL)
+            for line in result.logs {
+                print(line)
+            }
+            fflush(stdout)
+            exit(result.passed ? 0 : 1)
+        }
+
         if let mainMenu = NSApp.mainMenu {
             Self.cleanTabBarMenuItems(from: mainMenu)
         }
@@ -171,6 +358,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }
+    }
+
+    func application(_ sender: NSApplication, openFile filename: String) -> Bool {
+        let url = URL(fileURLWithPath: filename)
+        NotificationCenter.default.post(name: .openVideoNotification, object: url)
+        return true
+    }
+
+    func application(_ sender: NSApplication, openFiles filenames: [String]) {
+        guard let first = filenames.first else { return }
+        let url = URL(fileURLWithPath: first)
+        NotificationCenter.default.post(name: .openVideoNotification, object: url)
+        sender.reply(toOpenOrPrint: .success)
     }
 
     private static let tabActionSelectors: Set<String> = [
