@@ -1,7 +1,53 @@
 import SwiftUI
 import AppKit
 
-// MARK: - Reusable Settings Card Container
+// MARK: - Color Panel Presenter for Seamless Native AppKit Integration
+
+@MainActor
+public final class ColorPanelPresenter: NSObject {
+    public static let shared = ColorPanelPresenter()
+    private var onColorChanged: ((Color) -> Void)?
+
+    @objc private func colorDidChange(_ sender: NSColorPanel) {
+        let nsColor = sender.color
+        if let srgb = nsColor.usingColorSpace(.sRGB) ?? nsColor.usingColorSpace(.deviceRGB) {
+            let color = Color(
+                red: Double(srgb.redComponent),
+                green: Double(srgb.greenComponent),
+                blue: Double(srgb.blueComponent),
+                opacity: Double(srgb.alphaComponent)
+            )
+            onColorChanged?(color)
+        }
+    }
+
+    public func show(color: Color, onColorChanged: @escaping (Color) -> Void) {
+        self.onColorChanged = onColorChanged
+        let panel = NSColorPanel.shared
+        panel.setTarget(self)
+        panel.setAction(#selector(colorDidChange(_:)))
+
+        let nsColor = NSColor(color)
+        if let srgb = nsColor.usingColorSpace(.sRGB) ?? nsColor.usingColorSpace(.deviceRGB) {
+            panel.color = srgb
+        } else {
+            panel.color = nsColor
+        }
+
+        panel.isContinuous = true
+        panel.showsAlpha = false
+        panel.orderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    public func close() {
+        if NSColorPanel.shared.isVisible {
+            NSColorPanel.shared.orderOut(nil)
+        }
+    }
+}
+
+// MARK: - Reusable Shadcn Settings Card Container
 
 public struct SettingsSectionCard<Content: View>: View {
     public let title: String?
@@ -19,13 +65,14 @@ public struct SettingsSectionCard<Content: View>: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(ShadcnTheme.foregroundMuted)
                     .textCase(.uppercase)
+                    .tracking(0.5)
                     .padding(.leading, 2)
             }
 
             VStack(alignment: .leading, spacing: 14) {
                 content
             }
-            .padding(14)
+            .padding(16)
             .background(
                 RoundedRectangle(cornerRadius: ShadcnTheme.radiusLg, style: .continuous)
                     .fill(ShadcnTheme.card)
@@ -35,6 +82,18 @@ public struct SettingsSectionCard<Content: View>: View {
                     .strokeBorder(ShadcnTheme.border, lineWidth: 1)
             )
         }
+    }
+}
+
+// MARK: - Reusable Settings Divider
+
+public struct SettingsDivider: View {
+    public init() {}
+
+    public var body: some View {
+        Rectangle()
+            .fill(ShadcnTheme.borderSubtle)
+            .frame(height: 1)
     }
 }
 
@@ -52,13 +111,13 @@ public struct SettingsView: View {
             let availableWidth = proxy.size.width
             let isSplit = windowManager.isSplitScreen || windowManager.isQuarterScreen || windowManager.isCompact
             let isCompact = isSplit || availableWidth < 620
-            let isUltraNarrow = availableWidth < 420
+            let isUltraNarrow = availableWidth < 440
 
             VStack(spacing: 0) {
-                // Header Bar: Title + Tab Switcher Pills
-                HStack(spacing: 8) {
+                // Header Bar: Title + Shadcn Tab Switcher
+                HStack(spacing: 12) {
                     if !isUltraNarrow {
-                        HStack(spacing: 6) {
+                        HStack(spacing: 7) {
                             Image(systemName: "gearshape.fill")
                                 .font(.system(size: 13, weight: .semibold))
                                 .foregroundStyle(ShadcnTheme.foregroundSecondary)
@@ -75,7 +134,7 @@ public struct SettingsView: View {
 
                     Spacer(minLength: 4)
 
-                    // Tab Switcher Pills (optimized for wide, split view, and quarter view)
+                    // Shadcn Pill Tabs
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 3) {
                             ForEach(SettingsTab.allCases) { tab in
@@ -88,14 +147,14 @@ public struct SettingsView: View {
                                 } label: {
                                     HStack(spacing: 5) {
                                         Image(systemName: tab.icon)
-                                            .font(.system(size: 10.5, weight: .medium))
+                                            .font(.system(size: 11, weight: .medium))
 
                                         Text(tab.title)
                                             .font(.system(size: 11, weight: .medium))
                                             .fixedSize()
                                     }
-                                    .padding(.horizontal, 9)
-                                    .padding(.vertical, 4.5)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
                                     .foregroundStyle(isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
                                     .background(
                                         RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
@@ -115,15 +174,19 @@ public struct SettingsView: View {
                                 }
                             }
                         }
-                        .padding(2)
+                        .padding(3)
                         .background(
                             RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm + 2, style: .continuous)
-                                .fill(ShadcnTheme.secondary.opacity(0.4))
+                                .fill(ShadcnTheme.secondary.opacity(0.45))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm + 2, style: .continuous)
+                                        .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
+                                )
                         )
                     }
                 }
-                .padding(.horizontal, isCompact ? 12 : 16)
-                .padding(.vertical, 10)
+                .padding(.horizontal, isCompact ? 14 : 20)
+                .padding(.vertical, 11)
                 .background(ShadcnTheme.card)
 
                 Divider()
@@ -160,7 +223,6 @@ public struct GeneralSettingsTab: View {
     @State private var showClearConfirm = false
     @State private var historyClearedNotice = false
     @State private var windowManager = WindowManager.shared
-    @Namespace private var viewModeNamespace
 
     public init() {}
 
@@ -170,8 +232,8 @@ public struct GeneralSettingsTab: View {
             let isCompact = isSplit || proxy.size.width < 620
 
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 16) {
-                    // Section: Library & Presentation
+                VStack(alignment: .leading, spacing: 18) {
+                    // Section: Library & Layout
                     SettingsSectionCard("Library & Layout") {
                         if isCompact {
                             VStack(alignment: .leading, spacing: 8) {
@@ -202,9 +264,7 @@ public struct GeneralSettingsTab: View {
                             }
                         }
 
-                        Rectangle()
-                            .fill(ShadcnTheme.borderSubtle)
-                            .frame(height: 1)
+                        SettingsDivider()
 
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
@@ -312,7 +372,7 @@ public struct GeneralSettingsTab: View {
                         }
                     }
                 }
-                .padding(isCompact ? 12 : 18)
+                .padding(isCompact ? 14 : 20)
             }
         }
         .confirmationDialog(
@@ -396,7 +456,7 @@ public struct PlaybackSettingsTab: View {
             let isCompact = isSplit || proxy.size.width < 620
 
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 18) {
                     // Hardware Acceleration
                     SettingsSectionCard("Apple Silicon Hardware Engine") {
                         HStack {
@@ -424,9 +484,7 @@ public struct PlaybackSettingsTab: View {
                                 .toggleStyle(.switch)
                         }
 
-                        Rectangle()
-                            .fill(ShadcnTheme.borderSubtle)
-                            .frame(height: 1)
+                        SettingsDivider()
 
                         VStack(alignment: .leading, spacing: 6) {
                             if isCompact {
@@ -503,9 +561,7 @@ public struct PlaybackSettingsTab: View {
                             }
                         }
 
-                        Rectangle()
-                            .fill(ShadcnTheme.borderSubtle)
-                            .frame(height: 1)
+                        SettingsDivider()
 
                         if isCompact {
                             VStack(alignment: .leading, spacing: 8) {
@@ -548,9 +604,7 @@ public struct PlaybackSettingsTab: View {
                             }
                         }
 
-                        Rectangle()
-                            .fill(ShadcnTheme.borderSubtle)
-                            .frame(height: 1)
+                        SettingsDivider()
 
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
@@ -576,19 +630,12 @@ public struct PlaybackSettingsTab: View {
                                     Text("Default Skip Interval")
                                         .font(.system(size: 13, weight: .medium))
                                         .foregroundStyle(ShadcnTheme.foreground)
-                                    Text("Seconds jumped when tapping Left / Right arrow keys (⇧ jumps 30s).")
+                                    Text("Seconds jumped when tapping Left / Right arrow keys (Shift jumps 30s).")
                                         .font(.system(size: 11))
                                         .foregroundStyle(ShadcnTheme.foregroundSecondary)
                                         .fixedSize(horizontal: false, vertical: true)
                                 }
-                                Picker("", selection: $settings.defaultSkipInterval) {
-                                    Text("5s").tag(5)
-                                    Text("10s").tag(10)
-                                    Text("15s").tag(15)
-                                    Text("30s").tag(30)
-                                }
-                                .pickerStyle(.segmented)
-                                .frame(width: 170, alignment: .leading)
+                                skipIntervalButtonsGroup
                             }
                         } else {
                             HStack(alignment: .center, spacing: 16) {
@@ -596,27 +643,60 @@ public struct PlaybackSettingsTab: View {
                                     Text("Default Skip Interval")
                                         .font(.system(size: 13, weight: .medium))
                                         .foregroundStyle(ShadcnTheme.foreground)
-                                    Text("Seconds jumped when tapping Left / Right arrow keys (⇧ jumps 30s).")
+                                    Text("Seconds jumped when tapping Left / Right arrow keys (Shift jumps 30s).")
                                         .font(.system(size: 11))
                                         .foregroundStyle(ShadcnTheme.foregroundSecondary)
                                         .fixedSize(horizontal: false, vertical: true)
                                 }
                                 Spacer(minLength: 16)
-                                Picker("", selection: $settings.defaultSkipInterval) {
-                                    Text("5s").tag(5)
-                                    Text("10s").tag(10)
-                                    Text("15s").tag(15)
-                                    Text("30s").tag(30)
-                                }
-                                .pickerStyle(.segmented)
-                                .frame(width: 170)
+                                skipIntervalButtonsGroup
                             }
                         }
                     }
                 }
-                .padding(isCompact ? 12 : 18)
+                .padding(isCompact ? 14 : 20)
             }
         }
+    }
+
+    private var skipIntervalButtonsGroup: some View {
+        HStack(spacing: 2) {
+            ForEach([5, 10, 15, 30], id: \.self) { seconds in
+                let isSelected = settings.defaultSkipInterval == seconds
+                Button {
+                    withAnimation(.snappy(duration: 0.15)) {
+                        settings.defaultSkipInterval = seconds
+                    }
+                } label: {
+                    Text("\(seconds)s")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .frame(width: 44, height: 26)
+                        .background(
+                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                .fill(isSelected ? ShadcnTheme.cardHover : Color.clear)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                        .strokeBorder(isSelected ? ShadcnTheme.border : Color.clear, lineWidth: 1)
+                                )
+                        )
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .pointingHand()
+            }
+        }
+        .padding(2.5)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(ShadcnTheme.secondary)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
+                )
+        )
     }
 }
 
@@ -646,7 +726,7 @@ public struct AudioSettingsTab: View {
             let isCompact = isSplit || proxy.size.width < 620
 
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 18) {
                     // Spatial Audio
                     SettingsSectionCard("Spatial Immersion") {
                         HStack {
@@ -727,7 +807,7 @@ public struct AudioSettingsTab: View {
                         }
                     }
                 }
-                .padding(isCompact ? 12 : 18)
+                .padding(isCompact ? 14 : 20)
             }
         }
     }
@@ -769,7 +849,7 @@ public struct SubtitlesSettingsTab: View {
             let isCompact = isSplit || proxy.size.width < 620
 
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 18) {
                     // 1. Cinematic Live Preview Stage
                     SettingsSectionCard("Cinematic Live Preview") {
                         VStack(alignment: .leading, spacing: 10) {
@@ -793,7 +873,7 @@ public struct SubtitlesSettingsTab: View {
                                     }
                                     .foregroundStyle(ShadcnTheme.foregroundSecondary)
                                     .padding(.horizontal, 8)
-                                    .padding(.vertical, 3.5)
+                                    .padding(.vertical, 4)
                                     .background(
                                         RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                                             .fill(ShadcnTheme.secondary)
@@ -863,7 +943,7 @@ public struct SubtitlesSettingsTab: View {
 
                                     Spacer()
 
-                                    // Subtitle Pill: Black Background, Green Text, ZERO BORDER
+                                    // Subtitle Pill: Pure Black Background, Green Text, ZERO BORDER
                                     Text(sampleLines[sampleCueIndex])
                                         .font(.system(size: max(13, CGFloat(settings.subtitleFontSize) * 0.85), weight: .semibold, design: .default))
                                         .foregroundStyle(settings.subtitleTextColor)
@@ -893,7 +973,6 @@ public struct SubtitlesSettingsTab: View {
 
                     // 2. Subtitle Typography & Text Color Card
                     SettingsSectionCard("Text Styling & Color") {
-                        // Color Swatches Row
                         VStack(alignment: .leading, spacing: 12) {
                             HStack {
                                 VStack(alignment: .leading, spacing: 2) {
@@ -909,13 +988,14 @@ public struct SubtitlesSettingsTab: View {
                             }
 
                             // Preset Palette Swatches & Custom Picker in Balanced Adaptive Grid
-                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 88, maximum: 130), spacing: 8)], spacing: 8) {
+                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 92, maximum: 135), spacing: 8)], spacing: 8) {
                                 ForEach(colorPresets) { preset in
                                     let isSelected = settings.subtitleTextColorHex.uppercased() == preset.hex.uppercased()
 
                                     Button {
                                         withAnimation(.snappy(duration: 0.15)) {
                                             settings.subtitleTextColorHex = preset.hex
+                                            ColorPanelPresenter.shared.close()
                                         }
                                     } label: {
                                         HStack(spacing: 6) {
@@ -944,39 +1024,60 @@ public struct SubtitlesSettingsTab: View {
                                     .pointingHand()
                                 }
 
-                                // Native Custom ColorPicker Pill
+                                // Native Custom Color Button (NO OVERLAPPING NSCOLORWELL)
                                 let isCustom = !colorPresets.contains { $0.hex.uppercased() == settings.subtitleTextColorHex.uppercased() }
-                                HStack(spacing: 6) {
-                                    ColorPicker("", selection: Binding(
-                                        get: { settings.subtitleTextColor },
-                                        set: { settings.subtitleTextColor = $0 }
-                                    ), supportsOpacity: false)
-                                    .labelsHidden()
-                                    .frame(width: 16, height: 16)
 
-                                    Text("Custom")
-                                        .font(.system(size: 11, weight: .medium))
-                                        .lineLimit(1)
+                                Button {
+                                    ColorPanelPresenter.shared.show(color: settings.subtitleTextColor) { newColor in
+                                        settings.subtitleTextColor = newColor
+                                    }
+                                } label: {
+                                    HStack(spacing: 6) {
+                                        if isCustom {
+                                            Circle()
+                                                .fill(settings.subtitleTextColor)
+                                                .frame(width: 12, height: 12)
+                                                .overlay(
+                                                    Circle()
+                                                        .strokeBorder(Color.white.opacity(0.25), lineWidth: 0.5)
+                                                )
+                                        } else {
+                                            AngularGradient(
+                                                gradient: Gradient(colors: [.red, .yellow, .green, .cyan, .blue, .purple, .red]),
+                                                center: .center
+                                            )
+                                            .frame(width: 12, height: 12)
+                                            .clipShape(Circle())
+                                            .overlay(
+                                                Circle()
+                                                    .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 0.5)
+                                            )
+                                        }
+
+                                        Text("Custom")
+                                            .font(.system(size: 11, weight: .medium))
+                                            .lineLimit(1)
+                                    }
+                                    .foregroundStyle(isCustom ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 28)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                            .fill(isCustom ? ShadcnTheme.cardHover : ShadcnTheme.secondary.opacity(0.35))
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                                    .strokeBorder(isCustom ? ShadcnTheme.border : ShadcnTheme.borderSubtle.opacity(0.5), lineWidth: 1)
+                                            )
+                                    )
+                                    .contentShape(Rectangle())
                                 }
-                                .foregroundStyle(isCustom ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 28)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                        .fill(isCustom ? ShadcnTheme.cardHover : ShadcnTheme.secondary.opacity(0.35))
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                                .strokeBorder(isCustom ? ShadcnTheme.border : ShadcnTheme.borderSubtle.opacity(0.5), lineWidth: 1)
-                                        )
-                                )
-                                .contentShape(Rectangle())
-                                .help("Choose custom color")
+                                .buttonStyle(.plain)
+                                .pointingHand()
+                                .help("Choose custom subtitle text color")
                             }
                         }
 
-                        Rectangle()
-                            .fill(ShadcnTheme.borderSubtle)
-                            .frame(height: 1)
+                        SettingsDivider()
 
                         // Font Size Stepper & Slider
                         VStack(alignment: .leading, spacing: 12) {
@@ -1141,9 +1242,7 @@ public struct SubtitlesSettingsTab: View {
                         }
 
                         if settings.liveCaptionsEnabled {
-                            Rectangle()
-                                .fill(ShadcnTheme.borderSubtle)
-                                .frame(height: 1)
+                            SettingsDivider()
 
                             if isCompact {
                                 VStack(alignment: .leading, spacing: 8) {
@@ -1186,9 +1285,7 @@ public struct SubtitlesSettingsTab: View {
                                 }
                             }
 
-                            Rectangle()
-                                .fill(ShadcnTheme.borderSubtle)
-                                .frame(height: 1)
+                            SettingsDivider()
 
                             HStack {
                                 VStack(alignment: .leading, spacing: 2) {
@@ -1207,7 +1304,7 @@ public struct SubtitlesSettingsTab: View {
                         }
                     }
                 }
-                .padding(isCompact ? 12 : 18)
+                .padding(isCompact ? 14 : 20)
             }
         }
     }
@@ -1256,11 +1353,9 @@ public struct SoftwareUpdatesSettingsCard: View {
                     .toggleStyle(.switch)
             }
 
-            Rectangle()
-                .fill(ShadcnTheme.borderSubtle)
-                .frame(height: 1)
+            SettingsDivider()
 
-            // 2. Beta & Canary Updates Toggle (stable layout without jumping badges)
+            // 2. Beta & Canary Updates Toggle
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Receive Beta & Canary Updates")
@@ -1281,16 +1376,12 @@ public struct SoftwareUpdatesSettingsCard: View {
                 .toggleStyle(.switch)
             }
 
-            Rectangle()
-                .fill(ShadcnTheme.borderSubtle)
-                .frame(height: 1)
+            SettingsDivider()
 
             // 3. Update Channel Selector
             channelSelectorRow(compact: compact)
 
-            Rectangle()
-                .fill(ShadcnTheme.borderSubtle)
-                .frame(height: 1)
+            SettingsDivider()
 
             // 4. Manual Update Check
             if compact {
@@ -1389,7 +1480,7 @@ public struct SoftwareUpdatesSettingsCard: View {
                 }
             }
         }
-        .padding(2)
+        .padding(2.5)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(ShadcnTheme.secondary)
@@ -1449,12 +1540,16 @@ private struct ChannelInfoBanner: View {
                 .foregroundStyle(ShadcnTheme.foregroundSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
         .frame(maxWidth: .infinity, minHeight: 34, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                .fill(accentColor.opacity(0.06))
+                .fill(accentColor.opacity(0.08))
+                .overlay(
+                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                        .strokeBorder(accentColor.opacity(0.20), lineWidth: 1)
+                )
         )
     }
 }
@@ -1474,7 +1569,7 @@ public struct AboutSettingsTab: View {
             let isCompact = isSplit || proxy.size.width < 620
 
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 18) {
                     // In-App OTA Updates
                     SoftwareUpdatesSettingsCard(isCompact: isCompact)
 
@@ -1528,19 +1623,17 @@ public struct AboutSettingsTab: View {
                             }
                         }
 
-                        Rectangle()
-                            .fill(ShadcnTheme.borderSubtle)
-                            .frame(height: 1)
+                        SettingsDivider()
 
-                        // Privacy Guarantee (Telemetry-free icon & refined presentation)
-                        HStack(alignment: .top, spacing: 10) {
+                        // Privacy Guarantee
+                        HStack(alignment: .top, spacing: 12) {
                             Image(systemName: "antenna.radiowaves.left.and.right.slash")
-                                .font(.system(size: 17, weight: .semibold))
+                                .font(.system(size: 15, weight: .semibold))
                                 .foregroundStyle(ShadcnTheme.primary)
-                                .frame(width: 24, height: 24)
+                                .frame(width: 28, height: 28)
                                 .background(
                                     RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                        .fill(ShadcnTheme.primary.opacity(0.1))
+                                        .fill(ShadcnTheme.primary.opacity(0.12))
                                 )
 
                             VStack(alignment: .leading, spacing: 2) {
@@ -1553,19 +1646,17 @@ public struct AboutSettingsTab: View {
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                         }
-                        .padding(10)
+                        .padding(12)
                         .background(
                             RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
-                                .fill(ShadcnTheme.secondary.opacity(0.35))
+                                .fill(ShadcnTheme.secondary.opacity(0.40))
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
                                 .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
                         )
 
-                        Rectangle()
-                            .fill(ShadcnTheme.borderSubtle)
-                            .frame(height: 1)
+                        SettingsDivider()
 
                         // Restore Defaults
                         if isCompact {
@@ -1612,7 +1703,7 @@ public struct AboutSettingsTab: View {
                         }
                     }
                 }
-                .padding(isCompact ? 12 : 18)
+                .padding(isCompact ? 14 : 20)
             }
         }
         .confirmationDialog(

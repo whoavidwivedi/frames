@@ -32,7 +32,8 @@ public struct DashboardTopBarView: View {
             let isUltraNarrow = isCompact || geo.size.width < 500
             let showBadge = !isCompact && geo.size.width >= 660
             let isCompactSort = isCompact || geo.size.width < 580
-            let trafficSpacerWidth: CGFloat = windowManager.isNativeFullscreen ? 12 : 78
+            // Keep stable 78pt margin in both windowed and fullscreen so controls don't jump to the left
+            let trafficSpacerWidth: CGFloat = 78
 
             HStack(spacing: isNarrow ? 6 : 8) {
                 // Standard native macOS traffic lights spacer & double-click area

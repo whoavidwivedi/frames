@@ -13,8 +13,8 @@ public struct TopBarOverlay: View {
     }
 
     public var body: some View {
-        let isFs = windowManager.isNativeFullscreen
-        let trafficLightSpacer: CGFloat = isFs ? 14 : 78
+        // Keep stable 78pt margin in both windowed and fullscreen so controls don't jump to the left
+        let trafficLightSpacer: CGFloat = 78
 
         VStack(spacing: 0) {
             ZStack {

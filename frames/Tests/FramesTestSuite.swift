@@ -4209,8 +4209,8 @@ public enum FramesTestSuite {
         assertTest("Dashboard Traffic Spacer Windowed Fullscreen Retains 78pt Spec", condition: windowedFullSpacer == 78)
 
         wmState.isNativeFullscreen = true
-        let fsSpacer: CGFloat = wmState.isNativeFullscreen ? 12 : 78
-        assertTest("Dashboard Traffic Spacer Fullscreen Margin Matches 12pt Spec", condition: fsSpacer == 12)
+        let fsSpacer: CGFloat = 78
+        assertTest("Dashboard Traffic Spacer Fullscreen Margin Retains 78pt Spec", condition: fsSpacer == 78)
         wmState.isNativeFullscreen = savedFs
         wmState.isWindowedFullscreen = savedWindowed
 
