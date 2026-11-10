@@ -4618,7 +4618,13 @@ public enum FramesTestSuite {
         let compactWindow = NSWindow(contentRect: NSRect(x: 100, y: 100, width: 480, height: 320), styleMask: [.titled, .resizable], backing: .buffered, defer: false)
         assert("WindowManager Computes Compact State (< 540x400)", wm.computeLayoutState(window: compactWindow) == .compact)
 
-        let standardWindow = NSWindow(contentRect: NSRect(x: 100, y: 100, width: 980, height: 620), styleMask: [.titled, .resizable], backing: .buffered, defer: false)
+        let screen = NSScreen.main
+        let vf = screen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        let stdW = max(560, min(980, vf.width * 0.70))
+        let stdH = max(420, min(620, vf.height * 0.70))
+        let stdX = vf.minX + max(30, (vf.width - stdW) / 2)
+        let stdY = vf.minY + max(30, (vf.height - stdH) / 2)
+        let standardWindow = NSWindow(contentRect: NSRect(x: stdX, y: stdY, width: stdW, height: stdH), styleMask: [.titled, .resizable], backing: .buffered, defer: false)
         assert("WindowManager Computes Standard State", wm.computeLayoutState(window: standardWindow) == .standard)
 
         wm.isNativeFullscreen = savedNative
