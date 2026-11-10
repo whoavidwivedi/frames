@@ -4372,7 +4372,17 @@ public enum FramesTestSuite {
         assertTest("VideoMetadata Explicit Implementation Description", condition: explicitMeta.decoderDescription == "Apple Silicon ASIC (VideoToolbox)")
 
         // VideoToolboxDecoder properties and lifecycle reset
-        let dummyTrack = DemuxedTrack(trackNumber: 1, type: .video, codecID: "V_MPEG4/ISO/AVC", name: "AVC Track", language: "eng", isDefault: true, isForced: false, displayWidth: 1920, displayHeight: 1080)
+        let dummyTrack = DemuxedTrack(
+            trackNumber: 1,
+            type: .video,
+            codecID: "V_MPEG4/ISO/AVC",
+            displayWidth: 1920,
+            displayHeight: 1080,
+            name: "AVC Track",
+            language: "eng",
+            isDefault: true,
+            isForced: false
+        )
         let vtd = VideoToolboxDecoder(track: dummyTrack)
         assertTest("VideoToolboxDecoder Initial HW Telemetry Idle", condition: vtd.isHardwareAccelerated == false)
         assertTest("VideoToolboxDecoder Initial Implementation Name", condition: vtd.decoderImplementationName == "VideoToolbox")
@@ -4380,17 +4390,17 @@ public enum FramesTestSuite {
         assertTest("VideoToolboxDecoder Invalidation Resets HW State", condition: vtd.isHardwareAccelerated == false && vtd.decoderImplementationName == "None")
 
         // PlaybackPipeline hardware acceleration forwarding
-        let pipeline = PlaybackPipeline()
-        assertTest("PlaybackPipeline Initial HW Acceleration Forwarding", condition: pipeline.isHardwareAccelerated == false)
-        assertTest("PlaybackPipeline Initial Decoder Implementation", condition: pipeline.decoderImplementationName == "VideoToolbox")
+        let telemetryPipeline = PlaybackPipeline()
+        assertTest("PlaybackPipeline Initial HW Acceleration Forwarding", condition: telemetryPipeline.isHardwareAccelerated == false)
+        assertTest("PlaybackPipeline Initial Decoder Implementation", condition: telemetryPipeline.decoderImplementationName == "VideoToolbox")
 
         // Menu bar deduplication verification
-        let testMenu = NSMenu(title: "Main")
-        testMenu.addItem(NSMenuItem(title: "View", action: nil, keyEquivalent: ""))
-        testMenu.addItem(NSMenuItem(title: "Playback", action: nil, keyEquivalent: ""))
-        testMenu.addItem(NSMenuItem(title: "View", action: nil, keyEquivalent: ""))
-        let removedCount = AppDelegate.deduplicateMenus(in: testMenu)
-        assertTest("AppDelegate Menu Deduplication Removes Duplicate View Menu", condition: removedCount == 1 && testMenu.items.count == 2)
+        let dedupeTestMenu = NSMenu(title: "Main")
+        dedupeTestMenu.addItem(NSMenuItem(title: "View", action: nil, keyEquivalent: ""))
+        dedupeTestMenu.addItem(NSMenuItem(title: "Playback", action: nil, keyEquivalent: ""))
+        dedupeTestMenu.addItem(NSMenuItem(title: "View", action: nil, keyEquivalent: ""))
+        let removedCount = AppDelegate.deduplicateMenus(in: dedupeTestMenu)
+        assertTest("AppDelegate Menu Deduplication Removes Duplicate View Menu", condition: removedCount == 1 && dedupeTestMenu.items.count == 2)
 
         // Summary
         logs.append("\n==========================================")
