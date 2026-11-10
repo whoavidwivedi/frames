@@ -2,6 +2,8 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
+// MARK: - Shadcn Playback Dock HUD
+
 public struct LiquidGlassHUD: View {
     @Bindable var engine: VideoPlayerEngine
     @State private var windowManager = WindowManager.shared
@@ -20,26 +22,26 @@ public struct LiquidGlassHUD: View {
         let showVolumeSlider = !isNarrow
 
         VStack(spacing: 8) {
-            // MARK: - Native QuickTime Timeline Scrubber with Elapsed & Remaining Clocks
-            HStack(spacing: 8) {
+            // MARK: - Timeline Scrubber & Monospaced Clocks
+            HStack(spacing: 10) {
                 Text(TimeFormatting.format(seconds: engine.currentTime))
-                    .font(.system(size: 11, weight: .medium).monospacedDigit())
-                    .foregroundStyle(Color.white.opacity(0.85))
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundStyle(ShadcnTheme.foreground)
 
                 CustomScrubber(engine: engine)
                     .frame(height: 20)
 
                 let remaining = max(0, engine.duration - engine.currentTime)
                 Text("-\(TimeFormatting.format(seconds: remaining))")
-                    .font(.system(size: 11, weight: .medium).monospacedDigit())
-                    .foregroundStyle(Color.white.opacity(0.75))
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundStyle(ShadcnTheme.foregroundSecondary)
             }
             .padding(.horizontal, 14)
-            .padding(.top, 8)
+            .padding(.top, 9)
 
-            // MARK: - Primary Controls Dock (Default macOS QuickTime / Apple TV Controls)
+            // MARK: - Primary Controls Bar
             HStack(spacing: isNarrow ? 8 : 12) {
-                // MARK: Left Controls (Volume)
+                // MARK: Left Controls (Volume & Mute)
                 HStack(spacing: 6) {
                     Button {
                         if isNarrow {
@@ -48,20 +50,21 @@ public struct LiquidGlassHUD: View {
                             engine.toggleMute()
                         }
                     } label: {
-                        Image(systemName: engine.isMuted ? "speaker.slash.fill" : (engine.volume < 0.5 ? "speaker.wave.1.fill" : "speaker.wave.2.fill"))
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(Color.white)
+                        Image(systemName: engine.isMuted ? "speaker.slash.fill" : (engine.volume < 0.25 ? "speaker.fill" : (engine.volume < 0.65 ? "speaker.wave.1.fill" : "speaker.wave.2.fill")))
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(engine.isMuted ? ShadcnTheme.destructive : ShadcnTheme.foreground)
                             .frame(width: 28, height: 28)
                             .background(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(engine.isMuted ? Color.red.opacity(0.3) : (hoveredButton == "volume" ? Color.white.opacity(0.22) : Color.white.opacity(0.12)))
+                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                    .fill(engine.isMuted ? ShadcnTheme.destructive.opacity(0.15) : (hoveredButton == "volume" ? ShadcnTheme.cardHover : ShadcnTheme.secondary.opacity(0.35)))
                             )
                             .overlay(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
+                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                    .strokeBorder(engine.isMuted ? ShadcnTheme.destructive.opacity(0.35) : (hoveredButton == "volume" ? ShadcnTheme.borderActive : ShadcnTheme.borderSubtle), lineWidth: 1)
                             )
                     }
                     .buttonStyle(.plain)
+                    .pointingHand()
                     .accessibilityLabel(engine.isMuted ? "Unmute" : "Mute")
                     .accessibilityValue("\(Int(engine.volume * 100))%")
                     .help(isNarrow ? "Volume Slider" : (engine.isMuted ? "Unmute (M)" : "Mute (M)"))
@@ -71,11 +74,11 @@ public struct LiquidGlassHUD: View {
                             HStack {
                                 Text("Volume")
                                     .font(.system(size: 11, weight: .semibold))
-                                    .foregroundStyle(Color.white)
+                                    .foregroundStyle(ShadcnTheme.foreground)
                                 Spacer()
                                 Text("\(Int(engine.volume * 100))%")
-                                    .font(.system(size: 10, weight: .medium).monospacedDigit())
-                                    .foregroundStyle(Color.white.opacity(0.7))
+                                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                                    .foregroundStyle(ShadcnTheme.foregroundSecondary)
                             }
                             Slider(
                                 value: Binding(
@@ -88,18 +91,19 @@ public struct LiquidGlassHUD: View {
                                 in: 0...1
                             )
                             .frame(width: 120)
-                            .tint(Color.white)
+                            .tint(ShadcnTheme.primary)
                             .accessibilityLabel("Volume")
 
                             Button(engine.isMuted ? "Unmute" : "Mute") {
                                 engine.toggleMute()
                             }
-                            .font(.system(size: 11))
-                            .foregroundStyle(Color.white.opacity(0.9))
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(ShadcnTheme.foreground)
                             .buttonStyle(.plain)
+                            .pointingHand()
                         }
                         .padding(10)
-                        .background(Color(white: 0.12))
+                        .background(ShadcnTheme.popover)
                         .environment(\.colorScheme, .dark)
                     }
 
@@ -116,8 +120,8 @@ public struct LiquidGlassHUD: View {
                             ),
                             in: 0...1
                         )
-                        .frame(width: 58)
-                        .tint(Color.white)
+                        .frame(width: 60)
+                        .tint(ShadcnTheme.primary)
                         .accessibilityLabel("Volume")
                         .accessibilityValue("\(Int(engine.volume * 100))%")
                     }
@@ -125,9 +129,8 @@ public struct LiquidGlassHUD: View {
 
                 Spacer(minLength: 8)
 
-                // MARK: Center Controls (Skip -10s, QuickTime Play/Pause, Skip +10s)
+                // MARK: Center Transport Controls (Skip -10s, Primary Play/Pause, Skip +10s)
                 HStack(spacing: 8) {
-                    // Skip -10s
                     dockedButton(
                         id: "skip_back",
                         icon: "gobackward.10",
@@ -137,30 +140,27 @@ public struct LiquidGlassHUD: View {
                         engine.skip(seconds: -10)
                     }
 
-                    // Play / Pause / Replay (QuickTime 36x36 Circular Button)
+                    // Primary Play / Pause / Replay Button (High-Contrast Shadcn Circle)
                     Button {
                         engine.togglePlayPause()
                     } label: {
                         Image(systemName: engine.isPlaying ? "pause.fill" : (engine.hasEnded ? "arrow.counterclockwise" : "play.fill"))
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(Color.white)
-                            .frame(width: 36, height: 36)
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(ShadcnTheme.background)
+                            .frame(width: 34, height: 34)
                             .background(
                                 Circle()
-                                    .fill(hoveredButton == "play" ? Color.white.opacity(0.28) : Color.white.opacity(0.20))
+                                    .fill(hoveredButton == "play" ? ShadcnTheme.foreground.opacity(0.92) : ShadcnTheme.foreground)
                             )
-                            .overlay(
-                                Circle()
-                                    .strokeBorder(Color.white.opacity(0.25), lineWidth: 1)
-                            )
+                            .shadow(color: Color.black.opacity(0.25), radius: 4, x: 0, y: 2)
                     }
                     .buttonStyle(.plain)
+                    .pointingHand()
                     .accessibilityLabel(engine.isPlaying ? "Pause" : (engine.hasEnded ? "Replay" : "Play"))
                     .accessibilityHint("Toggles video playback")
                     .help(engine.isPlaying ? "Pause (Space)" : (engine.hasEnded ? "Replay (Space)" : "Play (Space)"))
                     .onHover { h in hoveredButton = h ? "play" : nil }
 
-                    // Skip +10s
                     dockedButton(
                         id: "skip_fwd",
                         icon: "goforward.10",
@@ -173,13 +173,12 @@ public struct LiquidGlassHUD: View {
 
                 Spacer(minLength: 8)
 
-                // MARK: Right Controls (Audio, Subtitles, Speed, PiP, Fullscreen)
+                // MARK: Right Utility Controls (Audio, Subtitles, Speed, PiP, Fullscreen)
                 HStack(spacing: 6) {
                     audioSelectorButton(isNarrow: isNarrow)
                     subtitlesSelectorButton(isNarrow: isNarrow)
                     speedSelectorButton()
 
-                    // Picture-in-Picture Toggle
                     dockedButton(
                         id: "pip",
                         icon: PictureInPictureManager.shared.isPictureInPicture ? "pip.exit" : "pip.enter",
@@ -189,7 +188,6 @@ public struct LiquidGlassHUD: View {
                         PictureInPictureManager.shared.toggle(engine: engine)
                     }
 
-                    // Native Fullscreen Toggle
                     dockedButton(
                         id: "fullscreen",
                         icon: windowManager.isNativeFullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right",
@@ -201,23 +199,10 @@ public struct LiquidGlassHUD: View {
                 }
             }
             .padding(.horizontal, 14)
-            .padding(.bottom, 10)
+            .padding(.bottom, 9)
         }
         .frame(maxWidth: 720)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .environment(\.colorScheme, .dark)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color(white: 0.08, opacity: 0.85))
-                )
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
-        )
-        .shadow(color: Color.black.opacity(0.35), radius: 14, x: 0, y: 5)
+        .shadcnCard(cornerRadius: ShadcnTheme.radiusLg, padding: 0)
         .padding(.horizontal, 20)
         .padding(.bottom, 20)
         .environment(\.colorScheme, .dark)
@@ -246,8 +231,6 @@ public struct LiquidGlassHUD: View {
 
     private func audioSelectorButton(isNarrow: Bool) -> some View {
         let isOpen = engine.activeInspectorSheet == .audio
-        let fillBg = isOpen ? Color.white.opacity(0.25) : (isAudioHovered ? Color.white.opacity(0.20) : Color.white.opacity(0.12))
-        let strokeCol = isOpen ? Color.white.opacity(0.40) : (isAudioHovered ? Color.white.opacity(0.28) : Color.white.opacity(0.18))
 
         return Button {
             withAnimation(.fluidSpring) {
@@ -256,29 +239,32 @@ public struct LiquidGlassHUD: View {
         } label: {
             HStack(spacing: 5) {
                 Image(systemName: isOpen ? "speaker.wave.2.bubble.fill" : "speaker.wave.2.bubble")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(isOpen ? Color.white : Color.white.opacity(0.9))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(isOpen ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
+
                 if !isNarrow {
                     Text(audioButtonLabel)
                         .font(.system(size: 11, weight: isOpen ? .semibold : .medium))
                         .lineLimit(1)
                         .frame(maxWidth: 95)
                         .truncationMode(.tail)
-                        .foregroundStyle(Color.white)
+                        .foregroundStyle(isOpen ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
                 }
             }
             .padding(.horizontal, isNarrow ? 7 : 9)
             .frame(height: 28)
             .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(fillBg)
+                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                    .fill(isOpen ? ShadcnTheme.cardHover : (isAudioHovered ? ShadcnTheme.muted.opacity(0.4) : ShadcnTheme.secondary.opacity(0.35)))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .strokeBorder(strokeCol, lineWidth: 1)
+                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                    .strokeBorder(isOpen ? ShadcnTheme.border : ShadcnTheme.borderSubtle, lineWidth: 1)
             )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .pointingHand()
         .accessibilityLabel("Audio track")
         .accessibilityValue(audioButtonLabel)
         .onHover { isAudioHovered = $0 }
@@ -288,8 +274,6 @@ public struct LiquidGlassHUD: View {
     private func subtitlesSelectorButton(isNarrow: Bool) -> some View {
         let isOpen = engine.activeInspectorSheet == .subtitles
         let isSubOn = engine.selectedSubtitleTrack.id != SubtitleTrack.off.id
-        let fillBg = isOpen ? Color.accentColor.opacity(0.3) : (isSubOn ? Color.white.opacity(0.24) : (isSubtitlesHovered ? Color.white.opacity(0.20) : Color.white.opacity(0.12)))
-        let strokeCol = isOpen ? Color.accentColor.opacity(0.5) : (isSubOn ? Color.white.opacity(0.35) : (isSubtitlesHovered ? Color.white.opacity(0.28) : Color.white.opacity(0.18)))
         let subTitle = isSubOn ? engine.selectedSubtitleTrack.title : "Subtitles"
 
         return Button {
@@ -299,29 +283,32 @@ public struct LiquidGlassHUD: View {
         } label: {
             HStack(spacing: 5) {
                 Image(systemName: (isOpen || isSubOn) ? "captions.bubble.fill" : "captions.bubble")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(isSubOn ? Color.accentColor : Color.white)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(isSubOn ? ShadcnTheme.primaryHighlight : (isOpen ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary))
+
                 if !isNarrow {
                     Text(subTitle)
                         .font(.system(size: 11, weight: (isOpen || isSubOn) ? .semibold : .medium))
                         .lineLimit(1)
                         .frame(maxWidth: 100)
                         .truncationMode(.tail)
-                        .foregroundStyle(Color.white)
+                        .foregroundStyle(isSubOn ? ShadcnTheme.foreground : (isOpen ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary))
                 }
             }
             .padding(.horizontal, isNarrow ? 7 : 9)
             .frame(height: 28)
             .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(fillBg)
+                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                    .fill(isOpen ? ShadcnTheme.cardHover : (isSubtitlesHovered ? ShadcnTheme.muted.opacity(0.4) : ShadcnTheme.secondary.opacity(0.35)))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .strokeBorder(strokeCol, lineWidth: 1)
+                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                    .strokeBorder(isOpen ? ShadcnTheme.border : (isSubOn ? ShadcnTheme.primaryHighlight.opacity(0.4) : ShadcnTheme.borderSubtle), lineWidth: 1)
             )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .pointingHand()
         .accessibilityLabel("Subtitles")
         .accessibilityValue(subTitle)
         .onHover { isSubtitlesHovered = $0 }
@@ -331,8 +318,6 @@ public struct LiquidGlassHUD: View {
     private func speedSelectorButton() -> some View {
         let isOpen = engine.activeInspectorSheet == .speed
         let isNonStandard = abs(engine.playbackRate - 1.0) > 0.01
-        let fillBg = isOpen ? Color.cyan.opacity(0.3) : (isNonStandard ? Color.cyan.opacity(0.18) : (isSpeedHovered ? Color.white.opacity(0.20) : Color.white.opacity(0.12)))
-        let strokeCol = isOpen ? Color.cyan.opacity(0.6) : (isNonStandard ? Color.cyan.opacity(0.35) : (isSpeedHovered ? Color.white.opacity(0.28) : Color.white.opacity(0.18)))
 
         return Button {
             withAnimation(.fluidSpring) {
@@ -340,20 +325,22 @@ public struct LiquidGlassHUD: View {
             }
         } label: {
             Text(Self.formatRate(engine.playbackRate))
-                .font(.system(size: 11, weight: .bold).monospacedDigit())
-                .foregroundStyle(isNonStandard ? Color.cyan : Color.white)
+                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .foregroundStyle(isNonStandard ? ShadcnTheme.primaryHighlight : (isOpen ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary))
                 .padding(.horizontal, 8)
                 .frame(height: 28)
                 .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(fillBg)
+                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                        .fill(isOpen ? ShadcnTheme.cardHover : (isSpeedHovered ? ShadcnTheme.muted.opacity(0.4) : ShadcnTheme.secondary.opacity(0.35)))
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .strokeBorder(strokeCol, lineWidth: 1)
+                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                        .strokeBorder(isOpen ? ShadcnTheme.border : (isNonStandard ? ShadcnTheme.primaryHighlight.opacity(0.4) : ShadcnTheme.borderSubtle), lineWidth: 1)
                 )
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .pointingHand()
         .accessibilityLabel("Playback speed")
         .accessibilityValue(Self.formatRate(engine.playbackRate))
         .onHover { isSpeedHovered = $0 }
@@ -363,38 +350,24 @@ public struct LiquidGlassHUD: View {
     private func dockedButton(id: String, icon: String, help: String, accessibilityLabel: String? = nil, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(Color.white)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(hoveredButton == id ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
                 .frame(width: 28, height: 28)
                 .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(hoveredButton == id ? Color.white.opacity(0.22) : Color.white.opacity(0.12))
+                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                        .fill(hoveredButton == id ? ShadcnTheme.cardHover : ShadcnTheme.secondary.opacity(0.35))
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                        .strokeBorder(hoveredButton == id ? ShadcnTheme.borderActive : ShadcnTheme.borderSubtle, lineWidth: 1)
                 )
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .pointingHand()
         .help(help)
         .accessibilityLabel(accessibilityLabel ?? help)
         .onHover { h in hoveredButton = h ? id : nil }
-    }
-
-    private func openExternalSubtitlePicker() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        panel.allowedContentTypes = [
-            UTType(filenameExtension: "srt") ?? .item,
-            UTType(filenameExtension: "vtt") ?? .item
-        ]
-        panel.message = "Choose an SRT or WebVTT subtitle file"
-
-        if panel.runModal() == .OK, let url = panel.url {
-            engine.loadExternalSubtitleFile(from: url)
-        }
     }
 }
 
@@ -413,18 +386,19 @@ public struct PlaybackTimeDisplay: View {
         } label: {
             HStack(spacing: 4) {
                 Text(TimeFormatting.format(seconds: clockStore.currentTime))
-                    .foregroundStyle(Color.white)
+                    .foregroundStyle(ShadcnTheme.foreground)
                 Text("/")
-                    .foregroundStyle(Color.white.opacity(0.45))
+                    .foregroundStyle(ShadcnTheme.foregroundMuted)
                 Text(showRemainingTime
                     ? "-\(TimeFormatting.format(seconds: max(0, clockStore.duration - clockStore.currentTime)))"
                     : TimeFormatting.format(seconds: clockStore.duration))
-                    .foregroundStyle(Color.white.opacity(0.75))
+                    .foregroundStyle(ShadcnTheme.foregroundSecondary)
             }
-            .font(.system(size: 11, weight: .medium).monospacedDigit())
+            .font(.system(size: 11, weight: .medium, design: .monospaced))
             .padding(.leading, 4)
         }
         .buttonStyle(.plain)
+        .pointingHand()
         .help(showRemainingTime ? "Click to show duration" : "Click to show remaining time")
         .accessibilityLabel(showRemainingTime ? "Remaining time display" : "Playback time display")
         .accessibilityValue("\(TimeFormatting.format(seconds: clockStore.currentTime)) of \(TimeFormatting.format(seconds: clockStore.duration))")

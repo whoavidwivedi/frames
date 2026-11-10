@@ -88,16 +88,17 @@ public struct CustomScrubber: View {
                     if isHovering && !engine.isScrubbing {
                         Text(TimeFormatting.format(seconds: hoverTime))
                             .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                            .foregroundStyle(Color.white)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 3)
+                            .foregroundStyle(ShadcnTheme.foreground)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3.5)
                             .background(
                                 RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                    .fill(Color(white: 0.12, opacity: 0.95))
+                                    .fill(ShadcnTheme.popover)
                                     .overlay(
                                         RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                            .strokeBorder(Color.white.opacity(0.25), lineWidth: 1)
+                                            .strokeBorder(ShadcnTheme.border, lineWidth: 1)
                                     )
+                                    .shadow(color: Color.black.opacity(0.35), radius: 6, x: 0, y: 3)
                             )
                             .offset(x: max(8, min(totalWidth - 48, hoverLocationX - 18)), y: -24)
                             .allowsHitTesting(false)

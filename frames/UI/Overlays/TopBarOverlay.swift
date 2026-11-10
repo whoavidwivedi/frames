@@ -13,7 +13,7 @@ public struct TopBarOverlay: View {
     }
 
     public var body: some View {
-        // Keep stable 78pt margin in both windowed and fullscreen so controls don't jump to the left
+        // Keep stable 78pt margin in both windowed and fullscreen so controls don't jump
         let trafficLightSpacer: CGFloat = 78
 
         VStack(spacing: 0) {
@@ -32,20 +32,20 @@ public struct TopBarOverlay: View {
                         }
                     } label: {
                         Image(systemName: "chevron.left")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(Color.white)
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(isBackHovered ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
                             .frame(width: 28, height: 28)
                             .background(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(isBackHovered ? Color.white.opacity(0.24) : Color.white.opacity(0.14))
+                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                    .fill(isBackHovered ? ShadcnTheme.cardHover : ShadcnTheme.secondary.opacity(0.35))
                             )
                             .overlay(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .strokeBorder(Color.white.opacity(0.20), lineWidth: 1)
+                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                    .strokeBorder(isBackHovered ? ShadcnTheme.borderActive : ShadcnTheme.borderSubtle, lineWidth: 1)
                             )
-                            .shadow(color: Color.black.opacity(0.4), radius: 2, x: 0, y: 1)
                     }
                     .buttonStyle(.plain)
+                    .pointingHand()
                     .accessibilityLabel("Back to Dashboard")
                     .onHover { isBackHovered = $0 }
                     .help("Back (Esc or ⌘[)")
@@ -54,15 +54,33 @@ public struct TopBarOverlay: View {
                 }
                 .frame(height: 32)
 
-                // Video title centered horizontally with no background
-                Text(engine.metadata.title.isEmpty ? "Video Playback" : engine.metadata.title)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color.white)
-                    .shadow(color: Color.black.opacity(0.75), radius: 3, x: 0, y: 1)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .padding(.horizontal, trafficLightSpacer + 48)
-                    .frame(maxWidth: .infinity, alignment: .center)
+                // Video Title & Format Badges (Centered)
+                HStack(spacing: 8) {
+                    Text(engine.metadata.title.isEmpty ? "Video Playback" : engine.metadata.title)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(ShadcnTheme.foreground)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+
+                    if !engine.metadata.codec.isEmpty && engine.metadata.codec != "Unknown" {
+                        Text(engine.metadata.codec)
+                            .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(ShadcnTheme.foregroundMuted)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(
+                                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                    .fill(ShadcnTheme.secondary.opacity(0.40))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                    .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
+                            )
+                    }
+                }
+                .shadow(color: Color.black.opacity(0.70), radius: 4, x: 0, y: 1)
+                .padding(.horizontal, trafficLightSpacer + 48)
+                .frame(maxWidth: .infinity, alignment: .center)
             }
             .frame(maxWidth: .infinity)
             .frame(height: 32)
@@ -73,7 +91,7 @@ public struct TopBarOverlay: View {
         .frame(height: 48)
         .background(
             LinearGradient(
-                colors: [Color.black.opacity(0.60), Color.black.opacity(0.20), Color.clear],
+                colors: [Color.black.opacity(0.70), Color.black.opacity(0.25), Color.clear],
                 startPoint: .top,
                 endPoint: .bottom
             )

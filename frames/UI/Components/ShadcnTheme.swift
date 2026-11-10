@@ -89,7 +89,7 @@ public final class ThemeManager {
 }
 
 // MARK: - Dynamic Color Helper
-private func dynamicColor(
+func dynamicColor(
     light: (r: Double, g: Double, b: Double, a: Double),
     dark: (r: Double, g: Double, b: Double, a: Double)
 ) -> Color {
@@ -105,135 +105,135 @@ private func dynamicColor(
 public enum ShadcnTheme {
     // MARK: - Background Surfaces (Neutral Base)
     /// Light: oklch(1 0 0) -> #ffffff | Dark: oklch(0.145 0 0) -> #0a0a0a
-    public static let background = dynamicColor(
+    public static let background: Color = dynamicColor(
         light: (1.0, 1.0, 1.0, 1.0),
         dark: (0.039, 0.039, 0.039, 1.0)
     )
 
     /// Light: oklch(1 0 0) -> #ffffff | Dark: oklch(0.205 0 0) -> #171717
-    public static let card = dynamicColor(
+    public static let card: Color = dynamicColor(
         light: (1.0, 1.0, 1.0, 1.0),
         dark: (0.091, 0.091, 0.091, 1.0)
     )
 
     /// Light: oklch(0.97 0 0) -> #f5f5f5 | Dark: oklch(0.24 0 0) -> #202020
-    public static let cardHover = dynamicColor(
+    public static let cardHover: Color = dynamicColor(
         light: (0.961, 0.961, 0.961, 1.0),
         dark: (0.125, 0.125, 0.125, 1.0)
     )
 
     /// Light: oklch(1 0 0) -> #ffffff | Dark: oklch(0.205 0 0) -> #171717
-    public static let popover = dynamicColor(
+    public static let popover: Color = dynamicColor(
         light: (1.0, 1.0, 1.0, 1.0),
         dark: (0.091, 0.091, 0.091, 1.0)
     )
 
     /// Light: oklch(0.985 0 0) -> #fafafa | Dark: oklch(0.205 0 0) -> #171717
-    public static let sidebar = dynamicColor(
+    public static let sidebar: Color = dynamicColor(
         light: (0.98, 0.98, 0.98, 1.0),
         dark: (0.091, 0.091, 0.091, 1.0)
     )
 
     // MARK: - Foreground & Typography
     /// Light: oklch(0.145 0 0) -> #0a0a0a | Dark: oklch(0.985 0 0) -> #fafafa
-    public static let foreground = dynamicColor(
+    public static let foreground: Color = dynamicColor(
         light: (0.039, 0.039, 0.039, 1.0),
         dark: (0.98, 0.98, 0.98, 1.0)
     )
 
     /// Light: oklch(0.556 0 0) -> #737373 | Dark: oklch(0.708 0 0) -> #a1a1a1
-    public static let foregroundSecondary = dynamicColor(
+    public static let foregroundSecondary: Color = dynamicColor(
         light: (0.452, 0.452, 0.452, 1.0),
         dark: (0.63, 0.63, 0.63, 1.0)
     )
 
     /// Light: #616161 (contrast ratio ~5.8:1 against #ffffff) | Dark: #adadad (contrast ratio ~6.5:1 against #0a0a0a)
-    public static let foregroundMuted = dynamicColor(
+    public static let foregroundMuted: Color = dynamicColor(
         light: (0.38, 0.38, 0.38, 1.0),
         dark: (0.68, 0.68, 0.68, 1.0)
     )
 
     // MARK: - Borders & Outlines
     /// Light: oklch(0.922 0 0) -> #e5e5e5 | Dark: oklch(1 0 0 / 10%)
-    public static let border = dynamicColor(
+    public static let border: Color = dynamicColor(
         light: (0.898, 0.898, 0.898, 1.0),
         dark: (1.0, 1.0, 1.0, 0.10)
     )
 
     /// Subtle border
-    public static let borderSubtle = dynamicColor(
+    public static let borderSubtle: Color = dynamicColor(
         light: (0.0, 0.0, 0.0, 0.06),
         dark: (1.0, 1.0, 1.0, 0.05)
     )
 
     /// Active / Hover border
-    public static let borderActive = dynamicColor(
+    public static let borderActive: Color = dynamicColor(
         light: (0.63, 0.63, 0.63, 1.0),
         dark: (1.0, 1.0, 1.0, 0.22)
     )
 
     /// Input outline
-    public static let input = dynamicColor(
+    public static let input: Color = dynamicColor(
         light: (0.898, 0.898, 0.898, 1.0),
         dark: (1.0, 1.0, 1.0, 0.15)
     )
 
     /// Focus ring
-    public static let ring = dynamicColor(
+    public static let ring: Color = dynamicColor(
         light: (0.63, 0.63, 0.63, 1.0),
         dark: (0.452, 0.452, 0.452, 1.0)
     )
 
     // MARK: - Primary & Brand Highlights (Luma Terracotta & Copper)
     /// Light: oklch(0.553 0.195 38.402) -> #ca3500 | Dark: oklch(0.47 0.157 37.304) -> #9f2d00
-    public static let primary = dynamicColor(
+    public static let primary: Color = dynamicColor(
         light: (0.792, 0.207, 0.0, 1.0),
         dark: (0.624, 0.177, 0.0, 1.0)
     )
 
     /// Light: oklch(0.98 0.016 73.684) -> #fff7ed | Dark: oklch(0.98 0.016 73.684) -> #fff7ed
-    public static let primaryForeground = Color(red: 1.0, green: 0.969, blue: 0.929)
+    public static let primaryForeground: Color = Color(red: 1.0, green: 0.969, blue: 0.929)
 
     /// Light: oklch(0.646 0.222 41.116) -> #f54900 | Dark: oklch(0.705 0.213 47.604) -> #ff6900
-    public static let primaryHighlight = dynamicColor(
+    public static let primaryHighlight: Color = dynamicColor(
         light: (0.961, 0.288, 0.0, 1.0),
         dark: (1.0, 0.411, 0.0, 1.0)
     )
 
     /// Secondary container
     /// Light: oklch(0.967 0.001 286.375) -> #f4f4f5 | Dark: oklch(0.274 0.006 286.033) -> #27272a
-    public static let secondary = dynamicColor(
+    public static let secondary: Color = dynamicColor(
         light: (0.956, 0.956, 0.959, 1.0),
         dark: (0.153, 0.153, 0.166, 1.0)
     )
 
     /// Secondary text
     /// Light: oklch(0.21 0.006 285.885) -> #18181b | Dark: oklch(0.985 0 0) -> #fafafa
-    public static let secondaryForeground = dynamicColor(
+    public static let secondaryForeground: Color = dynamicColor(
         light: (0.094, 0.094, 0.106, 1.0),
         dark: (0.98, 0.98, 0.98, 1.0)
     )
 
     /// Muted / Accent
     /// Light: oklch(0.97 0 0) -> #f5f5f5 | Dark: oklch(0.269 0 0) -> #262626
-    public static let muted = dynamicColor(
+    public static let muted: Color = dynamicColor(
         light: (0.961, 0.961, 0.961, 1.0),
         dark: (0.149, 0.149, 0.149, 1.0)
     )
 
-    public static let accent = dynamicColor(
+    public static let accent: Color = dynamicColor(
         light: (0.961, 0.961, 0.961, 1.0),
         dark: (0.149, 0.149, 0.149, 1.0)
     )
 
-    public static let accentActive = dynamicColor(
+    public static let accentActive: Color = dynamicColor(
         light: (0.0, 0.0, 0.0, 0.08),
         dark: (1.0, 1.0, 1.0, 0.12)
     )
 
     /// Destructive action
     /// Light: oklch(0.577 0.245 27.325) -> #e7000b | Dark: oklch(0.704 0.191 22.216) -> #ff6467
-    public static let destructive = dynamicColor(
+    public static let destructive: Color = dynamicColor(
         light: (0.906, 0.0, 0.042, 1.0),
         dark: (1.0, 0.391, 0.404, 1.0)
     )
