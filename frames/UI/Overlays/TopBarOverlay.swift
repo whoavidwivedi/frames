@@ -30,7 +30,7 @@ public struct TopBarOverlay: View {
             // Back button placed on the left with native traffic light spacer
             HStack(spacing: 0) {
                 Color.clear
-                    .frame(width: trafficLightSpacer, height: 50)
+                    .frame(width: trafficLightSpacer, height: 32)
                     .fixedSize(horizontal: true, vertical: false)
 
                 Button {

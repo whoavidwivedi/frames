@@ -37,7 +37,7 @@ public struct DashboardTopBarView: View {
             HStack(spacing: isNarrow ? 6 : 8) {
                 // Standard native macOS traffic lights spacer & double-click area
                 Color.clear
-                    .frame(width: trafficSpacerWidth, height: 50)
+                    .frame(width: trafficSpacerWidth, height: 32)
                     .fixedSize(horizontal: true, vertical: false)
                     .contentShape(Rectangle())
                     .onTapGesture(count: 2) {
@@ -373,7 +373,7 @@ public struct DashboardTopBarView: View {
                 }
                 .padding(.trailing, isNarrow ? 10 : 16)
             }
-            .frame(width: geo.size.width, height: 50)
+            .frame(width: geo.size.width, height: 32)
             .background(
                 ZStack {
                     ShadcnTheme.background
@@ -383,7 +383,7 @@ public struct DashboardTopBarView: View {
             .animation(.snappy(duration: 0.2), value: library.isSearchActive)
             .animation(.snappy(duration: 0.2), value: library.viewMode)
         }
-        .frame(height: 50)
+        .frame(height: 32)
         .macOSDefaultTitleBar()
     }
 }
