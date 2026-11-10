@@ -35,14 +35,21 @@ public struct DashboardTopBarView: View {
             let trafficSpacerWidth: CGFloat = windowManager.isNativeFullscreen ? 12 : 78
 
             HStack(spacing: isNarrow ? 6 : 8) {
-                // Standard macOS traffic lights spacer & double-click area
-                Color.clear
-                    .frame(width: trafficSpacerWidth, height: 32)
-                    .fixedSize(horizontal: true, vertical: false)
-                    .contentShape(Rectangle())
-                    .onTapGesture(count: 2) {
-                        WindowManager.shared.performTitleBarDoubleClickAction()
-                    }
+                // macOS 27 Apple Liquid Glass Traffic Lights Cluster & Leading Spacer
+                if !windowManager.isNativeFullscreen {
+                    LiquidGlassTrafficLights()
+                        .padding(.leading, isNarrow ? 10 : 14)
+                        .frame(width: trafficSpacerWidth, height: 50, alignment: .leading)
+                        .fixedSize(horizontal: true, vertical: false)
+                } else {
+                    Color.clear
+                        .frame(width: trafficSpacerWidth, height: 50)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .contentShape(Rectangle())
+                        .onTapGesture(count: 2) {
+                            WindowManager.shared.performTitleBarDoubleClickAction()
+                        }
+                }
 
                 // MARK: - Navigation & Sidebar Toolbar Controls (Antigravity Style: Icon-Only)
                 HStack(spacing: 4) {
@@ -373,7 +380,7 @@ public struct DashboardTopBarView: View {
                 }
                 .padding(.trailing, isNarrow ? 10 : 16)
             }
-            .frame(width: geo.size.width, height: 32)
+            .frame(width: geo.size.width, height: 50)
             .background(
                 ZStack {
                     ShadcnTheme.background
@@ -383,7 +390,7 @@ public struct DashboardTopBarView: View {
             .animation(.snappy(duration: 0.2), value: library.isSearchActive)
             .animation(.snappy(duration: 0.2), value: library.viewMode)
         }
-        .frame(height: 32)
+        .frame(height: 50)
         .macOSDefaultTitleBar()
     }
 }

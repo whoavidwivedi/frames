@@ -516,3 +516,226 @@ public struct LiquidGlassVolumeSlider: View {
         .pointingHand()
     }
 }
+
+// MARK: - macOS 27 Apple Liquid Glass Traffic Lights
+
+public struct LiquidGlassTrafficLights: View {
+    @Environment(\.controlActiveState) private var controlActiveState
+    @State private var isClusterHovered: Bool = false
+    @State private var hoveredButton: TrafficButtonType? = nil
+    @State private var pressedButton: TrafficButtonType? = nil
+    @State private var isOptionPressed: Bool = false
+
+    public var buttonSize: CGFloat = 13.5
+    public var spacing: CGFloat = 7.0
+    public var onClose: (() -> Void)? = nil
+    public var onMinimize: (() -> Void)? = nil
+    public var onZoom: (() -> Void)? = nil
+
+    public enum TrafficButtonType: Hashable, Sendable {
+        case close
+        case minimize
+        case zoom
+    }
+
+    public init(
+        buttonSize: CGFloat = 13.5,
+        spacing: CGFloat = 7.0,
+        onClose: (() -> Void)? = nil,
+        onMinimize: (() -> Void)? = nil,
+        onZoom: (() -> Void)? = nil
+    ) {
+        self.buttonSize = buttonSize
+        self.spacing = spacing
+        self.onClose = onClose
+        self.onMinimize = onMinimize
+        self.onZoom = onZoom
+    }
+
+    public var body: some View {
+        HStack(spacing: spacing) {
+            trafficOrb(type: .close)
+            trafficOrb(type: .minimize)
+            trafficOrb(type: .zoom)
+        }
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            withAnimation(.spring(response: 0.18, dampingFraction: 0.75)) {
+                isClusterHovered = hovering
+                if hovering {
+                    isOptionPressed = NSEvent.modifierFlags.contains(.option)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func trafficOrb(type: TrafficButtonType) -> some View {
+        let isHovered = hoveredButton == type
+        let isPressed = pressedButton == type
+        let isActive = controlActiveState != .inactive
+
+        Button {
+            triggerAction(for: type)
+        } label: {
+            ZStack {
+                // Optical Ultra-Thin Material Base
+                Circle()
+                    .fill(.ultraThinMaterial)
+
+                // Translucent Jewel Glass Fill
+                Circle()
+                    .fill(glassFill(for: type, isActive: isActive, isHovered: isHovered, isPressed: isPressed))
+
+                // Top Specular Refraction Glint
+                Ellipse()
+                    .fill(
+                        LinearGradient(
+                            stops: [
+                                .init(color: Color.white.opacity(isHovered ? 0.70 : 0.45), location: 0.0),
+                                .init(color: Color.white.opacity(0.0), location: 1.0)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .frame(width: buttonSize * 0.65, height: buttonSize * 0.35)
+                    .offset(y: -buttonSize * 0.22)
+                    .allowsHitTesting(false)
+
+                // Liquid Glass Specular Rim Border
+                Circle()
+                    .strokeBorder(
+                        LinearGradient(
+                            stops: [
+                                .init(color: Color.white.opacity(isHovered ? 0.75 : 0.50), location: 0.0),
+                                .init(color: Color.white.opacity(0.20), location: 0.45),
+                                .init(color: Color.black.opacity(0.30), location: 1.0)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 0.75
+                    )
+
+                // macOS Micro-Glyph (Appears on Cluster Hover)
+                if isClusterHovered {
+                    glyphIcon(for: type)
+                        .transition(.opacity.combined(with: .scale(scale: 0.85)))
+                }
+            }
+            .frame(width: buttonSize, height: buttonSize)
+            .shadow(
+                color: Color.black.opacity(isHovered ? 0.35 : 0.16),
+                radius: isHovered ? 2.5 : 1.2,
+                x: 0,
+                y: isHovered ? 1.5 : 0.8
+            )
+            .scaleEffect(isPressed ? 0.90 : (isHovered ? 1.06 : 1.0))
+            .animation(.spring(response: 0.20, dampingFraction: 0.72), value: isHovered)
+            .animation(.spring(response: 0.14, dampingFraction: 0.80), value: isPressed)
+        }
+        .buttonStyle(.plain)
+        .pointingHand()
+        .onHover { hovering in
+            hoveredButton = hovering ? type : nil
+            if hovering {
+                isOptionPressed = NSEvent.modifierFlags.contains(.option)
+            }
+        }
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in pressedButton = type }
+                .onEnded { _ in pressedButton = nil }
+        )
+        .accessibilityLabel(accessibilityTitle(for: type))
+    }
+
+    @ViewBuilder
+    private func glyphIcon(for type: TrafficButtonType) -> some View {
+        Group {
+            switch type {
+            case .close:
+                Image(systemName: "xmark")
+                    .font(.system(size: buttonSize * 0.52, weight: .bold))
+            case .minimize:
+                Image(systemName: "minus")
+                    .font(.system(size: buttonSize * 0.52, weight: .black))
+            case .zoom:
+                if isOptionPressed {
+                    Image(systemName: "plus")
+                        .font(.system(size: buttonSize * 0.52, weight: .heavy))
+                } else {
+                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                        .font(.system(size: buttonSize * 0.42, weight: .heavy))
+                }
+            }
+        }
+        .foregroundStyle(Color.black.opacity(0.70))
+        .shadow(color: Color.white.opacity(0.35), radius: 0.3, x: 0, y: 0.5)
+        .allowsHitTesting(false)
+    }
+
+    private func glassFill(for type: TrafficButtonType, isActive: Bool, isHovered: Bool, isPressed: Bool) -> LinearGradient {
+        guard isActive else {
+            let opacity = isPressed ? 0.55 : (isHovered ? 0.45 : 0.35)
+            return LinearGradient(
+                colors: [Color(white: 0.72).opacity(opacity), Color(white: 0.48).opacity(opacity * 0.9)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
+
+        switch type {
+        case .close:
+            let top = isPressed ? Color(red: 0.85, green: 0.22, blue: 0.18) : (isHovered ? Color(red: 1.0, green: 0.44, blue: 0.40) : Color(red: 1.0, green: 0.36, blue: 0.33))
+            let bot = isPressed ? Color(red: 0.70, green: 0.14, blue: 0.12) : (isHovered ? Color(red: 0.95, green: 0.24, blue: 0.20) : Color(red: 0.90, green: 0.19, blue: 0.16))
+            return LinearGradient(colors: [top, bot], startPoint: .top, endPoint: .bottom)
+
+        case .minimize:
+            let top = isPressed ? Color(red: 0.88, green: 0.58, blue: 0.08) : (isHovered ? Color(red: 1.0, green: 0.82, blue: 0.26) : Color(red: 1.0, green: 0.75, blue: 0.18))
+            let bot = isPressed ? Color(red: 0.75, green: 0.48, blue: 0.04) : (isHovered ? Color(red: 0.95, green: 0.65, blue: 0.10) : Color(red: 0.90, green: 0.59, blue: 0.06))
+            return LinearGradient(colors: [top, bot], startPoint: .top, endPoint: .bottom)
+
+        case .zoom:
+            let top = isPressed ? Color(red: 0.12, green: 0.65, blue: 0.22) : (isHovered ? Color(red: 0.24, green: 0.88, blue: 0.40) : Color(red: 0.18, green: 0.82, blue: 0.32))
+            let bot = isPressed ? Color(red: 0.08, green: 0.52, blue: 0.16) : (isHovered ? Color(red: 0.14, green: 0.72, blue: 0.22) : Color(red: 0.10, green: 0.66, blue: 0.18))
+            return LinearGradient(colors: [top, bot], startPoint: .top, endPoint: .bottom)
+        }
+    }
+
+    private func triggerAction(for type: TrafficButtonType) {
+        switch type {
+        case .close:
+            if let custom = onClose {
+                custom()
+            } else if let window = NSApp.keyWindow ?? NSApp.mainWindow {
+                window.performClose(nil)
+            } else {
+                NSApp.terminate(nil)
+            }
+        case .minimize:
+            if let custom = onMinimize {
+                custom()
+            } else if let window = NSApp.keyWindow ?? NSApp.mainWindow {
+                window.miniaturize(nil)
+            }
+        case .zoom:
+            if let custom = onZoom {
+                custom()
+            } else if NSEvent.modifierFlags.contains(.option) {
+                WindowManager.shared.performTitleBarDoubleClickAction()
+            } else if let window = NSApp.keyWindow ?? NSApp.mainWindow {
+                window.toggleFullScreen(nil)
+            }
+        }
+    }
+
+    private func accessibilityTitle(for type: TrafficButtonType) -> String {
+        switch type {
+        case .close: return "Close window"
+        case .minimize: return "Minimize window"
+        case .zoom: return isOptionPressed ? "Zoom window" : "Toggle Full Screen"
+        }
+    }
+}

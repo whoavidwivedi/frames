@@ -321,6 +321,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             for window in NSApp.windows {
                 window.tabbingMode = .disallowed
+                window.standardWindowButton(.closeButton)?.isHidden = true
+                window.standardWindowButton(.miniaturizeButton)?.isHidden = true
+                window.standardWindowButton(.zoomButton)?.isHidden = true
             }
         }
 
@@ -331,6 +334,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ) { notification in
             if let window = notification.object as? NSWindow {
                 window.tabbingMode = .disallowed
+                window.standardWindowButton(.closeButton)?.isHidden = true
+                window.standardWindowButton(.miniaturizeButton)?.isHidden = true
+                window.standardWindowButton(.zoomButton)?.isHidden = true
             }
         }
 
@@ -342,6 +348,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             MainActor.assumeIsolated {
                 if let window = notification.object as? NSWindow {
                     window.tabbingMode = .disallowed
+                    window.standardWindowButton(.closeButton)?.isHidden = true
+                    window.standardWindowButton(.miniaturizeButton)?.isHidden = true
+                    window.standardWindowButton(.zoomButton)?.isHidden = true
                 }
             }
         }

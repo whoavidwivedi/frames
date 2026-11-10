@@ -27,11 +27,18 @@ public struct TopBarOverlay: View {
                 .padding(.horizontal, trafficLightSpacer + 48)
                 .frame(maxWidth: .infinity, alignment: .center)
 
-            // Back button placed on the left
+            // macOS 27 Liquid Glass Traffic Lights + Back button placed on the left
             HStack(spacing: 0) {
-                Color.clear
-                    .frame(width: trafficLightSpacer, height: 1)
-                    .fixedSize(horizontal: true, vertical: false)
+                if !isFs {
+                    LiquidGlassTrafficLights()
+                        .padding(.leading, 14)
+                        .frame(width: trafficLightSpacer, height: 50, alignment: .leading)
+                        .fixedSize(horizontal: true, vertical: false)
+                } else {
+                    Color.clear
+                        .frame(width: trafficLightSpacer, height: 1)
+                        .fixedSize(horizontal: true, vertical: false)
+                }
 
                 Button {
                     if let onReturn = onReturnToDashboard {

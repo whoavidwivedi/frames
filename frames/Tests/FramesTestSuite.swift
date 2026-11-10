@@ -2534,6 +2534,25 @@ public enum FramesTestSuite {
         let scrubberHost = NSHostingView(rootView: scrubberView)
         assertTest("CustomScrubber Timeline Mount Operable", condition: scrubberHost.fittingSize.height > 0)
 
+        // macOS 27 Apple Liquid Glass Traffic Lights Mount & Actions Operable
+        var closeFired = false
+        var minFired = false
+        var zoomFired = false
+        let trafficLights = LiquidGlassTrafficLights(
+            buttonSize: 13.5,
+            spacing: 7.0,
+            onClose: { closeFired = true },
+            onMinimize: { minFired = true },
+            onZoom: { zoomFired = true }
+        )
+        let trafficLightsHost = NSHostingView(rootView: trafficLights)
+        assertTest("LiquidGlassTrafficLights NSHostingView Mount", condition: trafficLightsHost.fittingSize.width > 0)
+        assertTest("LiquidGlassTrafficLights Geometry Specifications Valid", condition: trafficLights.buttonSize == 13.5 && trafficLights.spacing == 7.0)
+        trafficLights.onClose?()
+        trafficLights.onMinimize?()
+        trafficLights.onZoom?()
+        assertTest("LiquidGlassTrafficLights Window Actions Operable", condition: closeFired && minFired && zoomFired)
+
         // MARK: - 39. Core Optimization & Critic Audit Roadmap Verifications
         logs.append("\n[39] Testing Core Performance Optimization Roadmap...")
 
