@@ -3,6 +3,16 @@ import AppKit
 
 private let goldenFavoriteColor = Color(red: 1.0, green: 0.8, blue: 0.0)
 
+// MARK: - Tactile Card Press Button Style
+public struct TactileCardPressButtonStyle: ButtonStyle {
+    public init() {}
+    public func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+            .animation(.spring(response: 0.22, dampingFraction: 0.75), value: configuration.isPressed)
+    }
+}
+
 public struct DashboardContentView: View {
     @Bindable var library: LibraryManager
     public var onPlayURL: (URL) -> Void
@@ -142,6 +152,8 @@ public struct DashboardContentView: View {
                     Image(systemName: "plus")
                         .font(.system(size: 24, weight: .light))
                         .foregroundStyle(isHoveringAddTile ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
+                        .scaleEffect(isHoveringAddTile ? 1.08 : 1.0)
+                        .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isHoveringAddTile)
                 }
                 .aspectRatio(16/9, contentMode: .fill)
                 .frame(maxWidth: .infinity)
@@ -171,12 +183,15 @@ public struct DashboardContentView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(TactileCardPressButtonStyle())
+        .offset(y: isHoveringAddTile ? -2 : 0)
+        .shadow(color: isHoveringAddTile ? Color.black.opacity(0.14) : Color.clear, radius: 8, x: 0, y: 4)
+        .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isHoveringAddTile)
         .contentShape(Rectangle())
         .pointingHand()
         .help("Add video files or folder to library")
         .onHover { h in
-            withAnimation(.fluidQuick) {
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
                 isHoveringAddTile = h
             }
         }
@@ -186,9 +201,11 @@ public struct DashboardContentView: View {
                     onPlayURL(url)
                 }
             }
+            .pointingHand()
             Button("Add Folder to Library...") {
                 library.selectAndAddFolder()
             }
+            .pointingHand()
         }
     }
 
@@ -206,6 +223,8 @@ public struct DashboardContentView: View {
                     Image(systemName: "plus")
                         .font(.system(size: 14, weight: .light))
                         .foregroundStyle(isHoveringAddRow ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
+                        .scaleEffect(isHoveringAddRow ? 1.08 : 1.0)
+                        .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isHoveringAddRow)
                 }
                 .frame(width: VideoListRowView.thumbnailWidth, height: VideoListRowView.thumbnailHeight)
                 .clipShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
@@ -252,13 +271,15 @@ public struct DashboardContentView: View {
             )
             .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(TactileCardPressButtonStyle())
+        .offset(y: isHoveringAddRow ? -1 : 0)
+        .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isHoveringAddRow)
         .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
         .pointingHand()
         .help("Add video files or folder to library")
         .accessibilityLabel("Add video files or folder")
         .onHover { h in
-            withAnimation(.fluidQuick) {
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
                 isHoveringAddRow = h
             }
         }
@@ -268,9 +289,11 @@ public struct DashboardContentView: View {
                     onPlayURL(url)
                 }
             }
+            .pointingHand()
             Button("Add Folder to Library...") {
                 library.selectAndAddFolder()
             }
+            .pointingHand()
         }
     }
 
@@ -498,6 +521,21 @@ public struct VideoGridCardView: View {
     public var onHover: (Bool) -> Void
     @Bindable var library: LibraryManager
     public var onPlayURL: (URL) -> Void
+    @State private var isPressed: Bool = false
+
+    public init(
+        video: VideoItem,
+        isHovered: Bool,
+        onHover: @escaping (Bool) -> Void,
+        library: LibraryManager,
+        onPlayURL: @escaping (URL) -> Void
+    ) {
+        self.video = video
+        self.isHovered = isHovered
+        self.onHover = onHover
+        self._library = Bindable(wrappedValue: library)
+        self.onPlayURL = onPlayURL
+    }
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -517,33 +555,33 @@ public struct VideoGridCardView: View {
                 .frame(maxWidth: .infinity)
                 .clipped()
 
-                // Hover Play Overlay (shows play button on hover without shadows)
+                // Hover Play Overlay (smooth scrim fade + spring reveal play button)
                 ZStack {
-                    if isHovered {
-                        Color.black.opacity(0.32)
-                            .overlay(
-                                Circle()
-                                    .fill(.ultraThinMaterial)
-                                    .frame(width: 44, height: 44)
-                                    .overlay(
-                                        Circle()
-                                            .fill(ShadcnTheme.card.opacity(0.65))
-                                    )
-                                    .overlay(
-                                        Circle()
-                                            .strokeBorder(ShadcnTheme.borderActive, lineWidth: 1)
-                                    )
-                                    .overlay(
-                                        Image(systemName: "play.fill")
-                                            .font(.system(size: 16))
-                                            .foregroundStyle(ShadcnTheme.foreground)
-                                            .offset(x: 1.5)
-                                    )
-                            )
-                            .transition(.opacity)
-                    }
+                    Color.black.opacity(isHovered ? 0.32 : 0.0)
+                        .overlay(
+                            Circle()
+                                .fill(.ultraThinMaterial)
+                                .frame(width: 44, height: 44)
+                                .overlay(
+                                    Circle()
+                                        .fill(ShadcnTheme.card.opacity(0.65))
+                                )
+                                .overlay(
+                                    Circle()
+                                        .strokeBorder(ShadcnTheme.borderActive, lineWidth: 1)
+                                )
+                                .overlay(
+                                    Image(systemName: "play.fill")
+                                        .font(.system(size: 16))
+                                        .foregroundStyle(ShadcnTheme.foreground)
+                                        .offset(x: 1.5)
+                                )
+                                .scaleEffect(isHovered ? 1.0 : 0.75)
+                                .opacity(isHovered ? 1.0 : 0.0)
+                                .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isHovered)
+                        )
                 }
-                .animation(.fluidQuick, value: isHovered)
+                .animation(.easeInOut(duration: 0.2), value: isHovered)
 
                 // Top Badges (Resolution / Instant Favorite Star)
                 HStack {
@@ -580,7 +618,7 @@ public struct VideoGridCardView: View {
                     .contentShape(Circle())
                     .pointingHand()
                     .opacity(isHovered || video.isFavorite ? 1.0 : 0.0)
-                    .animation(.fluidQuick, value: isHovered)
+                    .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isHovered)
                     .animation(.fluidSpring, value: video.isFavorite)
                     .help(video.isFavorite ? "Remove from Favorites" : "Add to Favorites")
                 }
@@ -618,6 +656,7 @@ public struct VideoGridCardView: View {
                 RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
                     .strokeBorder(isHovered ? ShadcnTheme.borderActive : ShadcnTheme.border, lineWidth: 1)
             )
+            .shadow(color: isHovered ? Color.black.opacity(0.18) : Color.clear, radius: 8, x: 0, y: 4)
 
             // Title and Meta Information
             VStack(alignment: .leading, spacing: 3) {
@@ -646,14 +685,22 @@ public struct VideoGridCardView: View {
             }
             .padding(.horizontal, 2)
         }
+        .offset(y: isHovered ? -2 : 0)
+        .scaleEffect(isPressed ? 0.98 : 1.0)
+        .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isHovered)
+        .animation(.spring(response: 0.22, dampingFraction: 0.75), value: isPressed)
         .contentShape(Rectangle())
-        .onTapGesture {
+        ._onButtonGesture(pressing: { pressing in
+            withAnimation(.spring(response: 0.22, dampingFraction: 0.75)) {
+                isPressed = pressing
+            }
+        }, perform: {
             if FileManager.default.fileExists(atPath: video.url.path) || CommandLine.arguments.contains("--run-tests") {
                 onPlayURL(video.url)
             } else {
                 library.verifyAndPruneMissingFiles()
             }
-        }
+        })
         .pointingHand()
         .onHover { h in
             onHover(h)
@@ -666,9 +713,11 @@ public struct VideoGridCardView: View {
                     library.verifyAndPruneMissingFiles()
                 }
             }
+            .pointingHand()
             Button(video.isFavorite ? "Unfavorite" : "Favorite") {
                 library.toggleFavorite(videoId: video.id)
             }
+            .pointingHand()
             Divider()
             Button("Reveal in Finder") {
                 if FileManager.default.fileExists(atPath: video.url.path) {
@@ -677,12 +726,14 @@ public struct VideoGridCardView: View {
                     library.verifyAndPruneMissingFiles()
                 }
             }
+            .pointingHand()
             Divider()
             Button("Remove from Library", role: .destructive) {
                 withAnimation(.fluidQuick) {
                     library.removeVideo(id: video.id)
                 }
             }
+            .pointingHand()
         }
     }
 }
@@ -706,6 +757,7 @@ public struct VideoListRowView: View {
     public static let badgeCardFillOpacity: Double = 0.65
 
     @State private var isThumbnailHovered: Bool = false
+    @State private var isPressed: Bool = false
 
     public init(
         video: VideoItem,
@@ -755,43 +807,46 @@ public struct VideoListRowView: View {
                     .font(.system(size: 14, weight: .light))
                     .foregroundStyle(ShadcnTheme.foregroundMuted.opacity(0.65))
 
-                // Hover Play Overlay (shows play button only on thumbnail hover)
+                // Hover Play Overlay (shows play button only on thumbnail hover with spring reveal)
                 ZStack {
-                    if isThumbnailHovered {
-                        Color.black.opacity(Self.scrimOpacity)
-                            .overlay(
-                                Circle()
-                                    .fill(.ultraThinMaterial)
-                                    .frame(width: Self.playBadgeDiameter, height: Self.playBadgeDiameter)
-                                    .overlay(
-                                        Circle()
-                                            .fill(ShadcnTheme.card.opacity(Self.badgeCardFillOpacity))
-                                    )
-                                    .overlay(
-                                        Circle()
-                                            .strokeBorder(ShadcnTheme.borderActive, lineWidth: 1)
-                                    )
-                                    .overlay(
-                                        Image(systemName: "play.fill")
-                                            .font(.system(size: Self.playIconSize))
-                                            .foregroundStyle(ShadcnTheme.foreground)
-                                            .offset(x: 1)
-                                    )
-                            )
-                            .transition(.opacity)
-                    }
+                    Color.black.opacity(isThumbnailHovered ? Self.scrimOpacity : 0.0)
+                        .overlay(
+                            Circle()
+                                .fill(.ultraThinMaterial)
+                                .frame(width: Self.playBadgeDiameter, height: Self.playBadgeDiameter)
+                                .overlay(
+                                    Circle()
+                                        .fill(ShadcnTheme.card.opacity(Self.badgeCardFillOpacity))
+                                )
+                                .overlay(
+                                    Circle()
+                                        .strokeBorder(ShadcnTheme.borderActive, lineWidth: 1)
+                                )
+                                .overlay(
+                                    Image(systemName: "play.fill")
+                                        .font(.system(size: Self.playIconSize))
+                                        .foregroundStyle(ShadcnTheme.foreground)
+                                        .offset(x: 1)
+                                )
+                                .scaleEffect(isThumbnailHovered ? 1.0 : 0.75)
+                                .opacity(isThumbnailHovered ? 1.0 : 0.0)
+                                .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isThumbnailHovered)
+                        )
                 }
-                .animation(.fluidQuick, value: isThumbnailHovered)
+                .animation(.easeInOut(duration: 0.2), value: isThumbnailHovered)
             }
             .frame(width: Self.thumbnailWidth, height: Self.thumbnailHeight)
             .clipShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                    .strokeBorder(ShadcnTheme.border, lineWidth: 1)
+                    .strokeBorder(isThumbnailHovered ? ShadcnTheme.borderActive : ShadcnTheme.border, lineWidth: 1)
             )
             .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
+            .pointingHand()
             .onHover { hovering in
-                isThumbnailHovered = hovering
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
+                    isThumbnailHovered = hovering
+                }
                 onThumbnailHover?(hovering)
             }
 
@@ -857,7 +912,7 @@ public struct VideoListRowView: View {
             .contentShape(Circle())
             .pointingHand()
             .opacity(isHovered || video.isFavorite ? 1.0 : 0.0)
-            .animation(.fluidQuick, value: isHovered)
+            .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isHovered)
             .animation(.fluidSpring, value: video.isFavorite)
             .help(video.isFavorite ? "Remove from Favorites" : "Add to Favorites")
         }
@@ -871,24 +926,33 @@ public struct VideoListRowView: View {
             RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                 .strokeBorder(isHovered ? ShadcnTheme.borderActive : ShadcnTheme.border, lineWidth: 1)
         )
-        .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
-        .animation(.fluidQuick, value: isHovered)
+        .offset(y: isHovered ? -1 : 0)
+        .scaleEffect(isPressed ? 0.98 : 1.0)
+        .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isHovered)
+        .animation(.spring(response: 0.22, dampingFraction: 0.75), value: isPressed)
         .animation(.fluidSpring, value: containerWidth >= 380)
         .animation(.fluidSpring, value: containerWidth >= 460)
-        .onTapGesture {
+        .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
+        ._onButtonGesture(pressing: { pressing in
+            withAnimation(.spring(response: 0.22, dampingFraction: 0.75)) {
+                isPressed = pressing
+            }
+        }, perform: {
             if FileManager.default.fileExists(atPath: video.url.path) || CommandLine.arguments.contains("--run-tests") {
                 onPlayURL(video.url)
             } else {
                 library.verifyAndPruneMissingFiles()
             }
-        }
+        })
         .pointingHand()
         .onHover { h in
             onHover(h)
         }
         .onChange(of: isHovered) { _, hovered in
             if !hovered {
-                isThumbnailHovered = false
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
+                    isThumbnailHovered = false
+                }
             }
         }
         .contextMenu {
@@ -899,9 +963,11 @@ public struct VideoListRowView: View {
                     library.verifyAndPruneMissingFiles()
                 }
             }
+            .pointingHand()
             Button(video.isFavorite ? "Unfavorite" : "Favorite") {
                 library.toggleFavorite(videoId: video.id)
             }
+            .pointingHand()
             Divider()
             Button("Reveal in Finder") {
                 if FileManager.default.fileExists(atPath: video.url.path) {
@@ -910,12 +976,14 @@ public struct VideoListRowView: View {
                     library.verifyAndPruneMissingFiles()
                 }
             }
+            .pointingHand()
             Divider()
             Button("Remove from Library", role: .destructive) {
                 withAnimation(.fluidQuick) {
                     library.removeVideo(id: video.id)
                 }
             }
+            .pointingHand()
         }
     }
 }

@@ -1,6 +1,25 @@
 import SwiftUI
 import AppKit
 
+// MARK: - Tactile Button Styles for TopBar Controls
+public struct TopBarIconButtonStyle: ButtonStyle {
+    public init() {}
+    public func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.93 : 1.0)
+            .animation(.spring(response: 0.22, dampingFraction: 0.75), value: configuration.isPressed)
+    }
+}
+
+public struct TopBarPillButtonStyle: ButtonStyle {
+    public init() {}
+    public func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .animation(.spring(response: 0.22, dampingFraction: 0.75), value: configuration.isPressed)
+    }
+}
+
 public struct DashboardTopBarView: View {
     @Bindable var library: LibraryManager
     public var onPlayURL: (URL) -> Void
@@ -8,6 +27,7 @@ public struct DashboardTopBarView: View {
     @State private var themeManager = ThemeManager.shared
     @State private var windowManager = WindowManager.shared
     @State private var updateManager = UpdateManager.shared
+    @FocusState private var isSearchFocused: Bool
 
     private enum HoveredButton {
         case sidebar
@@ -64,7 +84,7 @@ public struct DashboardTopBarView: View {
                         .frame(width: 28, height: 28)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(TopBarIconButtonStyle())
                     .pointingHand()
                     .help("Toggle Sidebar (⌘B)")
                     .onHover { h in
@@ -86,7 +106,7 @@ public struct DashboardTopBarView: View {
                         .frame(width: 28, height: 28)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(TopBarIconButtonStyle())
                     .pointingHand()
                     .disabled(!library.canGoBack)
                     .help("Back (⌘[)")
@@ -110,7 +130,7 @@ public struct DashboardTopBarView: View {
                             .frame(width: 28, height: 28)
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(TopBarIconButtonStyle())
                         .pointingHand()
                         .disabled(!library.canGoForward)
                         .help("Forward (⌘])")
@@ -135,7 +155,7 @@ public struct DashboardTopBarView: View {
                         .frame(width: 28, height: 28)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(TopBarIconButtonStyle())
                     .pointingHand()
                     .help("Search Videos & Commands (⌘K, ⌘F)")
                     .onHover { h in
@@ -172,19 +192,20 @@ public struct DashboardTopBarView: View {
                     .transition(.opacity.combined(with: .move(edge: .leading)))
                 }
 
-                // MARK: - Expandable Search Field
+                // MARK: - Expandable Search Field with Tactile Press & Active Focus Ring
                 if library.isSearchActive || !library.searchQuery.isEmpty {
                     let searchWidth: CGFloat = isUltraNarrow ? 95 : (isNarrow ? 120 : 160)
                     HStack(spacing: 4) {
                         Image(systemName: "magnifyingglass")
                             .font(.system(size: 10))
-                            .foregroundStyle(ShadcnTheme.foregroundMuted)
+                            .foregroundStyle(isSearchFocused ? ShadcnTheme.foreground : ShadcnTheme.foregroundMuted)
 
                         TextField("Search...", text: $library.searchQuery)
                             .textFieldStyle(.plain)
                             .font(.system(size: 11))
                             .foregroundStyle(ShadcnTheme.foreground)
                             .frame(width: searchWidth)
+                            .focused($isSearchFocused)
 
                         if !library.searchQuery.isEmpty {
                             Button {
@@ -197,22 +218,29 @@ public struct DashboardTopBarView: View {
                                     .foregroundStyle(ShadcnTheme.foregroundMuted)
                                     .frame(width: 16, height: 16)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(TopBarIconButtonStyle())
                             .pointingHand()
                             .transition(.opacity.combined(with: .scale(scale: 0.9)))
                         }
                     }
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .frame(height: 20)
+                    .frame(height: 22)
                     .background(
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
                             .fill(ShadcnTheme.card)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                    .strokeBorder(ShadcnTheme.borderActive, lineWidth: 1)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .strokeBorder(
+                                isSearchFocused ? ShadcnTheme.ring : (hoveredButton == .search ? ShadcnTheme.borderActive : ShadcnTheme.border),
+                                lineWidth: isSearchFocused ? 1.5 : 1
                             )
                     )
+                    .shadow(color: isSearchFocused ? ShadcnTheme.ring.opacity(0.18) : Color.clear, radius: 4, x: 0, y: 0)
+                    .animation(.spring(response: 0.22, dampingFraction: 0.75), value: isSearchFocused)
+                    .contentShape(Rectangle())
+                    .pointingHand()
                     .transition(
                         .asymmetric(
                             insertion: .opacity.combined(with: .scale(scale: 0.92, anchor: .leading)),
@@ -263,12 +291,12 @@ public struct DashboardTopBarView: View {
                                     .fill(hoveredButton == .sort ? ShadcnTheme.cardHover : ShadcnTheme.card)
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                            .strokeBorder(ShadcnTheme.border, lineWidth: 1)
+                                            .strokeBorder(hoveredButton == .sort ? ShadcnTheme.borderActive : ShadcnTheme.border, lineWidth: 1)
                                     )
                             )
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(TopBarPillButtonStyle())
                         .pointingHand()
                         .contextMenu {
                             ForEach(SortOption.allCases) { opt in
@@ -284,6 +312,7 @@ public struct DashboardTopBarView: View {
                                         }
                                     }
                                 }
+                                .pointingHand()
                             }
                         }
                         .help("Sort: \(library.sortOption.rawValue) (Click to cycle)")
@@ -291,33 +320,37 @@ public struct DashboardTopBarView: View {
                             hoveredButton = h ? .sort : nil
                         }
 
-                        // 1-Click View Mode Toggle Button (Grid <-> List) - Icon-Only
+                        // 1-Click View Mode Toggle Button (Grid <-> List) - Tactile press & active focus ring
                         Button {
-                            withAnimation(.snappy(duration: 0.18)) {
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
                                 library.toggleViewMode()
                             }
                         } label: {
                             ZStack {
                                 RoundedRectangle(cornerRadius: 6, style: .continuous)
                                     .fill(hoveredButton == .viewMode ? ShadcnTheme.cardHover : Color.black.opacity(0.0001))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                            .strokeBorder(hoveredButton == .viewMode ? ShadcnTheme.borderActive : Color.clear, lineWidth: 1)
+                                    )
 
                                 Image(systemName: library.viewMode == .grid ? "list.bullet" : "square.grid.2x2")
                                     .font(.system(size: 12, weight: .medium))
-                                    .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                                    .foregroundStyle(hoveredButton == .viewMode ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
                             }
                             .frame(width: 28, height: 28)
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(TopBarIconButtonStyle())
                         .pointingHand()
-                        .animation(.snappy(duration: 0.18), value: library.viewMode)
+                        .animation(.spring(response: 0.25, dampingFraction: 0.75), value: library.viewMode)
                         .help(library.viewMode == .grid ? "Switch to List View" : "Switch to Grid View")
                         .onHover { h in
                             hoveredButton = h ? .viewMode : nil
                         }
                     }
 
-                    // OTA Update Available Pill Button
+                    // OTA Update Available Pill Button (Strict Shadcn neutral b1VlK05Q)
                     if updateManager.hasUpdate {
                         Button {
                             withAnimation(.snappy(duration: 0.18)) {
@@ -326,7 +359,7 @@ public struct DashboardTopBarView: View {
                         } label: {
                             HStack(spacing: 4) {
                                 Circle()
-                                    .fill(Color(red: 249/255.0, green: 115/255.0, blue: 22/255.0))
+                                    .fill(Color.blue)
                                     .frame(width: 5, height: 5)
 
                                 if !isNarrow {
@@ -343,12 +376,12 @@ public struct DashboardTopBarView: View {
                                     .fill(ShadcnTheme.card)
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                            .strokeBorder(Color(red: 249/255.0, green: 115/255.0, blue: 22/255.0).opacity(0.4), lineWidth: 1)
+                                            .strokeBorder(ShadcnTheme.border, lineWidth: 1)
                                     )
                             )
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(TopBarPillButtonStyle())
                         .pointingHand()
                         .help("Update Available: \(updateManager.availableUpdate?.tagName ?? "")")
                         .transition(.opacity.combined(with: .scale(scale: 0.9)))
@@ -372,7 +405,7 @@ public struct DashboardTopBarView: View {
                         .frame(width: 28, height: 28)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(TopBarIconButtonStyle())
                     .pointingHand()
                     .animation(.snappy(duration: 0.2), value: themeManager.isDark)
                     .help(themeManager.isDark ? "Switch to Light Mode" : "Switch to Dark Mode")

@@ -1,9 +1,28 @@
 import SwiftUI
 
+// MARK: - Emil Kowalski Tactile Button Styles
+
+private struct TactileSpeedPresetStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.94 : 1.0)
+            .animation(.spring(response: 0.20, dampingFraction: 0.75), value: configuration.isPressed)
+    }
+}
+
+private struct TactileSpeedCloseStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.90 : 1.0)
+            .animation(.spring(response: 0.22, dampingFraction: 0.74), value: configuration.isPressed)
+    }
+}
+
 // MARK: - Shadcn Playback Speed Selector Panel
 
 public struct SpeedSelectorPanel: View {
     @Bindable var engine: VideoPlayerEngine
+    @State private var hoveredSpeed: Float? = nil
 
     private let presets: [Float] = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
 
@@ -17,7 +36,7 @@ public struct SpeedSelectorPanel: View {
             HStack(spacing: 8) {
                 Image(systemName: "gauge.with.needle.fill")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(ShadcnTheme.primaryHighlight)
+                    .foregroundStyle(ShadcnTheme.foreground)
 
                 Text("Playback Speed")
                     .font(.system(size: 13, weight: .semibold))
@@ -27,21 +46,22 @@ public struct SpeedSelectorPanel: View {
 
                 Text(String(format: "%.2f×", engine.playbackRate))
                     .font(.system(size: 11, weight: .bold, design: .monospaced))
-                    .foregroundStyle(abs(engine.playbackRate - 1.0) > 0.01 ? ShadcnTheme.primaryHighlight : ShadcnTheme.foreground)
+                    .foregroundStyle(abs(engine.playbackRate - 1.0) > 0.01 ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
 
+                // Close Button with Fluid Spring Dismissal
                 Button {
-                    withAnimation(.fluidSpring) {
+                    withAnimation(.spring(response: 0.26, dampingFraction: 0.76)) {
                         engine.activeInspectorSheet = nil
                     }
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                        .frame(width: 20, height: 20)
+                        .frame(width: 22, height: 22)
                         .background(ShadcnTheme.secondary.opacity(0.4))
                         .clipShape(Circle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(TactileSpeedCloseStyle())
                 .pointingHand()
                 .help("Close (Esc)")
             }
@@ -50,7 +70,7 @@ public struct SpeedSelectorPanel: View {
                 .fill(ShadcnTheme.borderSubtle)
                 .frame(height: 1)
 
-            // Presets Grid
+            // Presets Grid with Subtle Hover Pill Fill and Tactile Press Feedback
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
                 ForEach(presets, id: \.self) { speed in
                     presetButton(speed: speed)
@@ -61,7 +81,7 @@ public struct SpeedSelectorPanel: View {
                 .fill(ShadcnTheme.borderSubtle)
                 .frame(height: 1)
 
-            // Custom Slider
+            // Custom Slider with Pointing Hand
             VStack(alignment: .leading, spacing: 5) {
                 HStack {
                     Text("Fine Adjustment")
@@ -70,13 +90,13 @@ public struct SpeedSelectorPanel: View {
                     Spacer()
                     if abs(engine.playbackRate - 1.0) > 0.01 {
                         Button("Reset (1.0×)") {
-                            withAnimation(.fluidQuick) {
+                            withAnimation(.spring(response: 0.22, dampingFraction: 0.76)) {
                                 engine.playbackRate = 1.0
                             }
                         }
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(ShadcnTheme.primaryHighlight)
-                        .buttonStyle(.plain)
+                        .foregroundStyle(ShadcnTheme.foreground)
+                        .buttonStyle(TactileSpeedPresetStyle())
                         .pointingHand()
                     }
                 }
@@ -89,7 +109,7 @@ public struct SpeedSelectorPanel: View {
                     in: 0.25...3.0,
                     step: 0.05
                 )
-                .tint(ShadcnTheme.primaryHighlight)
+                .tint(ShadcnTheme.foreground)
                 .pointingHand()
             }
         }
@@ -101,27 +121,44 @@ public struct SpeedSelectorPanel: View {
 
     private func presetButton(speed: Float) -> some View {
         let isSelected = abs(engine.playbackRate - speed) < 0.01
+        let isHovered = hoveredSpeed == speed
+
         return Button {
-            withAnimation(.fluidQuick) {
+            withAnimation(.spring(response: 0.22, dampingFraction: 0.76)) {
                 engine.playbackRate = speed
             }
         } label: {
-            Text(String(format: "%.2f×", speed))
-                .font(.system(size: 11, weight: isSelected ? .bold : .medium, design: .monospaced))
-                .foregroundStyle(isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 6)
-                .background(
-                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                        .fill(isSelected ? ShadcnTheme.cardHover : ShadcnTheme.secondary.opacity(0.35))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                        .strokeBorder(isSelected ? ShadcnTheme.border : ShadcnTheme.borderSubtle, lineWidth: 1)
-                )
-                .contentShape(Rectangle())
+            HStack(spacing: 4) {
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 8.5, weight: .bold))
+                        .foregroundStyle(ShadcnTheme.foreground)
+                        .transition(.scale(scale: 0.3).combined(with: .opacity))
+                }
+
+                Text(String(format: "%.2f×", speed))
+                    .font(.system(size: 11, weight: isSelected ? .bold : .medium, design: .monospaced))
+                    .foregroundStyle(isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
+            }
+            .animation(.spring(response: 0.24, dampingFraction: 0.72), value: isSelected)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                    .fill(isSelected ? ShadcnTheme.cardHover : (isHovered ? ShadcnTheme.muted.opacity(0.6) : ShadcnTheme.secondary.opacity(0.35)))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                    .strokeBorder(isSelected ? ShadcnTheme.borderActive : (isHovered ? ShadcnTheme.borderActive : ShadcnTheme.borderSubtle), lineWidth: 1)
+            )
+            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(TactileSpeedPresetStyle())
         .pointingHand()
+        .onHover { h in
+            withAnimation(.spring(response: 0.22, dampingFraction: 0.8)) {
+                hoveredSpeed = h ? speed : nil
+            }
+        }
     }
 }

@@ -20,8 +20,11 @@ private struct ShadcnPressStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.97 : 1)
-            .animation(reduceMotion ? nil : .fluidQuick, value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.94 : 1.0)
+            .animation(
+                reduceMotion ? nil : .spring(response: 0.24, dampingFraction: 0.74),
+                value: configuration.isPressed
+            )
     }
 }
 
@@ -94,6 +97,27 @@ public struct ShadcnButton: View {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .strokeBorder(borderColor, lineWidth: 1)
             )
+            .overlay(
+                // Specular glint on border with subtle top-down light
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(
+                        LinearGradient(
+                            stops: [
+                                .init(color: ShadcnTheme.borderActive.opacity(isHovering ? 0.45 : 0.0), location: 0.0),
+                                .init(color: Color.clear, location: 0.55)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ),
+                        lineWidth: 1
+                    )
+            )
+            .shadow(
+                color: isHovering && variant != .ghost ? Color.black.opacity(0.14) : Color.black.opacity(0.02),
+                radius: isHovering ? 3.5 : 1,
+                x: 0,
+                y: isHovering ? 1.5 : 0.5
+            )
             .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         }
         .buttonStyle(ShadcnPressStyle(reduceMotion: reduceMotion))
@@ -102,8 +126,8 @@ public struct ShadcnButton: View {
         .accessibilityLabel(effectiveAccessibilityLabel)
         .help(effectiveAccessibilityLabel)
         .onHover { isHovering = $0 }
-        .animation(reduceMotion ? nil : .fluidQuick, value: isHovering)
-        .animation(reduceMotion ? nil : .fluidQuick, value: isSelected)
+        .animation(reduceMotion ? nil : .spring(response: 0.24, dampingFraction: 0.74), value: isHovering)
+        .animation(reduceMotion ? nil : .spring(response: 0.24, dampingFraction: 0.74), value: isSelected)
     }
 
     private var isIconOnly: Bool {
@@ -181,7 +205,7 @@ public struct ShadcnButton: View {
     private var borderColor: Color {
         switch variant {
         case .default, .primary:
-            return Color.clear
+            return isHovering ? ShadcnTheme.borderActive.opacity(0.3) : Color.clear
         case .secondary:
             return isHovering || isSelected ? ShadcnTheme.borderActive : ShadcnTheme.border
         case .outline:
@@ -190,7 +214,7 @@ public struct ShadcnButton: View {
             }
             return isHovering ? ShadcnTheme.borderActive : ShadcnTheme.border
         case .ghost:
-            return isSelected ? ShadcnTheme.border : Color.clear
+            return isSelected ? ShadcnTheme.border : (isHovering ? ShadcnTheme.borderSubtle : Color.clear)
         }
     }
 }

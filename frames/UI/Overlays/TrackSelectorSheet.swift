@@ -2,6 +2,52 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
+// MARK: - Emil Kowalski Tactile Button & Row Styles
+
+private struct TactileSheetRowStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+            .animation(.spring(response: 0.20, dampingFraction: 0.75), value: configuration.isPressed)
+    }
+}
+
+private struct TactileSheetButtonStyle: ButtonStyle {
+    var scale: CGFloat = 0.95
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? scale : 1.0)
+            .animation(.spring(response: 0.22, dampingFraction: 0.74), value: configuration.isPressed)
+    }
+}
+
+// MARK: - Selected Option Spring Checkmark Indicator
+
+private struct SpringCheckmarkIndicator: View {
+    let isSelected: Bool
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(isSelected ? ShadcnTheme.foreground : Color.clear)
+                .frame(width: 15, height: 15)
+                .overlay(
+                    Circle()
+                        .strokeBorder(isSelected ? ShadcnTheme.foreground : ShadcnTheme.border, lineWidth: 1.2)
+                )
+
+            if isSelected {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 8.5, weight: .bold))
+                    .foregroundStyle(ShadcnTheme.background)
+                    .transition(.scale(scale: 0.3).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(response: 0.24, dampingFraction: 0.72), value: isSelected)
+    }
+}
+
 // MARK: - Shadcn Subtitle Selector Panel
 
 public struct SubtitleSelectorPanel: View {
@@ -35,7 +81,7 @@ public struct SubtitleSelectorPanel: View {
             HStack(spacing: 8) {
                 Image(systemName: "captions.bubble.fill")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(ShadcnTheme.primaryHighlight)
+                    .foregroundStyle(ShadcnTheme.foreground)
 
                 Text("Subtitles")
                     .font(.system(size: 13, weight: .semibold))
@@ -54,20 +100,20 @@ public struct SubtitleSelectorPanel: View {
 
                 Spacer()
 
-                // Close Button
+                // Close Button with Fluid Spring Dismissal
                 Button {
-                    withAnimation(.fluidSpring) {
+                    withAnimation(.spring(response: 0.26, dampingFraction: 0.76)) {
                         engine.activeInspectorSheet = nil
                     }
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                        .frame(width: 20, height: 20)
+                        .frame(width: 22, height: 22)
                         .background(ShadcnTheme.secondary.opacity(0.4))
                         .clipShape(Circle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(TactileSheetButtonStyle(scale: 0.90))
                 .pointingHand()
                 .help("Close (Esc)")
             }
@@ -77,7 +123,7 @@ public struct SubtitleSelectorPanel: View {
                 ForEach(SubtitleTab.allCases) { tab in
                     let isTabActive = selectedTab == tab
                     Button {
-                        withAnimation(.fluidQuick) {
+                        withAnimation(.spring(response: 0.22, dampingFraction: 0.76)) {
                             selectedTab = tab
                         }
                     } label: {
@@ -95,7 +141,7 @@ public struct SubtitleSelectorPanel: View {
                                     .strokeBorder(isTabActive ? ShadcnTheme.border : Color.clear, lineWidth: 1)
                             )
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(TactileSheetButtonStyle(scale: 0.98))
                     .pointingHand()
                 }
             }
@@ -131,21 +177,12 @@ public struct SubtitleSelectorPanel: View {
                     // Off Option
                     let isOff = engine.selectedSubtitleTrack.id == SubtitleTrack.off.id
                     Button {
-                        withAnimation(.fluidQuick) {
+                        withAnimation(.spring(response: 0.22, dampingFraction: 0.76)) {
                             engine.selectSubtitleTrack(SubtitleTrack.off)
                         }
                     } label: {
                         HStack(spacing: 8) {
-                            ZStack {
-                                Circle()
-                                    .strokeBorder(isOff ? ShadcnTheme.primaryHighlight : ShadcnTheme.border, lineWidth: 1.5)
-                                    .frame(width: 14, height: 14)
-                                if isOff {
-                                    Circle()
-                                        .fill(ShadcnTheme.primaryHighlight)
-                                        .frame(width: 7, height: 7)
-                                }
-                            }
+                            SpringCheckmarkIndicator(isSelected: isOff)
 
                             Text("Off")
                                 .font(.system(size: 12, weight: isOff ? .semibold : .medium))
@@ -161,37 +198,32 @@ public struct SubtitleSelectorPanel: View {
                         .padding(.vertical, 6)
                         .background(
                             RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                .fill(isOff ? ShadcnTheme.cardHover : (hoveredTrackId == "off" ? ShadcnTheme.muted.opacity(0.4) : Color.clear))
+                                .fill(isOff ? ShadcnTheme.cardHover : (hoveredTrackId == "off" ? ShadcnTheme.muted.opacity(0.6) : Color.clear))
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                .strokeBorder(isOff ? ShadcnTheme.border : Color.clear, lineWidth: 1)
+                                .strokeBorder(isOff ? ShadcnTheme.borderActive : (hoveredTrackId == "off" ? ShadcnTheme.borderSubtle : Color.clear), lineWidth: 1)
                         )
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(TactileSheetRowStyle())
                     .pointingHand()
-                    .onHover { h in hoveredTrackId = h ? "off" : nil }
+                    .onHover { h in
+                        withAnimation(.spring(response: 0.22, dampingFraction: 0.8)) {
+                            hoveredTrackId = h ? "off" : nil
+                        }
+                    }
 
                     // Available Subtitle Tracks
                     ForEach(engine.availableSubtitleTracks.filter { $0.id != SubtitleTrack.off.id }) { track in
                         let isSelected = engine.selectedSubtitleTrack.id == track.id
                         Button {
-                            withAnimation(.fluidQuick) {
+                            withAnimation(.spring(response: 0.22, dampingFraction: 0.76)) {
                                 engine.selectSubtitleTrack(track)
                             }
                         } label: {
                             HStack(spacing: 8) {
-                                ZStack {
-                                    Circle()
-                                        .strokeBorder(isSelected ? ShadcnTheme.primaryHighlight : ShadcnTheme.border, lineWidth: 1.5)
-                                        .frame(width: 14, height: 14)
-                                    if isSelected {
-                                        Circle()
-                                            .fill(ShadcnTheme.primaryHighlight)
-                                            .frame(width: 7, height: 7)
-                                    }
-                                }
+                                SpringCheckmarkIndicator(isSelected: isSelected)
 
                                 VStack(alignment: .leading, spacing: 1) {
                                     Text(track.title)
@@ -212,28 +244,36 @@ public struct SubtitleSelectorPanel: View {
                                 if track.isExternal {
                                     Text("EXTERNAL")
                                         .font(.system(size: 8, weight: .bold, design: .monospaced))
-                                        .foregroundStyle(ShadcnTheme.primaryHighlight)
+                                        .foregroundStyle(ShadcnTheme.foreground)
                                         .padding(.horizontal, 4)
                                         .padding(.vertical, 1.5)
-                                        .background(ShadcnTheme.primaryHighlight.opacity(0.12))
+                                        .background(ShadcnTheme.secondary)
                                         .clipShape(RoundedRectangle(cornerRadius: 3))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 3)
+                                                .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
+                                        )
                                 }
                             }
                             .padding(.horizontal, 8)
                             .padding(.vertical, 6)
                             .background(
                                 RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                    .fill(isSelected ? ShadcnTheme.cardHover : (hoveredTrackId == track.id ? ShadcnTheme.muted.opacity(0.4) : Color.clear))
+                                    .fill(isSelected ? ShadcnTheme.cardHover : (hoveredTrackId == track.id ? ShadcnTheme.muted.opacity(0.6) : Color.clear))
                             )
                             .overlay(
                                 RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                    .strokeBorder(isSelected ? ShadcnTheme.border : Color.clear, lineWidth: 1)
+                                    .strokeBorder(isSelected ? ShadcnTheme.borderActive : (hoveredTrackId == track.id ? ShadcnTheme.borderSubtle : Color.clear), lineWidth: 1)
                             )
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(TactileSheetRowStyle())
                         .pointingHand()
-                        .onHover { h in hoveredTrackId = h ? track.id : nil }
+                        .onHover { h in
+                            withAnimation(.spring(response: 0.22, dampingFraction: 0.8)) {
+                                hoveredTrackId = h ? track.id : nil
+                            }
+                        }
                     }
                 }
             }
@@ -262,8 +302,9 @@ public struct SubtitleSelectorPanel: View {
                     RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                         .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
                 )
+                .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(TactileSheetButtonStyle(scale: 0.98))
             .pointingHand()
         }
     }
@@ -281,7 +322,7 @@ public struct SubtitleSelectorPanel: View {
                     Spacer()
                     Text(String(format: "%+.2fs", engine.subtitleDelay))
                         .font(.system(size: 11, weight: .bold, design: .monospaced))
-                        .foregroundStyle(engine.subtitleDelay != 0 ? ShadcnTheme.primaryHighlight : ShadcnTheme.foreground)
+                        .foregroundStyle(engine.subtitleDelay != 0 ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
                 }
 
                 HStack(spacing: 4) {
@@ -317,7 +358,7 @@ public struct SubtitleSelectorPanel: View {
                 }
 
                 Slider(value: $engine.subtitleFontSize, in: 14...34, step: 2)
-                    .tint(ShadcnTheme.primaryHighlight)
+                    .tint(ShadcnTheme.foreground)
                     .pointingHand()
             }
 
@@ -338,7 +379,7 @@ public struct SubtitleSelectorPanel: View {
                     ForEach(colorPresets, id: \.hex) { preset in
                         let isSelected = settings.subtitleTextColorHex.uppercased() == preset.hex.uppercased()
                         Button {
-                            withAnimation(.snappy(duration: 0.15)) {
+                            withAnimation(.spring(response: 0.20, dampingFraction: 0.75)) {
                                 settings.subtitleTextColorHex = preset.hex
                             }
                         } label: {
@@ -358,11 +399,12 @@ public struct SubtitleSelectorPanel: View {
                                     .fill(isSelected ? ShadcnTheme.cardHover : ShadcnTheme.secondary.opacity(0.35))
                                     .overlay(
                                         RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                            .strokeBorder(isSelected ? ShadcnTheme.border : Color.clear, lineWidth: 1)
+                                            .strokeBorder(isSelected ? ShadcnTheme.borderActive : Color.clear, lineWidth: 1)
                                     )
                             )
+                            .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(TactileSheetButtonStyle(scale: 0.96))
                         .pointingHand()
                     }
                 }
@@ -374,7 +416,7 @@ public struct SubtitleSelectorPanel: View {
         Button(action: action) {
             Text(label)
                 .font(.system(size: 9.5, weight: isReset ? .bold : .medium, design: .monospaced))
-                .foregroundStyle(isReset && engine.subtitleDelay != 0 ? ShadcnTheme.primaryHighlight : ShadcnTheme.foreground)
+                .foregroundStyle(isReset && engine.subtitleDelay != 0 ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 4)
                 .background(ShadcnTheme.secondary.opacity(0.4))
@@ -383,15 +425,16 @@ public struct SubtitleSelectorPanel: View {
                     RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                         .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
                 )
+                .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(TactileSheetButtonStyle(scale: 0.96))
         .pointingHand()
     }
 
     private func fontSizePresetButton(label: String, size: CGFloat) -> some View {
         let isSelected = abs(engine.subtitleFontSize - size) < 1.0
         return Button {
-            withAnimation(.fluidQuick) {
+            withAnimation(.spring(response: 0.20, dampingFraction: 0.75)) {
                 engine.subtitleFontSize = size
             }
         } label: {
@@ -404,10 +447,11 @@ public struct SubtitleSelectorPanel: View {
                 .clipShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                        .strokeBorder(isSelected ? ShadcnTheme.border : ShadcnTheme.borderSubtle, lineWidth: 1)
+                        .strokeBorder(isSelected ? ShadcnTheme.borderActive : ShadcnTheme.borderSubtle, lineWidth: 1)
                 )
+                .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(TactileSheetButtonStyle(scale: 0.96))
         .pointingHand()
     }
 
@@ -446,7 +490,7 @@ public struct AudioSelectorPanel: View {
             HStack(spacing: 8) {
                 Image(systemName: "speaker.wave.2.fill")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(ShadcnTheme.primaryHighlight)
+                    .foregroundStyle(ShadcnTheme.foreground)
 
                 Text("Audio Streams")
                     .font(.system(size: 13, weight: .semibold))
@@ -464,19 +508,20 @@ public struct AudioSelectorPanel: View {
 
                 Spacer()
 
+                // Close Button with Fluid Spring Dismissal
                 Button {
-                    withAnimation(.fluidSpring) {
+                    withAnimation(.spring(response: 0.26, dampingFraction: 0.76)) {
                         engine.activeInspectorSheet = nil
                     }
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                        .frame(width: 20, height: 20)
+                        .frame(width: 22, height: 22)
                         .background(ShadcnTheme.secondary.opacity(0.4))
                         .clipShape(Circle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(TactileSheetButtonStyle(scale: 0.90))
                 .pointingHand()
                 .help("Close (Esc)")
             }
@@ -488,9 +533,8 @@ public struct AudioSelectorPanel: View {
             // Audio Streams List
             if engine.availableAudioTracks.isEmpty {
                 HStack(spacing: 8) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 12))
-                        .foregroundStyle(ShadcnTheme.primaryHighlight)
+                    SpringCheckmarkIndicator(isSelected: true)
+
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Default Audio Output")
                             .font(.system(size: 12, weight: .medium))
@@ -507,27 +551,22 @@ public struct AudioSelectorPanel: View {
                     RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                         .fill(ShadcnTheme.secondary.opacity(0.35))
                 )
+                .overlay(
+                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                        .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
+                )
             } else {
                 ScrollView(.vertical, showsIndicators: true) {
                     VStack(alignment: .leading, spacing: 3) {
                         ForEach(engine.availableAudioTracks) { track in
                             let isSelected = engine.selectedAudioTrack?.id == track.id
                             Button {
-                                withAnimation(.fluidQuick) {
+                                withAnimation(.spring(response: 0.22, dampingFraction: 0.76)) {
                                     engine.selectAudioTrack(track)
                                 }
                             } label: {
                                 HStack(spacing: 8) {
-                                    ZStack {
-                                        Circle()
-                                            .strokeBorder(isSelected ? ShadcnTheme.primaryHighlight : ShadcnTheme.border, lineWidth: 1.5)
-                                            .frame(width: 14, height: 14)
-                                        if isSelected {
-                                            Circle()
-                                                .fill(ShadcnTheme.primaryHighlight)
-                                                .frame(width: 7, height: 7)
-                                        }
-                                    }
+                                    SpringCheckmarkIndicator(isSelected: isSelected)
 
                                     VStack(alignment: .leading, spacing: 1) {
                                         Text(track.title)
@@ -576,17 +615,21 @@ public struct AudioSelectorPanel: View {
                                 .padding(.vertical, 6)
                                 .background(
                                     RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                        .fill(isSelected ? ShadcnTheme.cardHover : (hoveredTrackId == track.id ? ShadcnTheme.muted.opacity(0.4) : Color.clear))
+                                        .fill(isSelected ? ShadcnTheme.cardHover : (hoveredTrackId == track.id ? ShadcnTheme.muted.opacity(0.6) : Color.clear))
                                 )
                                 .overlay(
                                     RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                        .strokeBorder(isSelected ? ShadcnTheme.border : Color.clear, lineWidth: 1)
+                                        .strokeBorder(isSelected ? ShadcnTheme.borderActive : (hoveredTrackId == track.id ? ShadcnTheme.borderSubtle : Color.clear), lineWidth: 1)
                                 )
                                 .contentShape(Rectangle())
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(TactileSheetRowStyle())
                             .pointingHand()
-                            .onHover { h in hoveredTrackId = h ? track.id : nil }
+                            .onHover { h in
+                                withAnimation(.spring(response: 0.22, dampingFraction: 0.8)) {
+                                    hoveredTrackId = h ? track.id : nil
+                                }
+                            }
                         }
                     }
                 }
