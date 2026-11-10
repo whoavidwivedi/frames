@@ -40,5 +40,11 @@
 			</array>
 		</dict>
 	</array>
+	<key>ATSApplicationFontsPath</key>
+	<string>.</string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>GoogleSansFlex.ttf</string>
+	</array>
 </dict>
 </plist>

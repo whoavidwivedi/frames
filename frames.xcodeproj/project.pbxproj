@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A11100012345678901234567 /* GoogleSansFlex.ttf in Resources */ = {isa = PBXBuildFile; fileRef = B22200022345678901234567 /* GoogleSansFlex.ttf */; };
+		C11100032345678901234567 /* GoogleSansFont.swift in Sources */ = {isa = PBXBuildFile; fileRef = D22200042345678901234567 /* GoogleSansFont.swift */; };
 		0842326DC9FC3AE882B174A1 /* framesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63590F9AD633F762940AB2EC /* framesTests.swift */; };
 		0232F4A238A36D0F37B41026 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 056BD858FB795266DD647D3B /* AppIcon.icns */; };
 		E8C4EF41630A99B17C809543 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8B71FFE2A1D445C057EF475B /* Assets.xcassets */; };
@@ -90,6 +92,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		B22200022345678901234567 /* GoogleSansFlex.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "GoogleSansFlex.ttf"; sourceTree = "<group>"; };
+		D22200042345678901234567 /* GoogleSansFont.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GoogleSansFont.swift"; sourceTree = "<group>"; };
 		95633A08AC47E53810D61789 /* framesTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = framesTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		63590F9AD633F762940AB2EC /* framesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = framesTests.swift; sourceTree = "<group>"; };
 		44969C4B309A2D22006FA09B /* frames.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = frames.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -211,6 +215,7 @@
 		CF5497604C271D84CB4E4DA2 /* frames */ = {
 			isa = PBXGroup;
 			children = (
+				B22200022345678901234567 /* GoogleSansFlex.ttf */,
 				056BD858FB795266DD647D3B /* AppIcon.icns */,
 				8B71FFE2A1D445C057EF475B /* Assets.xcassets */,
 				049A20C1FBCCDE23AF9065FF /* ContentView.swift */,
@@ -351,6 +356,7 @@
 		A4A698C105BA79AF70E26EBC /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				D22200042345678901234567 /* GoogleSansFont.swift */,
 				D7F0F376E3171E5B82B3D681 /* CustomScrubber.swift */,
 				59E9E301B1965D9ED550466E /* LiquidGlassStyle.swift */,
 				B9981A90A8E4365A9AD362F1 /* PointerCursor.swift */,
@@ -492,6 +498,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A11100012345678901234567 /* GoogleSansFlex.ttf in Resources */,
 				0232F4A238A36D0F37B41026 /* AppIcon.icns in Resources */,
 				E8C4EF41630A99B17C809543 /* Assets.xcassets in Resources */,
 			);
@@ -546,6 +553,7 @@
 				29A58F0A50DE177DC630FC3A /* ShadcnButton.swift in Sources */,
 				12718C145356E808E0FE8118 /* ShadcnCommand.swift in Sources */,
 				0228E85A8A1C399717EC310C /* ShadcnTheme.swift in Sources */,
+				C11100032345678901234567 /* GoogleSansFont.swift in Sources */,
 				770F21E1E6CB2D1B6762027A /* TimeFormatting.swift in Sources */,
 				C5A487A958D8338CF540EED8 /* TitleBarArea.swift in Sources */,
 				F607699E6E4774725F55BB1B /* UpdateNoticeToast.swift in Sources */,
@@ -718,7 +726,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 40;
+				CURRENT_PROJECT_VERSION = 41;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -728,7 +736,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.6.2;
+				MARKETING_VERSION = 1.6.3;
 				PRODUCT_BUNDLE_IDENTIFIER = whoavidwivedi.frames;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -746,7 +754,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 40;
+				CURRENT_PROJECT_VERSION = 41;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -756,7 +764,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.6.2;
+				MARKETING_VERSION = 1.6.3;
 				PRODUCT_BUNDLE_IDENTIFIER = whoavidwivedi.frames;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -773,14 +781,14 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 40;
+				CURRENT_PROJECT_VERSION = 41;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.6.2;
+				MARKETING_VERSION = 1.6.3;
 				PRODUCT_BUNDLE_IDENTIFIER = whoavidwivedi.framesTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -795,14 +803,14 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 40;
+				CURRENT_PROJECT_VERSION = 41;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.6.2;
+				MARKETING_VERSION = 1.6.3;
 				PRODUCT_BUNDLE_IDENTIFIER = whoavidwivedi.framesTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;

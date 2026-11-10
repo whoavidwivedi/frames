@@ -26,7 +26,7 @@ public struct SplashScreenView: View {
             ZStack(alignment: .center) {
                 // Base Typographic Layer (Emerges strictly from center)
                 Text("frames")
-                    .font(.system(size: 46, weight: .semibold, design: .default))
+                    .font(.googleSans(46, weight: .semibold))
                     .foregroundStyle(ShadcnTheme.foreground)
                     .tracking(textTracking)
                     .blur(radius: blurRadius)
@@ -35,7 +35,7 @@ public struct SplashScreenView: View {
 
                 // Symmetrical Radial Center Bloom (Emanates outward strictly from the center of the word)
                 Text("frames")
-                    .font(.system(size: 46, weight: .semibold, design: .default))
+                    .font(.googleSans(46, weight: .semibold))
                     .foregroundStyle(
                         RadialGradient(
                             stops: [
