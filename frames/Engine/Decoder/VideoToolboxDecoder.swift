@@ -443,10 +443,13 @@ nonisolated public final class VideoToolboxDecoder: @unchecked Sendable {
             // Submit to Apple Silicon VideoToolbox ASIC with modern Swift completion handler
             frameLock.lock()
             let currentGen = self.sessionGeneration
-            frameLock.unlock()
+            guard let activeSession = self.session else {
+                frameLock.unlock()
+                return false
+            }
 
             let decodeStatus = VTDecompressionSessionDecodeFrame(
-                session,
+                activeSession,
                 sampleBuffer: sb,
                 flags: decodeFlags,
                 infoFlagsOut: nil
@@ -467,7 +470,8 @@ nonisolated public final class VideoToolboxDecoder: @unchecked Sendable {
                     presentationDuration: presentationDuration
                 )
             }
-            
+            frameLock.unlock()
+
             return decodeStatus == noErr
         }
     }

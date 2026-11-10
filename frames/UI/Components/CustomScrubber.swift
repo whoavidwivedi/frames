@@ -57,7 +57,7 @@ public struct CustomScrubber: View {
                         }
                     }
                 )
-                .tint(Color.white.opacity(0.9))
+                .tint(ShadcnTheme.primaryHighlight)
                 .frame(width: totalWidth, height: 24)
                 .contentShape(Rectangle())
                 .accessibilityLabel("Playback progress")
