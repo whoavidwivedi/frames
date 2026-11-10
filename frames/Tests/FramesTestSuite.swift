@@ -127,13 +127,16 @@ public enum FramesTestSuite {
         assertTest("Time Interpolation Monotonicity (120fps Zero Jitter)", condition: isStrictlyMonotonic)
 
         // MARK: - 7. Design System Tokens & Scrubber Math
-        logs.append("\n[7] Testing Shadcn base-luma/neutral Design Tokens & Scrubber Math...")
+        logs.append("\n[7] Testing Shadcn base-luma/neutral (Preset b1VlK05Q) Design Tokens & Scrubber Math...")
         assertTest("Shadcn Radius Scale (Sm=6, Md=8, Lg=10, Xl=14, 4xl=26)", condition:
             ShadcnTheme.radiusSm == 6 &&
             ShadcnTheme.radiusMd == 8 &&
             ShadcnTheme.radiusLg == 10 &&
             ShadcnTheme.radiusXl == 14 &&
             ShadcnTheme.radius4xl == 26
+        )
+        assertTest("Shadcn Preset b1VlK05Q Neutral Tokens Configured", condition:
+            ShadcnTheme.primary != ShadcnTheme.primaryForeground
         )
 
         // Dual-Mode Theme Verification (Light, Dark, and System Auto)

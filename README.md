@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Platform-macOS%2014.0%2B-black?style=flat-square&logo=apple" alt="Platform: macOS 14.0+">
   <img src="https://img.shields.io/badge/Apple%20Silicon-M1%20%7C%20M2%20%7C%20M3%20%7C%20M4%2B-black?style=flat-square&logo=apple" alt="Apple Silicon M1 to Latest">
   <img src="https://img.shields.io/badge/Language-Swift%206-black?style=flat-square&logo=swift" alt="Swift 6">
-  <img src="https://img.shields.io/badge/Design-shadcn%20base--luma%20%2F%20neutral-black?style=flat-square" alt="shadcn base-luma / neutral">
+  <img src="https://img.shields.io/badge/Design-shadcn%20base--luma%20%2F%20neutral%20(b1VlK05Q)-black?style=flat-square" alt="shadcn base-luma / neutral">
   <img src="https://img.shields.io/badge/Tests-717%20Passed%20(0%20warnings)-black?style=flat-square" alt="Tests">
   <a href="https://github.com/whoavidwivedi/frames/pulls"><img src="https://img.shields.io/badge/PRs-Welcome-black?style=flat-square" alt="PRs Welcome"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/whoavidwivedi/frames?style=flat-square&color=black" alt="License: MIT"></a>
@@ -32,7 +32,7 @@
 
 Traditional desktop video players are often weighed down by multi-hundred-megabyte Electron wrappers or legacy codebases dating back decades. Frames is written in pure **Swift 6 and SwiftUI**, leveraging Apple Silicon's dedicated **VideoToolbox** media decoders and Unified Memory architecture to deliver fluid 60fps / 120fps playback, buttery timeline scrubbing, and sub-second cold starts with minimal battery drain.
 
-The user interface adheres strictly to the **shadcn `base-luma`/`neutral`** (preset `b3lnoM3QO`) design language: matte charcoal dark surfaces (`oklch(0.145 0 0)` / `#0a0a0a`), subtle border contours (`Color.white.opacity(0.10)`), warm terracotta & copper accents, and smooth pill-radius controls.
+The user interface adheres strictly to the **shadcn `base-luma`/`neutral`** (preset `b1VlK05Q`, with pointer cursor) design language: matte charcoal dark surfaces (`oklch(0.145 0 0)` / `#0a0a0a`), subtle border contours (`oklch(1 0 0 / 10%)`), crisp monochromatic neutral highlights (`oklch(0.985 0 0)` / `#fafafa`), and smooth pill-radius controls.
 
 ---
 
