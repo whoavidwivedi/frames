@@ -195,7 +195,7 @@ struct framesApp: App {
                 .disabled(engine.currentURL == nil)
             }
 
-            CommandMenu("View") {
+            SwiftUI.CommandGroup(replacing: .sidebar) {
                 Button("Toggle Sidebar") {
                     LibraryManager.shared.toggleSidebar()
                 }
@@ -311,11 +311,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         if let mainMenu = NSApp.mainMenu {
             Self.cleanTabBarMenuItems(from: mainMenu)
+            Self.deduplicateMenus(in: mainMenu)
         }
 
         DispatchQueue.main.async {
             if let mainMenu = NSApp.mainMenu {
                 Self.cleanTabBarMenuItems(from: mainMenu)
+                Self.deduplicateMenus(in: mainMenu)
             }
             for window in NSApp.windows {
                 window.tabbingMode = .disallowed
@@ -435,5 +437,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         while let last = menu.items.last, last.isSeparatorItem {
             menu.removeItem(at: menu.items.count - 1)
         }
+    }
+
+    @discardableResult
+    public static func deduplicateMenus(in mainMenu: NSMenu) -> Int {
+        var seenTitles = Set<String>()
+        var removed = 0
+        var index = 0
+        while index < mainMenu.items.count {
+            let item = mainMenu.items[index]
+            let title = item.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !title.isEmpty {
+                if seenTitles.contains(title) {
+                    mainMenu.removeItem(at: index)
+                    removed += 1
+                    continue
+                } else {
+                    seenTitles.insert(title)
+                }
+            }
+            index += 1
+        }
+        return removed
     }
 }

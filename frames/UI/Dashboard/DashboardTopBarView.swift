@@ -32,12 +32,13 @@ public struct DashboardTopBarView: View {
             let isUltraNarrow = isCompact || geo.size.width < 500
             let showBadge = !isCompact && geo.size.width >= 660
             let isCompactSort = isCompact || geo.size.width < 580
-            let trafficSpacerWidth: CGFloat = windowManager.isAnyFullscreen ? 12 : 78
+            let trafficSpacerWidth: CGFloat = windowManager.isNativeFullscreen ? 12 : 78
 
             HStack(spacing: isNarrow ? 6 : 8) {
                 // Standard macOS traffic lights spacer & double-click area
                 Color.clear
                     .frame(width: trafficSpacerWidth, height: 32)
+                    .fixedSize(horizontal: true, vertical: false)
                     .contentShape(Rectangle())
                     .onTapGesture(count: 2) {
                         WindowManager.shared.performTitleBarDoubleClickAction()

@@ -13,7 +13,7 @@ public struct TopBarOverlay: View {
     }
 
     public var body: some View {
-        let isFs = windowManager.isAnyFullscreen
+        let isFs = windowManager.isNativeFullscreen
         let trafficLightSpacer: CGFloat = isFs ? 14 : 78
 
         ZStack {
@@ -31,6 +31,7 @@ public struct TopBarOverlay: View {
             HStack(spacing: 0) {
                 Color.clear
                     .frame(width: trafficLightSpacer, height: 1)
+                    .fixedSize(horizontal: true, vertical: false)
 
                 Button {
                     if let onReturn = onReturnToDashboard {

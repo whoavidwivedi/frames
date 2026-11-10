@@ -582,9 +582,11 @@ final class FramesTests: XCTestCase {
         let savedWindowed = wm.isWindowedFullscreen
         wm.isNativeFullscreen = false
         wm.isWindowedFullscreen = false
-        XCTAssertEqual(wm.isAnyFullscreen ? 12 : 78, 78, "Windowed mode traffic light spacer must be 78pt")
+        XCTAssertEqual(wm.isNativeFullscreen ? 12 : 78, 78, "Windowed mode traffic light spacer must be 78pt")
+        wm.isWindowedFullscreen = true
+        XCTAssertEqual(wm.isNativeFullscreen ? 12 : 78, 78, "Windowed fullscreen mode traffic light spacer must retain 78pt")
         wm.isNativeFullscreen = true
-        XCTAssertEqual(wm.isAnyFullscreen ? 12 : 78, 12, "Fullscreen mode traffic light spacer must be 12pt")
+        XCTAssertEqual(wm.isNativeFullscreen ? 12 : 78, 12, "Fullscreen mode traffic light spacer must be 12pt")
         wm.isNativeFullscreen = savedFs
         wm.isWindowedFullscreen = savedWindowed
 
