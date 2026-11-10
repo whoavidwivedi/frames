@@ -590,23 +590,12 @@ final class FramesTests: XCTestCase {
         wm.isNativeFullscreen = savedFs
         wm.isWindowedFullscreen = savedWindowed
 
-        // 5b. macOS 27 Apple Liquid Glass Traffic Lights
-        var testClose = false
-        var testMin = false
-        var testZoom = false
-        let tl = LiquidGlassTrafficLights(
-            buttonSize: 13.5,
-            spacing: 7.0,
-            onClose: { testClose = true },
-            onMinimize: { testMin = true },
-            onZoom: { testZoom = true }
-        )
-        let tlHost = NSHostingView(rootView: tl)
-        XCTAssertGreaterThan(tlHost.fittingSize.width, 0, "LiquidGlassTrafficLights mounts in NSHostingView")
-        tl.onClose?()
-        tl.onMinimize?()
-        tl.onZoom?()
-        XCTAssertTrue(testClose && testMin && testZoom, "LiquidGlassTrafficLights window actions trigger cleanly")
+        // 5b. Native macOS Traffic Lights & Window Configuration
+        let testWin = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 800, height: 600), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
+        wm.configureWindow(testWin)
+        XCTAssertEqual(testWin.standardWindowButton(.closeButton)?.isHidden, false, "Native close button must be visible")
+        XCTAssertEqual(testWin.standardWindowButton(.miniaturizeButton)?.isHidden, false, "Native minimize button must be visible")
+        XCTAssertEqual(testWin.standardWindowButton(.zoomButton)?.isHidden, false, "Native zoom button must be visible")
 
         // 6. Non-Destructive Settings Invocation
         let engine = VideoPlayerEngine()

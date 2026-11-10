@@ -204,8 +204,13 @@ xcodebuild \
     -project "${PROJECT_ROOT}/frames.xcodeproj" \
     -scheme frames \
     -configuration Release \
+    -destination "platform=macOS,arch=arm64" \
+    ARCHS=arm64 \
+    ONLY_ACTIVE_ARCH=YES \
+    SWIFT_PARALLEL_WHOLE_MODULE_OPTIMIZATION=YES \
+    COMPILER_INDEX_STORE_ENABLE=NO \
     -derivedDataPath "${PROJECT_ROOT}/build/DerivedData" \
-    clean build
+    build
 
 RELEASE_APP="${PROJECT_ROOT}/build/DerivedData/Build/Products/Release/frames.app"
 if [[ ! -d "${RELEASE_APP}" ]]; then
@@ -234,7 +239,7 @@ echo "Creating distribution ZIP: ${ZIP_PATH}..."
 )
 
 # Generate Checksums
-CHECKSUM_FILE="${DIST_DIR}/checksums.txt"
+CHECKSUM_FILE="${DIST_DIR}/SHA256SUMS.txt"
 echo "Generating SHA-256 checksums..."
 (
     cd "${DIST_DIR}"

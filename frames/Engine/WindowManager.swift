@@ -49,9 +49,9 @@ public final class WindowManager {
 
     public func configureWindow(_ window: NSWindow) {
         window.tabbingMode = .disallowed
-        window.standardWindowButton(.closeButton)?.isHidden = true
-        window.standardWindowButton(.miniaturizeButton)?.isHidden = true
-        window.standardWindowButton(.zoomButton)?.isHidden = true
+        window.standardWindowButton(.closeButton)?.isHidden = false
+        window.standardWindowButton(.miniaturizeButton)?.isHidden = false
+        window.standardWindowButton(.zoomButton)?.isHidden = false
     }
 
     /// File pickers and sheets are NSPanels. Their resize/key notifications must

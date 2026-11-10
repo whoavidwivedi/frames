@@ -37,6 +37,10 @@ jobs:
             -configuration Release \
             -derivedDataPath build/DerivedData \
             -destination "platform=macOS,arch=arm64" \
+            ARCHS=arm64 \
+            ONLY_ACTIVE_ARCH=YES \
+            SWIFT_PARALLEL_WHOLE_MODULE_OPTIMIZATION=YES \
+            COMPILER_INDEX_STORE_ENABLE=NO \
             CODE_SIGNING_ALLOWED=NO \
             build
 

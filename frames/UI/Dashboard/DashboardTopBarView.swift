@@ -35,21 +35,14 @@ public struct DashboardTopBarView: View {
             let trafficSpacerWidth: CGFloat = windowManager.isNativeFullscreen ? 12 : 78
 
             HStack(spacing: isNarrow ? 6 : 8) {
-                // macOS 27 Apple Liquid Glass Traffic Lights Cluster & Leading Spacer
-                if !windowManager.isNativeFullscreen {
-                    LiquidGlassTrafficLights()
-                        .padding(.leading, isNarrow ? 10 : 14)
-                        .frame(width: trafficSpacerWidth, height: 50, alignment: .leading)
-                        .fixedSize(horizontal: true, vertical: false)
-                } else {
-                    Color.clear
-                        .frame(width: trafficSpacerWidth, height: 50)
-                        .fixedSize(horizontal: true, vertical: false)
-                        .contentShape(Rectangle())
-                        .onTapGesture(count: 2) {
-                            WindowManager.shared.performTitleBarDoubleClickAction()
-                        }
-                }
+                // Standard native macOS traffic lights spacer & double-click area
+                Color.clear
+                    .frame(width: trafficSpacerWidth, height: 50)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .contentShape(Rectangle())
+                    .onTapGesture(count: 2) {
+                        WindowManager.shared.performTitleBarDoubleClickAction()
+                    }
 
                 // MARK: - Navigation & Sidebar Toolbar Controls (Antigravity Style: Icon-Only)
                 HStack(spacing: 4) {

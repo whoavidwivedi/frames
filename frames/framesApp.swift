@@ -321,9 +321,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             for window in NSApp.windows {
                 window.tabbingMode = .disallowed
-                window.standardWindowButton(.closeButton)?.isHidden = true
-                window.standardWindowButton(.miniaturizeButton)?.isHidden = true
-                window.standardWindowButton(.zoomButton)?.isHidden = true
+                window.standardWindowButton(.closeButton)?.isHidden = false
+                window.standardWindowButton(.miniaturizeButton)?.isHidden = false
+                window.standardWindowButton(.zoomButton)?.isHidden = false
             }
         }
 
@@ -334,9 +334,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ) { notification in
             if let window = notification.object as? NSWindow {
                 window.tabbingMode = .disallowed
-                window.standardWindowButton(.closeButton)?.isHidden = true
-                window.standardWindowButton(.miniaturizeButton)?.isHidden = true
-                window.standardWindowButton(.zoomButton)?.isHidden = true
+                window.standardWindowButton(.closeButton)?.isHidden = false
+                window.standardWindowButton(.miniaturizeButton)?.isHidden = false
+                window.standardWindowButton(.zoomButton)?.isHidden = false
             }
         }
 
@@ -348,9 +348,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             MainActor.assumeIsolated {
                 if let window = notification.object as? NSWindow {
                     window.tabbingMode = .disallowed
-                    window.standardWindowButton(.closeButton)?.isHidden = true
-                    window.standardWindowButton(.miniaturizeButton)?.isHidden = true
-                    window.standardWindowButton(.zoomButton)?.isHidden = true
+                    window.standardWindowButton(.closeButton)?.isHidden = false
+                    window.standardWindowButton(.miniaturizeButton)?.isHidden = false
+                    window.standardWindowButton(.zoomButton)?.isHidden = false
                 }
             }
         }
