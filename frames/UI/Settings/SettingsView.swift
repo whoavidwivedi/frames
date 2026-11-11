@@ -99,25 +99,30 @@ public struct SettingsDivider: View {
 
 // MARK: - Emil Kowalski Tactile Button Styles
 public struct SettingsPillButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     public init() {}
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
-            .animation(.spring(response: 0.22, dampingFraction: 0.75), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1.0)
+            .animation(reduceMotion ? nil : .spring(response: 0.22, dampingFraction: 0.75), value: configuration.isPressed)
     }
 }
 
 public struct SettingsTabButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     public init() {}
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
-            .animation(.spring(response: 0.22, dampingFraction: 0.75), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.95 : 1.0)
+            .animation(reduceMotion ? nil : .spring(response: 0.22, dampingFraction: 0.75), value: configuration.isPressed)
     }
 }
 
 // MARK: - Custom Fluid Slider with Thumb Hover Expansion
 public struct SettingsSlider: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var value: Double
     let range: ClosedRange<Double>
     let step: Double
@@ -197,6 +202,7 @@ public struct SettingsSlider: View {
 // MARK: - Root Settings View
 
 public struct SettingsView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Bindable private var settings = SettingsManager.shared
     @State private var hoveredTab: SettingsTab? = nil
     @State private var windowManager = WindowManager.shared
@@ -239,7 +245,7 @@ public struct SettingsView: View {
                                 let isSelected = settings.selectedSettingsTab == tab
 
                                 Button {
-                                    withAnimation(.spring(response: 0.28, dampingFraction: 0.78)) {
+                                    withAnimation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.78)) {
                                         settings.selectedSettingsTab = tab
                                     }
                                 } label: {

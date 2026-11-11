@@ -253,9 +253,7 @@ public struct FramesCommandPalette: View {
                         .frame(maxHeight: 340)
                         .onChange(of: selectedItemId) { _, newId in
                             if let id = newId {
-                                withAnimation(.spring(response: 0.22, dampingFraction: 0.8)) {
-                                    proxy.scrollTo(id, anchor: .center)
-                                }
+                                proxy.scrollTo(id, anchor: .center)
                             }
                         }
                     }
@@ -318,9 +316,8 @@ public struct FramesCommandPalette: View {
     // MARK: - Actions & Navigation
 
     private func closePalette() {
-        withAnimation(.spring(response: 0.28, dampingFraction: 0.78)) {
-            isPresented = false
-        }
+        // Instant dismissal on keyboard-initiated actions / ESC (100+/day: Raycast rule)
+        isPresented = false
     }
 
     private func executeItem(_ item: PaletteCommand) {

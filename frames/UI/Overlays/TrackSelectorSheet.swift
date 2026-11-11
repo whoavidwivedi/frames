@@ -41,7 +41,7 @@ private struct SpringCheckmarkIndicator: View {
                 Image(systemName: "checkmark")
                     .font(.system(size: 8.5, weight: .bold))
                     .foregroundStyle(ShadcnTheme.background)
-                    .transition(.scale(scale: 0.3).combined(with: .opacity))
+                    .transition(.scale(scale: 0.90).combined(with: .opacity))
             }
         }
         .animation(.spring(response: 0.24, dampingFraction: 0.72), value: isSelected)

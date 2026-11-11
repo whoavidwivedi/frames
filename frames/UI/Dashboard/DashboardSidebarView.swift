@@ -3,24 +3,29 @@ import AppKit
 
 // MARK: - Tactile Button Styles for Sidebar Controls
 public struct SidebarRowButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     public init() {}
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
-            .animation(.spring(response: 0.22, dampingFraction: 0.75), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.98 : 1.0)
+            .animation(reduceMotion ? nil : .spring(response: 0.22, dampingFraction: 0.75), value: configuration.isPressed)
     }
 }
 
 public struct TactileIconButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     public init() {}
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.92 : 1.0)
-            .animation(.spring(response: 0.22, dampingFraction: 0.75), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.92 : 1.0)
+            .animation(reduceMotion ? nil : .spring(response: 0.22, dampingFraction: 0.75), value: configuration.isPressed)
     }
 }
 
 public struct DashboardSidebarView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Bindable var library: LibraryManager
     public var width: CGFloat
     public var onPlayURL: (URL) -> Void
@@ -135,7 +140,7 @@ public struct DashboardSidebarView: View {
                 .padding(.horizontal, 10)
                 .padding(.top, 12)
             }
-            .animation(.spring(response: 0.28, dampingFraction: 0.78), value: library.selectedCategory)
+            .animation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.78), value: library.selectedCategory)
 
             Spacer()
 
@@ -146,7 +151,7 @@ public struct DashboardSidebarView: View {
                     icon: "gearshape",
                     isSelected: library.selectedCategory == .settings
                 ) {
-                    withAnimation(.spring(response: 0.28, dampingFraction: 0.78)) {
+                    withAnimation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.78)) {
                         library.navigate(to: .settings)
                     }
                 }

@@ -91,11 +91,11 @@ public struct SplashScreenView: View {
 
         // Stage 3: Gentle Cinematic Dissolve from the center into App (1.25s)
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.25) {
-            withAnimation(.easeInOut(duration: 0.35)) {
+            withAnimation(.easeOut(duration: 0.22)) {
                 exitScale = 1.04
                 exitOpacity = 0.0
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
                 onComplete()
             }
         }

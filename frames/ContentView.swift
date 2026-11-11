@@ -354,7 +354,10 @@ struct ContentView: View {
                         updateManager.dismissNotice()
                     }
                 }
-                .transition(.opacity.combined(with: .move(edge: .bottom)))
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .offset(y: 12)),
+                    removal: .opacity.combined(with: .offset(y: 6))
+                ))
                 .zIndex(170)
             }
 
@@ -373,7 +376,7 @@ struct ContentView: View {
         }
         .frame(minWidth: 460, minHeight: 320)
         .animation(.fluidSpring, value: engine.currentURL != nil)
-        .animation(engine.controlsVisible ? .fluidSpring : .easeInOut(duration: 0.22), value: engine.controlsVisible)
+        .animation(engine.controlsVisible ? .spring(response: 0.24, dampingFraction: 0.78) : .easeOut(duration: 0.16), value: engine.controlsVisible)
         .onChange(of: engine.controlsVisible) { _, visible in
             if !visible && engine.isPlaying {
                 NSCursor.setHiddenUntilMouseMoves(true)
