@@ -5,19 +5,21 @@ import UniformTypeIdentifiers
 // MARK: - Emil Kowalski Tactile Button Styles
 
 private struct TactileTransportButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var scale: CGFloat = 0.93
     var spring: Animation = .spring(response: 0.24, dampingFraction: 0.74)
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? scale : 1.0)
-            .animation(spring, value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? scale : 1.0)
+            .animation(reduceMotion ? nil : spring, value: configuration.isPressed)
     }
 }
 
 // MARK: - Fluid Volume Slider with Smooth Thumb Hover Expansion
 
 public struct FluidVolumeSlider: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var volume: Float
     var onMuteToggle: (() -> Void)? = nil
 
@@ -89,7 +91,7 @@ public struct FluidVolumeSlider: View {
         .contentShape(Rectangle())
         .pointingHand()
         .onHover { h in
-            withAnimation(.spring(response: 0.22, dampingFraction: 0.74)) {
+            withAnimation(reduceMotion ? nil : .spring(response: 0.22, dampingFraction: 0.74)) {
                 isHovering = h
             }
         }

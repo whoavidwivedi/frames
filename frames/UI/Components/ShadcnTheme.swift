@@ -292,36 +292,36 @@ public extension View {
 
 // MARK: - Fluid Physics & Curves (Optimized for Apple Silicon ProMotion 120Hz Displays)
 public enum FramesAnimation {
-    /// Fluid continuous spring curve optimized for ProMotion 120Hz displays
-    /// Smooth response (0.35s) and gentle damping (0.86) eliminating all bounce and visual jitter
-    public static let fluidSpring = Animation.spring(response: 0.35, dampingFraction: 0.86)
+    /// Fluid continuous spring curve strictly adhering to sub-300ms UI animation budget
+    /// Responsive 0.24s response and gentle damping (0.78) eliminating all bounce and visual jitter
+    public static let fluidSpring = Animation.spring(response: 0.24, dampingFraction: 0.78)
 
-    /// Smooth continuous transition curve (0.35s)
-    public static let smooth = Animation.smooth(duration: 0.35)
+    /// Smooth continuous transition curve under 300ms (0.20s)
+    public static let smooth = Animation.smooth(duration: 0.20)
 
-    /// Fast interactive spring for micro-interactions (hover, press, quick toggles)
-    public static let quick = Animation.spring(response: 0.22, dampingFraction: 0.88)
+    /// Fast interactive spring for micro-interactions (hover, press, quick toggles: 0.18s)
+    public static let quick = Animation.spring(response: 0.18, dampingFraction: 0.82)
 
-    /// Gentle fluid curve for overlays, popovers, and dialogs
-    public static let overlay = Animation.spring(response: 0.38, dampingFraction: 0.84)
+    /// Responsive curve for overlays, popovers, and dialogs (0.24s)
+    public static let overlay = Animation.spring(response: 0.24, dampingFraction: 0.78)
 
-    /// Layout resizing and window state transition curve (quarter-screen, split-screen, full-screen)
-    public static let windowTransition = Animation.spring(response: 0.36, dampingFraction: 0.86)
+    /// Layout resizing and window state transition curve (0.26s)
+    public static let windowTransition = Animation.spring(response: 0.26, dampingFraction: 0.82)
 }
 
 public extension Animation {
-    /// Fluid continuous spring curve optimized for ProMotion 120Hz displays
+    /// Fluid continuous spring curve strictly adhering to sub-300ms UI animation budget
     static let fluidSpring = FramesAnimation.fluidSpring
 
-    /// Smooth continuous transition curve (0.35s)
+    /// Smooth continuous transition curve (0.20s)
     static let fluidSmooth = FramesAnimation.smooth
 
-    /// Fast interactive spring for micro-interactions (0.22s)
+    /// Fast interactive spring for micro-interactions (0.18s)
     static let fluidQuick = FramesAnimation.quick
 
-    /// Gentle fluid curve for overlays, sheets, and popovers (0.38s)
+    /// Responsive fluid curve for overlays, sheets, and popovers (0.24s)
     static let fluidOverlay = FramesAnimation.overlay
 
-    /// Window state and layout transition animation curve (0.36s)
+    /// Window state and layout transition animation curve (0.26s)
     static let fluidWindow = FramesAnimation.windowTransition
 }

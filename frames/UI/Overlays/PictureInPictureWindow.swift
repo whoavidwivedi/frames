@@ -252,11 +252,11 @@ public struct PictureInPictureContentView: View {
                     )
                     .padding(.bottom, 12)
                 }
-                .transition(.opacity)
+                .transition(.opacity.combined(with: .scale(scale: 0.96)))
             }
         }
         .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.18)) {
+            withAnimation(.spring(response: 0.18, dampingFraction: 0.8)) {
                 isHovered = hovering
             }
             if hovering {
@@ -272,7 +272,7 @@ public struct PictureInPictureContentView: View {
         hideTimer?.invalidate()
         hideTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { _ in
             Task { @MainActor in
-                withAnimation(.easeInOut(duration: 0.22)) {
+                withAnimation(.easeOut(duration: 0.16)) {
                     isHovered = false
                 }
             }

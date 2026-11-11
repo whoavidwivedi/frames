@@ -5,15 +5,18 @@ private let goldenFavoriteColor = Color(red: 1.0, green: 0.8, blue: 0.0)
 
 // MARK: - Tactile Card Press Button Style
 public struct TactileCardPressButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     public init() {}
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
-            .animation(.spring(response: 0.22, dampingFraction: 0.75), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.98 : 1.0)
+            .animation(reduceMotion ? nil : .spring(response: 0.22, dampingFraction: 0.75), value: configuration.isPressed)
     }
 }
 
 public struct DashboardContentView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Bindable var library: LibraryManager
     public var onPlayURL: (URL) -> Void
     @State private var hoveredVideoId: UUID? = nil
@@ -516,6 +519,7 @@ public struct DashboardContentView: View {
 
 // MARK: - Dedicated Video Grid Card View
 public struct VideoGridCardView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     public let video: VideoItem
     public let isHovered: Bool
     public var onHover: (Bool) -> Void
@@ -685,13 +689,13 @@ public struct VideoGridCardView: View {
             }
             .padding(.horizontal, 2)
         }
-        .offset(y: isHovered ? -2 : 0)
-        .scaleEffect(isPressed ? 0.98 : 1.0)
-        .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isHovered)
-        .animation(.spring(response: 0.22, dampingFraction: 0.75), value: isPressed)
+        .offset(y: isHovered && !reduceMotion ? -2 : 0)
+        .scaleEffect(isPressed && !reduceMotion ? 0.98 : 1.0)
+        .animation(reduceMotion ? nil : .spring(response: 0.25, dampingFraction: 0.75), value: isHovered)
+        .animation(reduceMotion ? nil : .spring(response: 0.22, dampingFraction: 0.75), value: isPressed)
         .contentShape(Rectangle())
         ._onButtonGesture(pressing: { pressing in
-            withAnimation(.spring(response: 0.22, dampingFraction: 0.75)) {
+            withAnimation(reduceMotion ? nil : .spring(response: 0.22, dampingFraction: 0.75)) {
                 isPressed = pressing
             }
         }, perform: {
@@ -740,6 +744,7 @@ public struct VideoGridCardView: View {
 
 // MARK: - Dedicated Video List Row View
 public struct VideoListRowView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     public let video: VideoItem
     public let isHovered: Bool
     public let containerWidth: CGFloat
@@ -926,15 +931,15 @@ public struct VideoListRowView: View {
             RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                 .strokeBorder(isHovered ? ShadcnTheme.borderActive : ShadcnTheme.border, lineWidth: 1)
         )
-        .offset(y: isHovered ? -1 : 0)
-        .scaleEffect(isPressed ? 0.98 : 1.0)
-        .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isHovered)
-        .animation(.spring(response: 0.22, dampingFraction: 0.75), value: isPressed)
-        .animation(.fluidSpring, value: containerWidth >= 380)
-        .animation(.fluidSpring, value: containerWidth >= 460)
+        .offset(y: isHovered && !reduceMotion ? -1 : 0)
+        .scaleEffect(isPressed && !reduceMotion ? 0.98 : 1.0)
+        .animation(reduceMotion ? nil : .spring(response: 0.25, dampingFraction: 0.75), value: isHovered)
+        .animation(reduceMotion ? nil : .spring(response: 0.22, dampingFraction: 0.75), value: isPressed)
+        .animation(reduceMotion ? nil : .fluidSpring, value: containerWidth >= 380)
+        .animation(reduceMotion ? nil : .fluidSpring, value: containerWidth >= 460)
         .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
         ._onButtonGesture(pressing: { pressing in
-            withAnimation(.spring(response: 0.22, dampingFraction: 0.75)) {
+            withAnimation(reduceMotion ? nil : .spring(response: 0.22, dampingFraction: 0.75)) {
                 isPressed = pressing
             }
         }, perform: {
