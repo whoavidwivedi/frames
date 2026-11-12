@@ -62,10 +62,8 @@ public struct SettingsSectionCard<Content: View>: View {
         VStack(alignment: .leading, spacing: 8) {
             if let title = title {
                 Text(title)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(ShadcnTheme.foregroundMuted)
-                    .textCase(.uppercase)
-                    .tracking(0.5)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(ShadcnTheme.foreground)
                     .padding(.leading, 2)
             }
 
@@ -73,13 +71,14 @@ public struct SettingsSectionCard<Content: View>: View {
                 content
             }
             .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: ShadcnTheme.radiusLg, style: .continuous)
+                RoundedRectangle(cornerRadius: ShadcnTheme.radiusXl, style: .continuous)
                     .fill(ShadcnTheme.card)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: ShadcnTheme.radiusLg, style: .continuous)
-                    .strokeBorder(ShadcnTheme.border, lineWidth: 1)
+                RoundedRectangle(cornerRadius: ShadcnTheme.radiusXl, style: .continuous)
+                    .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
             )
         }
     }
@@ -105,18 +104,7 @@ public struct SettingsPillButtonStyle: ButtonStyle {
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1.0)
-            .animation(reduceMotion ? nil : .spring(response: 0.22, dampingFraction: 0.75), value: configuration.isPressed)
-    }
-}
-
-public struct SettingsTabButtonStyle: ButtonStyle {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    public init() {}
-    public func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.95 : 1.0)
-            .animation(reduceMotion ? nil : .spring(response: 0.22, dampingFraction: 0.75), value: configuration.isPressed)
+            .animation(.fluidQuick, value: configuration.isPressed)
     }
 }
 
@@ -167,8 +155,8 @@ public struct SettingsSlider: View {
                     )
                     .shadow(color: Color.black.opacity(isHovered ? 0.30 : 0.12), radius: isHovered ? 4 : 2, x: 0, y: 1)
                     .offset(x: xOffset)
-                    .animation(.spring(response: 0.22, dampingFraction: 0.75), value: isHovered)
-                    .animation(.spring(response: 0.22, dampingFraction: 0.75), value: isDragging)
+                    .animation(.fluidQuick, value: isHovered)
+                    .animation(.fluidQuick, value: isDragging)
             }
             .frame(maxHeight: .infinity)
             .contentShape(Rectangle())
@@ -181,7 +169,7 @@ public struct SettingsSlider: View {
                         let rawValue = range.lowerBound + pct * (range.upperBound - range.lowerBound)
                         let stepped = (rawValue / step).rounded() * step
                         let clamped = max(range.lowerBound, min(range.upperBound, stepped))
-                        withAnimation(.spring(response: 0.15, dampingFraction: 0.8)) {
+                        withAnimation(.fluidQuick) {
                             value = clamped
                         }
                     }
@@ -190,7 +178,7 @@ public struct SettingsSlider: View {
                     }
             )
             .onHover { h in
-                withAnimation(.spring(response: 0.22, dampingFraction: 0.75)) {
+                withAnimation(.fluidQuick) {
                     isHovered = h
                 }
             }
@@ -201,131 +189,85 @@ public struct SettingsSlider: View {
 
 // MARK: - Root Settings View
 
+private struct SettingsCompactEnvironmentKey: EnvironmentKey {
+    static let defaultValue: Bool = false
+}
+
+extension EnvironmentValues {
+    var settingsCompact: Bool {
+        get { self[SettingsCompactEnvironmentKey.self] }
+        set { self[SettingsCompactEnvironmentKey.self] = newValue }
+    }
+}
+
 public struct SettingsView: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Bindable private var settings = SettingsManager.shared
-    @State private var hoveredTab: SettingsTab? = nil
     @State private var windowManager = WindowManager.shared
-    @Namespace private var settingsTabNamespace
 
     public init() {}
 
     public var body: some View {
         GeometryReader { proxy in
-            let availableWidth = proxy.size.width
             let isSplit = windowManager.isSplitScreen || windowManager.isQuarterScreen || windowManager.isCompact
-            let isCompact = isSplit || availableWidth < 620
-            let isUltraNarrow = availableWidth < 440
+            let isCompact = isSplit || proxy.size.width < 620
 
-            VStack(spacing: 0) {
-                // Header Bar: Title + Shadcn Tab Switcher
-                HStack(spacing: 12) {
-                    if !isUltraNarrow {
-                        HStack(spacing: 7) {
-                            Image(systemName: "gearshape.fill")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(ShadcnTheme.foregroundSecondary)
-
-                            Text("Settings")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(ShadcnTheme.foreground)
-                        }
-                    } else {
-                        Image(systemName: "gearshape.fill")
-                            .font(.system(size: 13, weight: .semibold))
+            ScrollView(.vertical, showsIndicators: true) {
+                VStack(alignment: .leading, spacing: 28) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Settings")
+                            .font(.system(size: 24, weight: .semibold))
+                            .foregroundStyle(ShadcnTheme.foreground)
+                        Text("Playback, audio, subtitles, and app preferences.")
+                            .font(.system(size: 11))
                             .foregroundStyle(ShadcnTheme.foregroundSecondary)
                     }
+                    .padding(.top, 4)
 
-                    Spacer(minLength: 4)
-
-                    // Shadcn Pill Tabs with Fluid Spring Sliding Pill
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 3) {
-                            ForEach(SettingsTab.allCases) { tab in
-                                let isSelected = settings.selectedSettingsTab == tab
-
-                                Button {
-                                    withAnimation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.78)) {
-                                        settings.selectedSettingsTab = tab
-                                    }
-                                } label: {
-                                    HStack(spacing: 5) {
-                                        Image(systemName: tab.icon)
-                                            .font(.system(size: 11, weight: .medium))
-
-                                        Text(tab.title)
-                                            .font(.system(size: 11, weight: .medium))
-                                            .fixedSize()
-                                    }
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 5)
-                                    .foregroundStyle(isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
-                                    .background {
-                                        if isSelected {
-                                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                                .fill(ShadcnTheme.card)
-                                                .overlay(
-                                                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                                        .strokeBorder(ShadcnTheme.border, lineWidth: 1)
-                                                )
-                                                .shadow(color: Color.black.opacity(0.08), radius: 3, x: 0, y: 1)
-                                                .matchedGeometryEffect(id: "activeSettingsTabPill", in: settingsTabNamespace)
-                                        } else if hoveredTab == tab {
-                                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                                .fill(ShadcnTheme.muted.opacity(0.4))
-                                        }
-                                    }
-                                    .contentShape(Rectangle())
-                                }
-                                .buttonStyle(SettingsTabButtonStyle())
-                                .pointingHand()
-                                .help(tab.title)
-                                .onHover { h in
-                                    withAnimation(.spring(response: 0.22, dampingFraction: 0.75)) {
-                                        hoveredTab = h ? tab : nil
-                                    }
-                                }
-                            }
-                        }
-                        .padding(3)
-                        .background(
-                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm + 2, style: .continuous)
-                                .fill(ShadcnTheme.secondary.opacity(0.45))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm + 2, style: .continuous)
-                                        .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
-                                )
-                        )
-                    }
-                }
-                .padding(.horizontal, isCompact ? 14 : 20)
-                .padding(.vertical, 11)
-                .background(ShadcnTheme.card)
-
-                Divider()
-                    .overlay(ShadcnTheme.border)
-
-                // Active Tab Content
-                Group {
-                    switch settings.selectedSettingsTab {
-                    case .general:
+                    categorySection("General") {
                         GeneralSettingsTab()
-                    case .playback:
+                    }
+
+                    categorySection("Playback") {
                         PlaybackSettingsTab()
-                    case .audio:
+                    }
+
+                    categorySection("Audio") {
                         AudioSettingsTab()
-                    case .subtitles:
+                    }
+
+                    categorySection("Subtitles") {
                         SubtitlesSettingsTab()
-                    case .about:
+                    }
+
+                    categorySection("About") {
                         AboutSettingsTab()
                     }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(ShadcnTheme.background)
+                .padding(.horizontal, isCompact ? 14 : 24)
+                .padding(.vertical, isCompact ? 16 : 24)
+                .frame(maxWidth: 820)
+                .frame(maxWidth: .infinity)
             }
+            .defaultScrollAnchor(.top)
+            .environment(\.settingsCompact, isCompact)
         }
         .background(ShadcnTheme.background)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func categorySection<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Rectangle()
+                .fill(ShadcnTheme.borderSubtle)
+                .frame(height: 1)
+                .padding(.bottom, 18)
+
+            Text(title)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(ShadcnTheme.foreground)
+                .padding(.bottom, 12)
+
+            content()
+        }
     }
 }
 
@@ -335,162 +277,154 @@ public struct GeneralSettingsTab: View {
     @Bindable private var settings = SettingsManager.shared
     @State private var showClearConfirm = false
     @State private var historyClearedNotice = false
-    @State private var windowManager = WindowManager.shared
+    @Environment(\.settingsCompact) private var isCompact
     @Namespace private var viewModeNamespace
 
     public init() {}
 
     public var body: some View {
-        GeometryReader { proxy in
-            let isSplit = windowManager.isSplitScreen || windowManager.isQuarterScreen || windowManager.isCompact
-            let isCompact = isSplit || proxy.size.width < 620
+        VStack(alignment: .leading, spacing: 18) {
+            // Section: Library & Layout
+            SettingsSectionCard("Library & Layout") {
+                if isCompact {
+                    VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Default View Mode on Launch")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(ShadcnTheme.foreground)
+                            Text("Initial layout presentation when opening the media dashboard.")
+                                .font(.system(size: 11))
+                                .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        viewModeButtonsGroup
+                    }
+                } else {
+                    HStack(alignment: .center, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Default View Mode on Launch")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(ShadcnTheme.foreground)
+                            Text("Initial layout presentation when opening the media dashboard.")
+                                .font(.system(size: 11))
+                                .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer(minLength: 16)
+                        viewModeButtonsGroup
+                    }
+                }
 
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 18) {
-                    // Section: Library & Layout
-                    SettingsSectionCard("Library & Layout") {
-                        if isCompact {
-                            VStack(alignment: .leading, spacing: 8) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Default View Mode on Launch")
-                                        .font(.system(size: 13, weight: .medium))
-                                        .foregroundStyle(ShadcnTheme.foreground)
-                                    Text("Initial layout presentation when opening the media dashboard.")
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                                viewModeButtonsGroup
-                            }
-                        } else {
-                            HStack(alignment: .center, spacing: 16) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Default View Mode on Launch")
-                                        .font(.system(size: 13, weight: .medium))
-                                        .foregroundStyle(ShadcnTheme.foreground)
-                                    Text("Initial layout presentation when opening the media dashboard.")
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                                Spacer(minLength: 16)
-                                viewModeButtonsGroup
+                SettingsDivider()
+
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Pinned 'Add Video' Tile")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(ShadcnTheme.foreground)
+                        Text("Show dashed quick-import card in the All Videos grid.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 12)
+                    Toggle("", isOn: $settings.showAddVideoTile)
+                        .toggleStyle(.switch)
+                        .pointingHand()
+                        .animation(.fluidQuick, value: settings.showAddVideoTile)
+                }
+            }
+
+            // Section: Playback Behavior
+            SettingsSectionCard("Playback Session") {
+                if isCompact {
+                    VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Auto-Resume Playback")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(ShadcnTheme.foreground)
+                            Text("Behavior when opening media that was previously paused.")
+                                .font(.system(size: 11))
+                                .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Picker("", selection: $settings.autoResumeMode) {
+                            ForEach(AutoResumeMode.allCases) { mode in
+                                Text(mode.displayName).tag(mode)
                             }
                         }
-
-                        SettingsDivider()
-
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Pinned 'Add Video' Tile")
-                                    .font(.system(size: 13, weight: .medium))
-                                    .foregroundStyle(ShadcnTheme.foreground)
-                                Text("Show dashed quick-import card in the All Videos grid.")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                                    .fixedSize(horizontal: false, vertical: true)
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .pointingHand()
+                    }
+                } else {
+                    HStack(alignment: .center, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Auto-Resume Playback")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(ShadcnTheme.foreground)
+                            Text("Behavior when opening media that was previously paused.")
+                                .font(.system(size: 11))
+                                .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer(minLength: 16)
+                        Picker("", selection: $settings.autoResumeMode) {
+                            ForEach(AutoResumeMode.allCases) { mode in
+                                Text(mode.displayName).tag(mode)
                             }
-                            Spacer(minLength: 12)
-                            Toggle("", isOn: $settings.showAddVideoTile)
-                                .toggleStyle(.switch)
-                                .pointingHand()
-                                .animation(.spring(response: 0.24, dampingFraction: 0.74), value: settings.showAddVideoTile)
+                        }
+                        .pickerStyle(.menu)
+                        .frame(width: 210)
+                        .pointingHand()
+                    }
+                }
+            }
+
+            // Section: History & Privacy
+            SettingsSectionCard("Watch History") {
+                if isCompact {
+                    VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Clear Recent Files & Watch History")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(ShadcnTheme.foreground)
+                            Text("Wipe all saved timestamps and reset the recent videos list.")
+                                .font(.system(size: 11))
+                                .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        ShadcnButton(
+                            historyClearedNotice ? "Cleared" : "Clear History",
+                            icon: historyClearedNotice ? "checkmark" : "trash",
+                            variant: .outline,
+                            size: .sm
+                        ) {
+                            showClearConfirm = true
                         }
                     }
-
-                    // Section: Playback Behavior
-                    SettingsSectionCard("Playback Session") {
-                        if isCompact {
-                            VStack(alignment: .leading, spacing: 8) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Auto-Resume Playback")
-                                        .font(.system(size: 13, weight: .medium))
-                                        .foregroundStyle(ShadcnTheme.foreground)
-                                    Text("Behavior when opening media that was previously paused.")
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                                Picker("", selection: $settings.autoResumeMode) {
-                                    ForEach(AutoResumeMode.allCases) { mode in
-                                        Text(mode.displayName).tag(mode)
-                                    }
-                                }
-                                .pickerStyle(.menu)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .pointingHand()
-                            }
-                        } else {
-                            HStack(alignment: .center, spacing: 16) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Auto-Resume Playback")
-                                        .font(.system(size: 13, weight: .medium))
-                                        .foregroundStyle(ShadcnTheme.foreground)
-                                    Text("Behavior when opening media that was previously paused.")
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                                Spacer(minLength: 16)
-                                Picker("", selection: $settings.autoResumeMode) {
-                                    ForEach(AutoResumeMode.allCases) { mode in
-                                        Text(mode.displayName).tag(mode)
-                                    }
-                                }
-                                .pickerStyle(.menu)
-                                .frame(width: 210)
-                                .pointingHand()
-                            }
+                } else {
+                    HStack(alignment: .center, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Clear Recent Files & Watch History")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(ShadcnTheme.foreground)
+                            Text("Wipe all saved timestamps and reset the recent videos list.")
+                                .font(.system(size: 11))
+                                .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
-                    }
-
-                    // Section: History & Privacy
-                    SettingsSectionCard("Watch History") {
-                        if isCompact {
-                            VStack(alignment: .leading, spacing: 8) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Clear Recent Files & Watch History")
-                                        .font(.system(size: 13, weight: .medium))
-                                        .foregroundStyle(ShadcnTheme.foreground)
-                                    Text("Wipe all saved timestamps and reset the recent videos list.")
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                                ShadcnButton(
-                                    historyClearedNotice ? "Cleared" : "Clear History",
-                                    icon: historyClearedNotice ? "checkmark" : "trash",
-                                    variant: .outline,
-                                    size: .sm
-                                ) {
-                                    showClearConfirm = true
-                                }
-                            }
-                        } else {
-                            HStack(alignment: .center, spacing: 16) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Clear Recent Files & Watch History")
-                                        .font(.system(size: 13, weight: .medium))
-                                        .foregroundStyle(ShadcnTheme.foreground)
-                                    Text("Wipe all saved timestamps and reset the recent videos list.")
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                                Spacer(minLength: 16)
-                                ShadcnButton(
-                                    historyClearedNotice ? "Cleared" : "Clear History",
-                                    icon: historyClearedNotice ? "checkmark" : "trash",
-                                    variant: .outline,
-                                    size: .sm
-                                ) {
-                                    showClearConfirm = true
-                                }
-                            }
+                        Spacer(minLength: 16)
+                        ShadcnButton(
+                            historyClearedNotice ? "Cleared" : "Clear History",
+                            icon: historyClearedNotice ? "checkmark" : "trash",
+                            variant: .outline,
+                            size: .sm
+                        ) {
+                            showClearConfirm = true
                         }
                     }
                 }
-                .padding(isCompact ? 14 : 20)
             }
         }
         .confirmationDialog(
@@ -531,7 +465,7 @@ public struct GeneralSettingsTab: View {
     private func viewModeButton(mode: ViewMode, icon: String, title: String) -> some View {
         let isSelected = settings.defaultViewMode == mode
         return Button {
-            withAnimation(.spring(response: 0.26, dampingFraction: 0.76)) {
+            withAnimation(.fluidQuick) {
                 settings.defaultViewMode = mode
             }
         } label: {
@@ -568,224 +502,216 @@ public struct GeneralSettingsTab: View {
 
 public struct PlaybackSettingsTab: View {
     @Bindable private var settings = SettingsManager.shared
-    @State private var windowManager = WindowManager.shared
+    @Environment(\.settingsCompact) private var isCompact
     @Namespace private var skipIntervalNamespace
 
     public init() {}
 
     public var body: some View {
-        GeometryReader { proxy in
-            let isSplit = windowManager.isSplitScreen || windowManager.isQuarterScreen || windowManager.isCompact
-            let isCompact = isSplit || proxy.size.width < 620
-
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 18) {
-                    // Hardware Acceleration
-                    SettingsSectionCard("Apple Silicon Hardware Engine") {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                HStack(spacing: 6) {
-                                    Text("VideoToolbox Hardware Acceleration")
-                                        .font(.system(size: 13, weight: .medium))
-                                        .foregroundStyle(ShadcnTheme.foreground)
-                                    Text("ASIC")
-                                        .font(.system(size: 9, weight: .bold))
-                                        .foregroundStyle(ShadcnTheme.primaryForeground)
-                                        .padding(.horizontal, 5)
-                                        .padding(.vertical, 1)
-                                        .background(
-                                            Capsule().fill(ShadcnTheme.primary)
-                                        )
-                                }
-                                Text("Direct hardware decode for H.264, HEVC, VP9, and ProRes with zero CPU load.")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                            Spacer(minLength: 12)
-                            Toggle("", isOn: $settings.hardwareAccelerationEnabled)
-                                .toggleStyle(.switch)
-                                .pointingHand()
-                                .animation(.spring(response: 0.24, dampingFraction: 0.74), value: settings.hardwareAccelerationEnabled)
+        VStack(alignment: .leading, spacing: 18) {
+            // Hardware Acceleration
+            SettingsSectionCard("Apple Silicon Hardware Engine") {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text("VideoToolbox Hardware Acceleration")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(ShadcnTheme.foreground)
+                            Text("ASIC")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(ShadcnTheme.primaryForeground)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(
+                                    Capsule().fill(ShadcnTheme.primary)
+                                )
                         }
+                        Text("Direct hardware decode for H.264, HEVC, VP9, and ProRes with zero CPU load.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 12)
+                    Toggle("", isOn: $settings.hardwareAccelerationEnabled)
+                        .toggleStyle(.switch)
+                        .pointingHand()
+                        .animation(.fluidQuick, value: settings.hardwareAccelerationEnabled)
+                }
 
-                        SettingsDivider()
+                SettingsDivider()
 
-                        VStack(alignment: .leading, spacing: 6) {
-                            if isCompact {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    HStack(spacing: 6) {
-                                        Image(systemName: "cpu")
-                                            .font(.system(size: 11))
-                                            .foregroundStyle(ShadcnTheme.primary)
-                                        Text(AppleSiliconMetrics.shared.chipName)
-                                            .font(.system(size: 12, weight: .semibold))
-                                            .foregroundStyle(ShadcnTheme.foreground)
-                                    }
-                                    BadgeView(text: "\(AppleSiliconMetrics.shared.physicalMemoryGB) GB Unified Memory", icon: "memorychip")
-                                }
-                            } else {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "cpu")
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(ShadcnTheme.primary)
-                                    Text(AppleSiliconMetrics.shared.chipName)
-                                        .font(.system(size: 12, weight: .semibold))
-                                        .foregroundStyle(ShadcnTheme.foreground)
-                                    BadgeView(text: "\(AppleSiliconMetrics.shared.physicalMemoryGB) GB Unified Memory", icon: "memorychip")
-                                }
+                VStack(alignment: .leading, spacing: 6) {
+                    if isCompact {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "cpu")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(ShadcnTheme.primary)
+                                Text(AppleSiliconMetrics.shared.chipName)
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(ShadcnTheme.foreground)
                             }
+                            BadgeView(text: "\(AppleSiliconMetrics.shared.physicalMemoryGB) GB Unified Memory", icon: "memorychip")
+                        }
+                    } else {
+                        HStack(spacing: 6) {
+                            Image(systemName: "cpu")
+                                .font(.system(size: 11))
+                                .foregroundStyle(ShadcnTheme.primary)
+                            Text(AppleSiliconMetrics.shared.chipName)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(ShadcnTheme.foreground)
+                            BadgeView(text: "\(AppleSiliconMetrics.shared.physicalMemoryGB) GB Unified Memory", icon: "memorychip")
+                        }
+                    }
 
-                            Text(AppleSiliconMetrics.shared.gpuFamilyName + " • " + (AppleSiliconMetrics.shared.supportsHardwareAV1Decode ? "AV1 HW ASIC • " : "") + (AppleSiliconMetrics.shared.supportsHardwareProRes ? "ProRes HW ASIC • " : "") + "HEVC & H.264 Hardware Engines")
+                    Text(AppleSiliconMetrics.shared.gpuFamilyName + " • " + (AppleSiliconMetrics.shared.supportsHardwareAV1Decode ? "AV1 HW ASIC • " : "") + (AppleSiliconMetrics.shared.supportsHardwareProRes ? "ProRes HW ASIC • " : "") + "HEVC & H.264 Hardware Engines")
+                        .font(.system(size: 11))
+                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            // Display & Refresh
+            SettingsSectionCard("Display & Color Presentation") {
+                if isCompact {
+                    VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Presentation Engine")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(ShadcnTheme.foreground)
+                            Text("Direct hardware scanout (0% GPU) or CAMetalLayer shaders.")
                                 .font(.system(size: 11))
                                 .foregroundStyle(ShadcnTheme.foregroundSecondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
+                        Picker("", selection: $settings.videoPresentationEngine) {
+                            ForEach(VideoPresentationEngine.allCases) { mode in
+                                Text(mode.displayName).tag(mode)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .pointingHand()
                     }
-
-                    // Display & Refresh
-                    SettingsSectionCard("Display & Color Presentation") {
-                        if isCompact {
-                            VStack(alignment: .leading, spacing: 8) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Presentation Engine")
-                                        .font(.system(size: 13, weight: .medium))
-                                        .foregroundStyle(ShadcnTheme.foreground)
-                                    Text("Direct hardware scanout (0% GPU) or CAMetalLayer shaders.")
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                                Picker("", selection: $settings.videoPresentationEngine) {
-                                    ForEach(VideoPresentationEngine.allCases) { mode in
-                                        Text(mode.displayName).tag(mode)
-                                    }
-                                }
-                                .pickerStyle(.menu)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .pointingHand()
-                            }
-                        } else {
-                            HStack(alignment: .center, spacing: 16) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Presentation Engine")
-                                        .font(.system(size: 13, weight: .medium))
-                                        .foregroundStyle(ShadcnTheme.foreground)
-                                    Text("Direct hardware scanout (0% GPU) or CAMetalLayer shaders.")
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                                Spacer(minLength: 16)
-                                Picker("", selection: $settings.videoPresentationEngine) {
-                                    ForEach(VideoPresentationEngine.allCases) { mode in
-                                        Text(mode.displayName).tag(mode)
-                                    }
-                                }
-                                .pickerStyle(.menu)
-                                .frame(width: 210)
-                                .pointingHand()
+                } else {
+                    HStack(alignment: .center, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Presentation Engine")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(ShadcnTheme.foreground)
+                            Text("Direct hardware scanout (0% GPU) or CAMetalLayer shaders.")
+                                .font(.system(size: 11))
+                                .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer(minLength: 16)
+                        Picker("", selection: $settings.videoPresentationEngine) {
+                            ForEach(VideoPresentationEngine.allCases) { mode in
+                                Text(mode.displayName).tag(mode)
                             }
                         }
-
-                        SettingsDivider()
-
-                        if isCompact {
-                            VStack(alignment: .leading, spacing: 8) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("HDR Tone Mapping")
-                                        .font(.system(size: 13, weight: .medium))
-                                        .foregroundStyle(ShadcnTheme.foreground)
-                                    Text("Opto-electronic transfer function (ST 2084 PQ / HLG / Rec. 709).")
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                                Picker("", selection: $settings.hdrToneMapping) {
-                                    ForEach(HDRToneMappingMode.allCases) { mode in
-                                        Text(mode.displayName).tag(mode)
-                                    }
-                                }
-                                .pickerStyle(.menu)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .pointingHand()
-                            }
-                        } else {
-                            HStack(alignment: .center, spacing: 16) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("HDR Tone Mapping")
-                                        .font(.system(size: 13, weight: .medium))
-                                        .foregroundStyle(ShadcnTheme.foreground)
-                                    Text("Opto-electronic transfer function (ST 2084 PQ / HLG / Rec. 709).")
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                                Spacer(minLength: 16)
-                                Picker("", selection: $settings.hdrToneMapping) {
-                                    ForEach(HDRToneMappingMode.allCases) { mode in
-                                        Text(mode.displayName).tag(mode)
-                                    }
-                                }
-                                .pickerStyle(.menu)
-                                .frame(width: 210)
-                                .pointingHand()
-                            }
-                        }
-
-                        SettingsDivider()
-
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("ProMotion 120Hz Synchronization")
-                                    .font(.system(size: 13, weight: .medium))
-                                    .foregroundStyle(ShadcnTheme.foreground)
-                                Text("Lock CADisplayLink cadence to ProMotion 120Hz display refresh.")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                            Spacer(minLength: 12)
-                            Toggle("", isOn: $settings.proMotionSyncEnabled)
-                                .toggleStyle(.switch)
-                                .pointingHand()
-                                .animation(.spring(response: 0.24, dampingFraction: 0.74), value: settings.proMotionSyncEnabled)
-                        }
-                    }
-
-                    // Navigation & Seeking
-                    SettingsSectionCard("Seeking & Shortcuts") {
-                        if isCompact {
-                            VStack(alignment: .leading, spacing: 8) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Default Skip Interval")
-                                        .font(.system(size: 13, weight: .medium))
-                                        .foregroundStyle(ShadcnTheme.foreground)
-                                    Text("Seconds jumped when tapping Left / Right arrow keys (Shift jumps 30s).")
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                                skipIntervalButtonsGroup
-                            }
-                        } else {
-                            HStack(alignment: .center, spacing: 16) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Default Skip Interval")
-                                        .font(.system(size: 13, weight: .medium))
-                                        .foregroundStyle(ShadcnTheme.foreground)
-                                    Text("Seconds jumped when tapping Left / Right arrow keys (Shift jumps 30s).")
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                                Spacer(minLength: 16)
-                                skipIntervalButtonsGroup
-                            }
-                        }
+                        .pickerStyle(.menu)
+                        .frame(width: 210)
+                        .pointingHand()
                     }
                 }
-                .padding(isCompact ? 14 : 20)
+
+                SettingsDivider()
+
+                if isCompact {
+                    VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("HDR Tone Mapping")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(ShadcnTheme.foreground)
+                            Text("Opto-electronic transfer function (ST 2084 PQ / HLG / Rec. 709).")
+                                .font(.system(size: 11))
+                                .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Picker("", selection: $settings.hdrToneMapping) {
+                            ForEach(HDRToneMappingMode.allCases) { mode in
+                                Text(mode.displayName).tag(mode)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .pointingHand()
+                    }
+                } else {
+                    HStack(alignment: .center, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("HDR Tone Mapping")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(ShadcnTheme.foreground)
+                            Text("Opto-electronic transfer function (ST 2084 PQ / HLG / Rec. 709).")
+                                .font(.system(size: 11))
+                                .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer(minLength: 16)
+                        Picker("", selection: $settings.hdrToneMapping) {
+                            ForEach(HDRToneMappingMode.allCases) { mode in
+                                Text(mode.displayName).tag(mode)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .frame(width: 210)
+                        .pointingHand()
+                    }
+                }
+
+                SettingsDivider()
+
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("ProMotion 120Hz Synchronization")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(ShadcnTheme.foreground)
+                        Text("Lock CADisplayLink cadence to ProMotion 120Hz display refresh.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 12)
+                    Toggle("", isOn: $settings.proMotionSyncEnabled)
+                        .toggleStyle(.switch)
+                        .pointingHand()
+                        .animation(.fluidQuick, value: settings.proMotionSyncEnabled)
+                }
+            }
+
+            // Navigation & Seeking
+            SettingsSectionCard("Seeking & Shortcuts") {
+                if isCompact {
+                    VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Default Skip Interval")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(ShadcnTheme.foreground)
+                            Text("Seconds jumped when tapping Left / Right arrow keys (Shift jumps 30s).")
+                                .font(.system(size: 11))
+                                .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        skipIntervalButtonsGroup
+                    }
+                } else {
+                    HStack(alignment: .center, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Default Skip Interval")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(ShadcnTheme.foreground)
+                            Text("Seconds jumped when tapping Left / Right arrow keys (Shift jumps 30s).")
+                                .font(.system(size: 11))
+                                .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer(minLength: 16)
+                        skipIntervalButtonsGroup
+                    }
+                }
             }
         }
     }
@@ -795,7 +721,7 @@ public struct PlaybackSettingsTab: View {
             ForEach([5, 10, 15, 30], id: \.self) { seconds in
                 let isSelected = settings.defaultSkipInterval == seconds
                 Button {
-                    withAnimation(.spring(response: 0.26, dampingFraction: 0.76)) {
+                    withAnimation(.fluidQuick) {
                         settings.defaultSkipInterval = seconds
                     }
                 } label: {
@@ -839,7 +765,7 @@ public struct PlaybackSettingsTab: View {
 
 public struct AudioSettingsTab: View {
     @Bindable private var settings = SettingsManager.shared
-    @State private var windowManager = WindowManager.shared
+    @Environment(\.settingsCompact) private var isCompact
 
     private let languages = [
         "System",
@@ -856,99 +782,91 @@ public struct AudioSettingsTab: View {
     public init() {}
 
     public var body: some View {
-        GeometryReader { proxy in
-            let isSplit = windowManager.isSplitScreen || windowManager.isQuarterScreen || windowManager.isCompact
-            let isCompact = isSplit || proxy.size.width < 620
-
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 18) {
-                    // Spatial Audio
-                    SettingsSectionCard("Spatial Immersion") {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Spatial Audio with Dynamic Head Tracking")
-                                    .font(.system(size: 13, weight: .medium))
-                                    .foregroundStyle(ShadcnTheme.foreground)
-                                Text("Multichannel CoreAudio binaural rendering for AirPods Pro and AirPods Max.")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                            Spacer(minLength: 12)
-                            Toggle("", isOn: $settings.spatialAudioEnabled)
-                                .toggleStyle(.switch)
-                                .pointingHand()
-                                .animation(.spring(response: 0.24, dampingFraction: 0.74), value: settings.spatialAudioEnabled)
-                        }
+        VStack(alignment: .leading, spacing: 18) {
+            // Spatial Audio
+            SettingsSectionCard("Spatial Immersion") {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Spatial Audio with Dynamic Head Tracking")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(ShadcnTheme.foreground)
+                        Text("Multichannel CoreAudio binaural rendering for AirPods Pro and AirPods Max.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
+                    Spacer(minLength: 12)
+                    Toggle("", isOn: $settings.spatialAudioEnabled)
+                        .toggleStyle(.switch)
+                        .pointingHand()
+                        .animation(.fluidQuick, value: settings.spatialAudioEnabled)
+                }
+            }
 
-                    // Language Preferences
-                    SettingsSectionCard("Stream Selection") {
-                        if isCompact {
-                            VStack(alignment: .leading, spacing: 8) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Default Audio Language Preference")
-                                        .font(.system(size: 13, weight: .medium))
-                                        .foregroundStyle(ShadcnTheme.foreground)
-                                    Text("Automatically selects matching audio stream on multi-language videos.")
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                                Picker("", selection: $settings.defaultAudioLanguage) {
-                                    ForEach(languages, id: \.self) { lang in
-                                        Text(lang == "System" ? "System Default" : lang).tag(lang)
-                                    }
-                                }
-                                .pickerStyle(.menu)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .pointingHand()
-                            }
-                        } else {
-                            HStack(alignment: .center, spacing: 16) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Default Audio Language Preference")
-                                        .font(.system(size: 13, weight: .medium))
-                                        .foregroundStyle(ShadcnTheme.foreground)
-                                    Text("Automatically selects matching audio stream on multi-language videos.")
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                                Spacer(minLength: 16)
-                                Picker("", selection: $settings.defaultAudioLanguage) {
-                                    ForEach(languages, id: \.self) { lang in
-                                        Text(lang == "System" ? "System Default" : lang).tag(lang)
-                                    }
-                                }
-                                .pickerStyle(.menu)
-                                .frame(width: 180)
-                                .pointingHand()
+            // Language Preferences
+            SettingsSectionCard("Stream Selection") {
+                if isCompact {
+                    VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Default Audio Language Preference")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(ShadcnTheme.foreground)
+                            Text("Automatically selects matching audio stream on multi-language videos.")
+                                .font(.system(size: 11))
+                                .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Picker("", selection: $settings.defaultAudioLanguage) {
+                            ForEach(languages, id: \.self) { lang in
+                                Text(lang == "System" ? "System Default" : lang).tag(lang)
                             }
                         }
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .pointingHand()
                     }
-
-                    // Audio Normalization
-                    SettingsSectionCard("Night Mode & Equalization") {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Volume Normalization (Night Mode)")
-                                    .font(.system(size: 13, weight: .medium))
-                                    .foregroundStyle(ShadcnTheme.foreground)
-                                Text("Dynamic range compression for balanced dialogue and restrained sound effects.")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                            Spacer(minLength: 12)
-                            Toggle("", isOn: $settings.volumeNormalizationEnabled)
-                                .toggleStyle(.switch)
-                                .pointingHand()
-                                .animation(.spring(response: 0.24, dampingFraction: 0.74), value: settings.volumeNormalizationEnabled)
+                } else {
+                    HStack(alignment: .center, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Default Audio Language Preference")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(ShadcnTheme.foreground)
+                            Text("Automatically selects matching audio stream on multi-language videos.")
+                                .font(.system(size: 11))
+                                .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
+                        Spacer(minLength: 16)
+                        Picker("", selection: $settings.defaultAudioLanguage) {
+                            ForEach(languages, id: \.self) { lang in
+                                Text(lang == "System" ? "System Default" : lang).tag(lang)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .frame(width: 180)
+                        .pointingHand()
                     }
                 }
-                .padding(isCompact ? 14 : 20)
+            }
+
+            // Audio Normalization
+            SettingsSectionCard("Night Mode & Equalization") {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Volume Normalization (Night Mode)")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(ShadcnTheme.foreground)
+                        Text("Dynamic range compression for balanced dialogue and restrained sound effects.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 12)
+                    Toggle("", isOn: $settings.volumeNormalizationEnabled)
+                        .toggleStyle(.switch)
+                        .pointingHand()
+                        .animation(.fluidQuick, value: settings.volumeNormalizationEnabled)
+                }
             }
         }
     }
@@ -965,7 +883,7 @@ private struct SubtitleColorPreset: Identifiable {
 
 public struct SubtitlesSettingsTab: View {
     @Bindable private var settings = SettingsManager.shared
-    @State private var windowManager = WindowManager.shared
+    @Environment(\.settingsCompact) private var isCompact
     @State private var sampleCueIndex = 0
 
     private let sampleLines = [
@@ -974,483 +892,352 @@ public struct SubtitlesSettingsTab: View {
         "Houston, Tranquility Base here. The Eagle has landed."
     ]
 
-    private let colorPresets: [SubtitleColorPreset] = [
-        SubtitleColorPreset(id: "green", name: "Green", hex: "#4ADE80", color: Color(red: 0.29, green: 0.87, blue: 0.50)),
-        SubtitleColorPreset(id: "mint", name: "Mint", hex: "#34D399", color: Color(red: 0.20, green: 0.83, blue: 0.60)),
-        SubtitleColorPreset(id: "yellow", name: "Yellow", hex: "#FACC15", color: Color(red: 0.98, green: 0.80, blue: 0.08)),
+    private let textColorPresets: [SubtitleColorPreset] = [
         SubtitleColorPreset(id: "white", name: "White", hex: "#FFFFFF", color: Color.white),
-        SubtitleColorPreset(id: "cyan", name: "Cyan", hex: "#38BDF8", color: Color(red: 0.22, green: 0.74, blue: 0.97))
+        SubtitleColorPreset(id: "yellow", name: "Yellow", hex: "#FACC15", color: Color(red: 0.98, green: 0.80, blue: 0.08)),
+        SubtitleColorPreset(id: "cyan", name: "Cyan", hex: "#38BDF8", color: Color(red: 0.22, green: 0.74, blue: 0.97)),
+        SubtitleColorPreset(id: "green", name: "Green", hex: "#32D74B", color: Color(red: 0.20, green: 0.84, blue: 0.29))
+    ]
+
+    private let backgroundColorPresets: [SubtitleColorPreset] = [
+        SubtitleColorPreset(id: "black", name: "Black", hex: "#000000", color: .black),
+        SubtitleColorPreset(id: "charcoal", name: "Charcoal", hex: "#1C1C1E", color: Color(red: 0.11, green: 0.11, blue: 0.12)),
+        SubtitleColorPreset(id: "navy", name: "Navy", hex: "#0F172A", color: Color(red: 0.06, green: 0.09, blue: 0.16)),
+        SubtitleColorPreset(id: "white", name: "White", hex: "#FFFFFF", color: .white)
     ]
 
     public init() {}
 
     public var body: some View {
-        GeometryReader { proxy in
-            let isSplit = windowManager.isSplitScreen || windowManager.isQuarterScreen || windowManager.isCompact
-            let isCompact = isSplit || proxy.size.width < 620
+        VStack(alignment: .leading, spacing: 18) {
+            // 1. Cinematic Live Preview Stage
+            SettingsSectionCard("Cinematic Live Preview") {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text("Real-Time Player Rendering")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(ShadcnTheme.foregroundSecondary)
 
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 18) {
-                    // 1. Cinematic Live Preview Stage
-                    SettingsSectionCard("Cinematic Live Preview") {
-                        VStack(alignment: .leading, spacing: 10) {
-                            HStack {
-                                Text("Real-Time Player Rendering")
-                                    .font(.system(size: 11, weight: .medium))
-                                    .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                        Spacer()
 
-                                Spacer()
-
-                                Button {
-                                    withAnimation(.fluidSpring) {
-                                        sampleCueIndex = (sampleCueIndex + 1) % sampleLines.count
-                                    }
-                                } label: {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "arrow.triangle.2.circlepath")
-                                            .font(.system(size: 9.5))
-                                        Text("Next Cue")
-                                            .font(.system(size: 10.5, weight: .medium))
-                                    }
-                                    .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(
+                        Button {
+                            withAnimation(.fluidQuick) {
+                                sampleCueIndex = (sampleCueIndex + 1) % sampleLines.count
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                                    .font(.system(size: 9.5))
+                                Text("Next Cue")
+                                    .font(.system(size: 10.5, weight: .medium))
+                            }
+                            .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(
+                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                    .fill(ShadcnTheme.secondary)
+                                    .overlay(
                                         RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                            .fill(ShadcnTheme.secondary)
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                                    .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
-                                            )
+                                            .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
                                     )
-                                    .contentShape(Rectangle())
-                                }
-                                .buttonStyle(SettingsPillButtonStyle())
-                                .pointingHand()
-                                .help("Cycle sample dialogue text")
-                            }
-
-                            // 16:9 Letterboxed Cinema Display Mockup
-                            ZStack {
-                                // Deep cinematic canvas
-                                LinearGradient(
-                                    colors: [
-                                        Color(red: 0.05, green: 0.07, blue: 0.11),
-                                        Color(red: 0.02, green: 0.03, blue: 0.05)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-
-                                // Soft cinematic anamorphic backlight
-                                RadialGradient(
-                                    colors: [
-                                        Color(red: 0.14, green: 0.22, blue: 0.32).opacity(0.35),
-                                        Color.clear
-                                    ],
-                                    center: .center,
-                                    startRadius: 20,
-                                    endRadius: 180
-                                )
-
-                                // HUD Badges
-                                VStack {
-                                    HStack {
-                                        HStack(spacing: 5) {
-                                            Circle()
-                                                .fill(Color(red: 0.95, green: 0.25, blue: 0.25))
-                                                .frame(width: 5, height: 5)
-                                            Text("4K HDR • 24 FPS")
-                                                .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
-                                                .foregroundStyle(Color.white.opacity(0.70))
-                                        }
-                                        .padding(.horizontal, 7)
-                                        .padding(.vertical, 3)
-                                        .background(
-                                            Capsule().fill(Color.black.opacity(0.50))
-                                        )
-
-                                        Spacer()
-
-                                        Text("01:24:18 / 02:48:30")
-                                            .font(.system(size: 9.5, weight: .medium, design: .monospaced))
-                                            .foregroundStyle(Color.white.opacity(0.65))
-                                            .padding(.horizontal, 7)
-                                            .padding(.vertical, 3)
-                                            .background(
-                                                Capsule().fill(Color.black.opacity(0.50))
-                                            )
-                                    }
-                                    .padding(10)
-
-                                    Spacer()
-
-                                    // Subtitle Pill: Pure Black Background, Green Text, ZERO BORDER
-                                    Text(sampleLines[sampleCueIndex])
-                                        .font(.system(size: max(13, CGFloat(settings.subtitleFontSize) * 0.85), weight: .semibold, design: .default))
-                                        .foregroundStyle(settings.subtitleTextColor)
-                                        .multilineTextAlignment(.center)
-                                        .lineSpacing(2)
-                                        .padding(.horizontal, 16)
-                                        .padding(.vertical, 7)
-                                        .background(
-                                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                                .fill(Color.black.opacity(settings.subtitleBackgroundScrimOpacity))
-                                        )
-                                        .shadow(color: Color.black.opacity(0.45), radius: 5, x: 0, y: 2)
-                                        .padding(.horizontal, 24)
-                                        .padding(.bottom, 12)
-                                        .transition(.opacity.combined(with: .scale(scale: 0.96)))
-                                        .id(sampleCueIndex)
-                                }
-                            }
-                            .frame(height: 140)
-                            .clipShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
-                                    .strokeBorder(ShadcnTheme.border, lineWidth: 1)
                             )
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(SettingsPillButtonStyle())
+                        .pointingHand()
+                        .help("Cycle sample dialogue text")
                     }
 
-                    // 2. Subtitle Typography & Text Color Card
-                    SettingsSectionCard("Text Styling & Color") {
-                        VStack(alignment: .leading, spacing: 12) {
+                    // 16:9 Letterboxed Cinema Display Mockup
+                    ZStack {
+                        // Deep cinematic canvas
+                        LinearGradient(
+                            colors: [
+                                Color(red: 0.05, green: 0.07, blue: 0.11),
+                                Color(red: 0.02, green: 0.03, blue: 0.05)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+
+                        // Soft cinematic anamorphic backlight
+                        RadialGradient(
+                            colors: [
+                                Color(red: 0.14, green: 0.22, blue: 0.32).opacity(0.35),
+                                Color.clear
+                            ],
+                            center: .center,
+                            startRadius: 20,
+                            endRadius: 180
+                        )
+
+                        // HUD Badges
+                        VStack {
                             HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Text Color")
-                                        .font(.system(size: 13, weight: .medium))
-                                        .foregroundStyle(ShadcnTheme.foreground)
-                                    Text("High-legibility foreground color for dialogue and cues.")
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                                        .fixedSize(horizontal: false, vertical: true)
+                                HStack(spacing: 5) {
+                                    Circle()
+                                        .fill(Color(red: 0.95, green: 0.25, blue: 0.25))
+                                        .frame(width: 5, height: 5)
+                                    Text("4K HDR • 24 FPS")
+                                        .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                                        .foregroundStyle(Color.white.opacity(0.70))
                                 }
-                                Spacer(minLength: 16)
-                            }
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 3)
+                                .background(
+                                    Capsule().fill(Color.black.opacity(0.50))
+                                )
 
-                            // Preset Palette Swatches & Custom Picker in Balanced Adaptive Grid
-                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 92, maximum: 135), spacing: 8)], spacing: 8) {
-                                ForEach(colorPresets) { preset in
-                                    let isSelected = settings.subtitleTextColorHex.uppercased() == preset.hex.uppercased()
-
-                                    Button {
-                                        withAnimation(.snappy(duration: 0.15)) {
-                                            settings.subtitleTextColorHex = preset.hex
-                                            ColorPanelPresenter.shared.close()
-                                        }
-                                    } label: {
-                                        HStack(spacing: 6) {
-                                            Circle()
-                                                .fill(preset.color)
-                                                .frame(width: 12, height: 12)
-
-                                            Text(preset.name)
-                                                .font(.system(size: 11, weight: .medium))
-                                                .lineLimit(1)
-                                        }
-                                        .foregroundStyle(isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
-                                        .frame(maxWidth: .infinity)
-                                        .frame(height: 28)
-                                        .background(
-                                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                                .fill(isSelected ? ShadcnTheme.cardHover : ShadcnTheme.secondary.opacity(0.35))
-                                                .overlay(
-                                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                                        .strokeBorder(isSelected ? ShadcnTheme.border : ShadcnTheme.borderSubtle.opacity(0.5), lineWidth: 1)
-                                                )
-                                        )
-                                        .contentShape(Rectangle())
-                                    }
-                                    .buttonStyle(SettingsPillButtonStyle())
-                                    .pointingHand()
-                                }
-
-                                // Native Custom Color Button (NO OVERLAPPING NSCOLORWELL)
-                                let isCustom = !colorPresets.contains { $0.hex.uppercased() == settings.subtitleTextColorHex.uppercased() }
-
-                                Button {
-                                    ColorPanelPresenter.shared.show(color: settings.subtitleTextColor) { newColor in
-                                        settings.subtitleTextColor = newColor
-                                    }
-                                } label: {
-                                    HStack(spacing: 6) {
-                                        if isCustom {
-                                            Circle()
-                                                .fill(settings.subtitleTextColor)
-                                                .frame(width: 12, height: 12)
-                                                .overlay(
-                                                    Circle()
-                                                        .strokeBorder(Color.white.opacity(0.25), lineWidth: 0.5)
-                                                )
-                                        } else {
-                                            AngularGradient(
-                                                gradient: Gradient(colors: [.red, .yellow, .green, .cyan, .blue, .purple, .red]),
-                                                center: .center
-                                            )
-                                            .frame(width: 12, height: 12)
-                                            .clipShape(Circle())
-                                            .overlay(
-                                                Circle()
-                                                    .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 0.5)
-                                            )
-                                        }
-
-                                        Text("Custom")
-                                            .font(.system(size: 11, weight: .medium))
-                                            .lineLimit(1)
-                                    }
-                                    .foregroundStyle(isCustom ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: 28)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                            .fill(isCustom ? ShadcnTheme.cardHover : ShadcnTheme.secondary.opacity(0.35))
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                                    .strokeBorder(isCustom ? ShadcnTheme.border : ShadcnTheme.borderSubtle.opacity(0.5), lineWidth: 1)
-                                            )
-                                    )
-                                    .contentShape(Rectangle())
-                                }
-                                .buttonStyle(SettingsPillButtonStyle())
-                                .pointingHand()
-                                .help("Choose custom subtitle text color")
-                            }
-                        }
-
-                        SettingsDivider()
-
-                        // Font Size Stepper & Slider
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Font Size")
-                                        .font(.system(size: 13, weight: .medium))
-                                        .foregroundStyle(ShadcnTheme.foreground)
-                                    Text("Scale subtitle typography for comfortable distance viewing.")
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
                                 Spacer()
-                                Text("\(Int(settings.subtitleFontSize)) pt")
-                                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                                    .foregroundStyle(ShadcnTheme.foreground)
+
+                                Text("01:24:18 / 02:48:30")
+                                    .font(.system(size: 9.5, weight: .medium, design: .monospaced))
+                                    .foregroundStyle(Color.white.opacity(0.65))
                                     .padding(.horizontal, 7)
                                     .padding(.vertical, 3)
                                     .background(
-                                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                            .fill(ShadcnTheme.secondary)
+                                        Capsule().fill(Color.black.opacity(0.50))
                                     )
                             }
+                            .padding(10)
 
-                            // Quick Size Buttons in Balanced Grid
-                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 95, maximum: 140), spacing: 8)], spacing: 8) {
-                                ForEach([16, 20, 24, 28], id: \.self) { size in
-                                    let isSelected = Int(settings.subtitleFontSize) == size
-                                    let label: String = {
-                                        switch size {
-                                        case 16: return "Small (16)"
-                                        case 20: return "Standard (20)"
-                                        case 24: return "Large (24)"
-                                        default: return "XL (28)"
-                                        }
-                                    }()
+                            Spacer()
 
-                                    Button {
-                                        withAnimation(.snappy(duration: 0.15)) {
-                                            settings.subtitleFontSize = Double(size)
-                                        }
-                                    } label: {
-                                        Text(label)
-                                            .font(.system(size: 11, weight: .medium))
-                                            .foregroundStyle(isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
-                                            .frame(maxWidth: .infinity)
-                                            .frame(height: 28)
-                                            .background(
-                                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                                    .fill(isSelected ? ShadcnTheme.cardHover : ShadcnTheme.secondary.opacity(0.35))
-                                                    .overlay(
-                                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                                            .strokeBorder(isSelected ? ShadcnTheme.border : ShadcnTheme.borderSubtle.opacity(0.5), lineWidth: 1)
-                                                    )
-                                            )
-                                            .contentShape(Rectangle())
-                                    }
-                                    .buttonStyle(SettingsPillButtonStyle())
-                                    .pointingHand()
-                                }
-                            }
-
-                            SettingsSlider(value: $settings.subtitleFontSize, in: 14...36, step: 1)
-                                .padding(.top, 2)
+                            // Default macOS-style subtitle rendering
+                            SubtitleOverlayView(text: sampleLines[sampleCueIndex])
+                                .padding(.bottom, 4)
+                                .id(sampleCueIndex)
                         }
                     }
+                    .frame(height: 140)
+                    .clipShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
+                            .strokeBorder(ShadcnTheme.border, lineWidth: 1)
+                    )
+                }
+            }
 
-                    // 3. Subtitle Backdrop & Contrast Card
-                    SettingsSectionCard("Backdrop & Contrast") {
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Black Background Opacity")
-                                        .font(.system(size: 13, weight: .medium))
-                                        .foregroundStyle(ShadcnTheme.foreground)
-                                    Text("Borderless pure black pill opacity behind subtitle text.")
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                                Spacer()
-                                Text("\(Int(settings.subtitleBackgroundScrimOpacity * 100))%")
-                                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                                    .foregroundStyle(ShadcnTheme.foreground)
-                                    .padding(.horizontal, 7)
-                                    .padding(.vertical, 3)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                            .fill(ShadcnTheme.secondary)
-                                    )
-                            }
+            // 2. Subtitle Appearance
+            SettingsSectionCard("Subtitle Appearance") {
+                VStack(alignment: .leading, spacing: 14) {
+                    SubtitleColorRow(
+                        title: "Text Color",
+                        subtitle: "Dialogue color for all subtitle tracks.",
+                        hex: $settings.subtitleTextColorHex,
+                        presets: textColorPresets
+                    )
 
-                            // Quick Opacity Presets in Balanced Grid
-                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 95, maximum: 140), spacing: 8)], spacing: 8) {
-                                ForEach([
-                                    (1.0, "100% Solid"),
-                                    (0.85, "85% Cinematic"),
-                                    (0.65, "65% Soft"),
-                                    (0.40, "40% Subtle")
-                                ], id: \.0) { item in
-                                    let isSelected = abs(settings.subtitleBackgroundScrimOpacity - item.0) < 0.04
+                    SettingsDivider()
 
-                                    Button {
-                                        withAnimation(.snappy(duration: 0.15)) {
-                                            settings.subtitleBackgroundScrimOpacity = item.0
-                                        }
-                                    } label: {
-                                        Text(item.1)
-                                            .font(.system(size: 11, weight: .medium))
-                                            .foregroundStyle(isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
-                                            .frame(maxWidth: .infinity)
-                                            .frame(height: 28)
-                                            .background(
-                                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                                    .fill(isSelected ? ShadcnTheme.cardHover : ShadcnTheme.secondary.opacity(0.35))
-                                                    .overlay(
-                                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                                            .strokeBorder(isSelected ? ShadcnTheme.border : ShadcnTheme.borderSubtle.opacity(0.5), lineWidth: 1)
-                                                    )
-                                            )
-                                            .contentShape(Rectangle())
-                                    }
-                                    .buttonStyle(SettingsPillButtonStyle())
-                                    .pointingHand()
-                                }
-                            }
+                    SubtitleColorRow(
+                        title: "Background Color",
+                        subtitle: "Color behind subtitle text.",
+                        hex: $settings.subtitleBackgroundColorHex,
+                        presets: backgroundColorPresets
+                    )
+                }
+            }
 
-                            SettingsSlider(value: $settings.subtitleBackgroundScrimOpacity, in: 0.20...1.0, step: 0.05)
-                                .padding(.top, 2)
-
-                            HStack(spacing: 6) {
-                                Image(systemName: "checkmark.seal.fill")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(Color(red: 0.29, green: 0.87, blue: 0.50))
-                                Text("Border-free guarantee: Subtitle badges render with 0 border width for seamless viewing.")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                            .padding(.top, 4)
-                        }
+            // 4. Real-Time On-Device Live Captions
+            SettingsSectionCard("Real-Time On-Device Live Captions") {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Enable Real-Time Live Captions")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(ShadcnTheme.foreground)
+                        Text("Transcribes media speech locally without network requests.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
+                    Spacer(minLength: 12)
+                    Toggle("", isOn: $settings.liveCaptionsEnabled)
+                        .toggleStyle(.switch)
+                        .pointingHand()
+                        .animation(.fluidQuick, value: settings.liveCaptionsEnabled)
+                }
 
-                    // 4. Real-Time On-Device Live Captions
-                    SettingsSectionCard("Real-Time On-Device Live Captions") {
-                        HStack {
+                if settings.liveCaptionsEnabled {
+                    SettingsDivider()
+
+                    if isCompact {
+                        VStack(alignment: .leading, spacing: 8) {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Enable Real-Time Live Captions")
+                                Text("Neural Transcription Engine")
                                     .font(.system(size: 13, weight: .medium))
                                     .foregroundStyle(ShadcnTheme.foreground)
-                                Text("Transcribes media speech locally without network requests.")
+                                Text("Select the hardware-accelerated model backend.")
                                     .font(.system(size: 11))
                                     .foregroundStyle(ShadcnTheme.foregroundSecondary)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
-                            Spacer(minLength: 12)
-                            Toggle("", isOn: $settings.liveCaptionsEnabled)
-                                .toggleStyle(.switch)
-                                .pointingHand()
-                                .animation(.spring(response: 0.24, dampingFraction: 0.74), value: settings.liveCaptionsEnabled)
+                            Picker("", selection: $settings.liveCaptionsEngine) {
+                                ForEach(LiveCaptionsEngine.allCases) { eng in
+                                    Text(eng.displayName).tag(eng)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .pointingHand()
                         }
-
-                        if settings.liveCaptionsEnabled {
-                            SettingsDivider()
-
-                            if isCompact {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text("Neural Transcription Engine")
-                                            .font(.system(size: 13, weight: .medium))
-                                            .foregroundStyle(ShadcnTheme.foreground)
-                                        Text("Select the hardware-accelerated model backend.")
-                                            .font(.system(size: 11))
-                                            .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                                            .fixedSize(horizontal: false, vertical: true)
-                                    }
-                                    Picker("", selection: $settings.liveCaptionsEngine) {
-                                        ForEach(LiveCaptionsEngine.allCases) { eng in
-                                            Text(eng.displayName).tag(eng)
-                                        }
-                                    }
-                                    .pickerStyle(.menu)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .pointingHand()
-                                }
-                            } else {
-                                HStack(alignment: .center, spacing: 16) {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text("Neural Transcription Engine")
-                                            .font(.system(size: 13, weight: .medium))
-                                            .foregroundStyle(ShadcnTheme.foreground)
-                                        Text("Select the hardware-accelerated model backend.")
-                                            .font(.system(size: 11))
-                                            .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                                            .fixedSize(horizontal: false, vertical: true)
-                                    }
-                                    Spacer(minLength: 16)
-                                    Picker("", selection: $settings.liveCaptionsEngine) {
-                                        ForEach(LiveCaptionsEngine.allCases) { eng in
-                                            Text(eng.displayName).tag(eng)
-                                        }
-                                    }
-                                    .pickerStyle(.menu)
-                                    .frame(width: 250)
-                                    .pointingHand()
+                    } else {
+                        HStack(alignment: .center, spacing: 16) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Neural Transcription Engine")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundStyle(ShadcnTheme.foreground)
+                                Text("Select the hardware-accelerated model backend.")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            Spacer(minLength: 16)
+                            Picker("", selection: $settings.liveCaptionsEngine) {
+                                ForEach(LiveCaptionsEngine.allCases) { eng in
+                                    Text(eng.displayName).tag(eng)
                                 }
                             }
-
-                            SettingsDivider()
-
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Battery Saver Guard (< 20%)")
-                                        .font(.system(size: 13, weight: .medium))
-                                        .foregroundStyle(ShadcnTheme.foreground)
-                                    Text("Automatically pause transcription on low battery.")
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                                Spacer(minLength: 12)
-                                Toggle("", isOn: $settings.batterySaverGuardEnabled)
-                                    .toggleStyle(.switch)
-                                    .pointingHand()
-                                    .animation(.spring(response: 0.24, dampingFraction: 0.74), value: settings.batterySaverGuardEnabled)
-                            }
+                            .pickerStyle(.menu)
+                            .frame(width: 250)
+                            .pointingHand()
                         }
                     }
+
+                    SettingsDivider()
+
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Battery Saver Guard (< 20%)")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(ShadcnTheme.foreground)
+                            Text("Automatically pause transcription on low battery.")
+                                .font(.system(size: 11))
+                                .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer(minLength: 12)
+                        Toggle("", isOn: $settings.batterySaverGuardEnabled)
+                            .toggleStyle(.switch)
+                            .pointingHand()
+                            .animation(.fluidQuick, value: settings.batterySaverGuardEnabled)
+                    }
                 }
-                .padding(isCompact ? 14 : 20)
+            }
+        }
+    }
+}
+
+// MARK: - Subtitle Color Row
+
+private struct SubtitleColorRow: View {
+    let title: String
+    let subtitle: String
+    @Binding var hex: String
+    let presets: [SubtitleColorPreset]
+
+    private var currentColor: Color {
+        Color(hex: hex) ?? .white
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(ShadcnTheme.foreground)
+                Text(subtitle)
+                    .font(.system(size: 11))
+                    .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 92, maximum: 135), spacing: 8)], spacing: 8) {
+                ForEach(presets) { preset in
+                    let isSelected = hex.uppercased() == preset.hex.uppercased()
+
+                    Button {
+                        withAnimation(.fluidQuick) {
+                            hex = preset.hex
+                            ColorPanelPresenter.shared.close()
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(preset.color)
+                                .frame(width: 12, height: 12)
+
+                            Text(preset.name)
+                                .font(.system(size: 11, weight: .medium))
+                                .lineLimit(1)
+                        }
+                        .foregroundStyle(isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 28)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(isSelected ? ShadcnTheme.cardHover : ShadcnTheme.secondary.opacity(0.35))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .strokeBorder(isSelected ? ShadcnTheme.border : ShadcnTheme.borderSubtle.opacity(0.5), lineWidth: 1)
+                                )
+                        )
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(SettingsPillButtonStyle())
+                    .pointingHand()
+                }
+
+                let isCustom = !presets.contains { $0.hex.uppercased() == hex.uppercased() }
+
+                Button {
+                    ColorPanelPresenter.shared.show(color: currentColor) { newColor in
+                        hex = newColor.toHex() ?? hex
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        if isCustom {
+                            Circle()
+                                .fill(currentColor)
+                                .frame(width: 12, height: 12)
+                                .overlay(
+                                    Circle()
+                                        .strokeBorder(Color.white.opacity(0.25), lineWidth: 0.5)
+                                )
+                        } else {
+                            AngularGradient(
+                                gradient: Gradient(colors: [.red, .yellow, .green, .cyan, .blue, .purple, .red]),
+                                center: .center
+                            )
+                            .frame(width: 12, height: 12)
+                            .clipShape(Circle())
+                            .overlay(
+                                Circle()
+                                    .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 0.5)
+                            )
+                        }
+
+                        Text("Custom")
+                            .font(.system(size: 11, weight: .medium))
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(isCustom ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 28)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(isCustom ? ShadcnTheme.cardHover : ShadcnTheme.secondary.opacity(0.35))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .strokeBorder(isCustom ? ShadcnTheme.border : ShadcnTheme.borderSubtle.opacity(0.5), lineWidth: 1)
+                            )
+                    )
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(SettingsPillButtonStyle())
+                .pointingHand()
+                .help("Choose custom subtitle \(title.lowercased())")
             }
         }
     }
@@ -1499,7 +1286,7 @@ public struct SoftwareUpdatesSettingsCard: View {
                 Toggle("", isOn: $settings.automaticallyCheckForUpdates)
                     .toggleStyle(.switch)
                     .pointingHand()
-                    .animation(.spring(response: 0.24, dampingFraction: 0.74), value: settings.automaticallyCheckForUpdates)
+                    .animation(.fluidQuick, value: settings.automaticallyCheckForUpdates)
             }
 
             SettingsDivider()
@@ -1524,7 +1311,7 @@ public struct SoftwareUpdatesSettingsCard: View {
                 ))
                 .toggleStyle(.switch)
                 .pointingHand()
-                .animation(.spring(response: 0.24, dampingFraction: 0.74), value: settings.isBetaUpdatesEnabled)
+                .animation(.fluidQuick, value: settings.isBetaUpdatesEnabled)
             }
 
             SettingsDivider()
@@ -1652,7 +1439,7 @@ private struct ChannelButton: View {
 
     var body: some View {
         Button(action: {
-            withAnimation(.spring(response: 0.26, dampingFraction: 0.76)) {
+            withAnimation(.fluidQuick) {
                 action()
             }
         }) {
@@ -1715,153 +1502,145 @@ private struct ChannelInfoBanner: View {
 public struct AboutSettingsTab: View {
     @Bindable private var settings = SettingsManager.shared
     private var updateManager = UpdateManager.shared
-    @State private var windowManager = WindowManager.shared
+    @Environment(\.settingsCompact) private var isCompact
     @State private var showResetConfirm = false
     @State private var defaultsRestoredNotice = false
 
     public init() {}
 
     public var body: some View {
-        GeometryReader { proxy in
-            let isSplit = windowManager.isSplitScreen || windowManager.isQuarterScreen || windowManager.isCompact
-            let isCompact = isSplit || proxy.size.width < 620
+        VStack(alignment: .leading, spacing: 18) {
+            // In-App OTA Updates
+            SoftwareUpdatesSettingsCard(isCompact: isCompact)
 
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 18) {
-                    // In-App OTA Updates
-                    SoftwareUpdatesSettingsCard(isCompact: isCompact)
+            // Application & Architecture Badges
+            SettingsSectionCard("About Frames") {
+                HStack(spacing: 14) {
+                    Image(nsImage: NSApp.applicationIconImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: isCompact ? 44 : 56, height: isCompact ? 44 : 56)
 
-                    // Application & Architecture Badges
-                    SettingsSectionCard("About Frames") {
-                        HStack(spacing: 14) {
-                            Image(nsImage: NSApp.applicationIconImage)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: isCompact ? 44 : 56, height: isCompact ? 44 : 56)
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 8) {
+                            Text("Frames")
+                                .font(.system(size: isCompact ? 16 : 18, weight: .bold))
+                                .foregroundStyle(ShadcnTheme.foreground)
 
-                            VStack(alignment: .leading, spacing: 4) {
-                                HStack(spacing: 8) {
-                                    Text("Frames")
-                                        .font(.system(size: isCompact ? 16 : 18, weight: .bold))
-                                        .foregroundStyle(ShadcnTheme.foreground)
-
-                                    Text("v\(updateManager.currentVersionString)")
-                                        .font(.system(size: 12, weight: .medium, design: .monospaced))
-                                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 2)
-                                        .background(
-                                            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                                .fill(ShadcnTheme.accentActive)
-                                        )
-                                }
-
-                                Text("Minimal Apple Silicon Video Player & Media Dashboard")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-
-                                if isCompact {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        HStack(spacing: 6) {
-                                            BadgeView(text: AppleSiliconMetrics.shared.generation.displayName, icon: "cpu")
-                                            BadgeView(text: "VideoToolbox ASIC", icon: "bolt.fill")
-                                        }
-                                        BadgeView(text: "Metal 3 HDR", icon: "display")
-                                    }
-                                    .padding(.top, 2)
-                                } else {
-                                    HStack(spacing: 6) {
-                                        BadgeView(text: AppleSiliconMetrics.shared.generation.displayName, icon: "cpu")
-                                        BadgeView(text: "VideoToolbox ASIC", icon: "bolt.fill")
-                                        BadgeView(text: "Metal 3 HDR", icon: "display")
-                                    }
-                                    .padding(.top, 2)
-                                }
-                            }
-                        }
-
-                        SettingsDivider()
-
-                        // Privacy Guarantee
-                        HStack(alignment: .top, spacing: 12) {
-                            Image(systemName: "antenna.radiowaves.left.and.right.slash")
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(ShadcnTheme.primary)
-                                .frame(width: 28, height: 28)
+                            Text("v\(updateManager.currentVersionString)")
+                                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                                .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
                                 .background(
-                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                        .fill(ShadcnTheme.primary.opacity(0.12))
+                                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                        .fill(ShadcnTheme.accentActive)
                                 )
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("100% Telemetry-Free Guarantee")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundStyle(ShadcnTheme.foreground)
-                                Text("Frames is engineered for complete privacy. Zero analytics, crash reports, or user telemetry are ever collected or transmitted. All decoders and models run strictly on your Mac.")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
                         }
-                        .padding(12)
-                        .background(
-                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
-                                .fill(ShadcnTheme.secondary.opacity(0.40))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
-                                .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
-                        )
 
-                        SettingsDivider()
+                        Text("Minimal Apple Silicon Video Player & Media Dashboard")
+                            .font(.system(size: 11))
+                            .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
 
-                        // Restore Defaults
                         if isCompact {
-                            VStack(alignment: .leading, spacing: 8) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Restore Settings")
-                                        .font(.system(size: 13, weight: .medium))
-                                        .foregroundStyle(ShadcnTheme.foreground)
-                                    Text("Reset all Frames preferences to initial factory defaults.")
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                                        .fixedSize(horizontal: false, vertical: true)
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack(spacing: 6) {
+                                    BadgeView(text: AppleSiliconMetrics.shared.generation.displayName, icon: "cpu")
+                                    BadgeView(text: "VideoToolbox ASIC", icon: "bolt.fill")
                                 }
-                                ShadcnButton(
-                                    defaultsRestoredNotice ? "Defaults Restored" : "Restore All Defaults",
-                                    icon: defaultsRestoredNotice ? "checkmark" : "arrow.counterclockwise",
-                                    variant: .outline,
-                                    size: .sm
-                                ) {
-                                    showResetConfirm = true
-                                }
+                                BadgeView(text: "Metal 3 HDR", icon: "display")
                             }
+                            .padding(.top, 2)
                         } else {
-                            HStack(alignment: .center, spacing: 16) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Restore Settings")
-                                        .font(.system(size: 13, weight: .medium))
-                                        .foregroundStyle(ShadcnTheme.foreground)
-                                    Text("Reset all Frames preferences to initial factory defaults.")
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                                Spacer(minLength: 16)
-                                ShadcnButton(
-                                    defaultsRestoredNotice ? "Defaults Restored" : "Restore All Defaults",
-                                    icon: defaultsRestoredNotice ? "checkmark" : "arrow.counterclockwise",
-                                    variant: .outline,
-                                    size: .sm
-                                ) {
-                                    showResetConfirm = true
-                                }
+                            HStack(spacing: 6) {
+                                BadgeView(text: AppleSiliconMetrics.shared.generation.displayName, icon: "cpu")
+                                BadgeView(text: "VideoToolbox ASIC", icon: "bolt.fill")
+                                BadgeView(text: "Metal 3 HDR", icon: "display")
                             }
+                            .padding(.top, 2)
                         }
                     }
                 }
-                .padding(isCompact ? 14 : 20)
+
+                SettingsDivider()
+
+                // Privacy Guarantee
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "antenna.radiowaves.left.and.right.slash")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(ShadcnTheme.primary)
+                        .frame(width: 28, height: 28)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(ShadcnTheme.primary.opacity(0.12))
+                        )
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("100% Telemetry-Free Guarantee")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(ShadcnTheme.foreground)
+                        Text("Frames is engineered for complete privacy. Zero analytics, crash reports, or user telemetry are ever collected or transmitted. All decoders and models run strictly on your Mac.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .padding(12)
+                .background(
+                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
+                        .fill(ShadcnTheme.secondary.opacity(0.40))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
+                        .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
+                )
+
+                SettingsDivider()
+
+                // Restore Defaults
+                if isCompact {
+                    VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Restore Settings")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(ShadcnTheme.foreground)
+                            Text("Reset all Frames preferences to initial factory defaults.")
+                                .font(.system(size: 11))
+                                .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        ShadcnButton(
+                            defaultsRestoredNotice ? "Defaults Restored" : "Restore All Defaults",
+                            icon: defaultsRestoredNotice ? "checkmark" : "arrow.counterclockwise",
+                            variant: .outline,
+                            size: .sm
+                        ) {
+                            showResetConfirm = true
+                        }
+                    }
+                } else {
+                    HStack(alignment: .center, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Restore Settings")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(ShadcnTheme.foreground)
+                            Text("Reset all Frames preferences to initial factory defaults.")
+                                .font(.system(size: 11))
+                                .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer(minLength: 16)
+                        ShadcnButton(
+                            defaultsRestoredNotice ? "Defaults Restored" : "Restore All Defaults",
+                            icon: defaultsRestoredNotice ? "checkmark" : "arrow.counterclockwise",
+                            variant: .outline,
+                            size: .sm
+                        ) {
+                            showResetConfirm = true
+                        }
+                    }
+                }
             }
         }
         .confirmationDialog(

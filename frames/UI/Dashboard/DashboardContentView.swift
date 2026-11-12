@@ -11,7 +11,7 @@ public struct TactileCardPressButtonStyle: ButtonStyle {
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed && !reduceMotion ? 0.98 : 1.0)
-            .animation(reduceMotion ? nil : .spring(response: 0.22, dampingFraction: 0.75), value: configuration.isPressed)
+            .animation(.fluidQuick, value: configuration.isPressed)
     }
 }
 
@@ -117,8 +117,8 @@ public struct DashboardContentView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(ShadcnTheme.background)
             .clipped()
-            .animation(.snappy(duration: 0.2), value: library.viewMode)
-            .animation(.fluidSpring, value: library.selectedCategory)
+            .animation(.fluidQuick, value: library.viewMode)
+            .animation(.fluidQuick, value: library.selectedCategory)
         }
     }
 
@@ -155,8 +155,7 @@ public struct DashboardContentView: View {
                     Image(systemName: "plus")
                         .font(.system(size: 24, weight: .light))
                         .foregroundStyle(isHoveringAddTile ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
-                        .scaleEffect(isHoveringAddTile ? 1.08 : 1.0)
-                        .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isHoveringAddTile)
+                        .animation(.fluidQuick, value: isHoveringAddTile)
                 }
                 .aspectRatio(16/9, contentMode: .fill)
                 .frame(maxWidth: .infinity)
@@ -187,14 +186,12 @@ public struct DashboardContentView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(TactileCardPressButtonStyle())
-        .offset(y: isHoveringAddTile ? -2 : 0)
-        .shadow(color: isHoveringAddTile ? Color.black.opacity(0.14) : Color.clear, radius: 8, x: 0, y: 4)
-        .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isHoveringAddTile)
+        .animation(.fluidQuick, value: isHoveringAddTile)
         .contentShape(Rectangle())
         .pointingHand()
         .help("Add video files or folder to library")
         .onHover { h in
-            withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
+            withAnimation(.fluidQuick) {
                 isHoveringAddTile = h
             }
         }
@@ -226,8 +223,7 @@ public struct DashboardContentView: View {
                     Image(systemName: "plus")
                         .font(.system(size: 14, weight: .light))
                         .foregroundStyle(isHoveringAddRow ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
-                        .scaleEffect(isHoveringAddRow ? 1.08 : 1.0)
-                        .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isHoveringAddRow)
+                        .animation(.fluidQuick, value: isHoveringAddRow)
                 }
                 .frame(width: VideoListRowView.thumbnailWidth, height: VideoListRowView.thumbnailHeight)
                 .clipShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
@@ -275,14 +271,13 @@ public struct DashboardContentView: View {
             .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
         }
         .buttonStyle(TactileCardPressButtonStyle())
-        .offset(y: isHoveringAddRow ? -1 : 0)
-        .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isHoveringAddRow)
+        .animation(.fluidQuick, value: isHoveringAddRow)
         .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
         .pointingHand()
         .help("Add video files or folder to library")
         .accessibilityLabel("Add video files or folder")
         .onHover { h in
-            withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
+            withAnimation(.fluidQuick) {
                 isHoveringAddRow = h
             }
         }
@@ -559,7 +554,7 @@ public struct VideoGridCardView: View {
                 .frame(maxWidth: .infinity)
                 .clipped()
 
-                // Hover Play Overlay (smooth scrim fade + spring reveal play button)
+                // Hover Play Overlay
                 ZStack {
                     Color.black.opacity(isHovered ? 0.32 : 0.0)
                         .overlay(
@@ -580,12 +575,11 @@ public struct VideoGridCardView: View {
                                         .foregroundStyle(ShadcnTheme.foreground)
                                         .offset(x: 1.5)
                                 )
-                                .scaleEffect(isHovered ? 1.0 : 0.75)
                                 .opacity(isHovered ? 1.0 : 0.0)
-                                .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isHovered)
+                                .animation(.fluidQuick, value: isHovered)
                         )
                 }
-                .animation(.easeInOut(duration: 0.2), value: isHovered)
+                .animation(.fluidQuick, value: isHovered)
 
                 // Top Badges (Resolution / Instant Favorite Star)
                 HStack {
@@ -602,7 +596,7 @@ public struct VideoGridCardView: View {
 
                     // Instant Golden Star Button
                     Button {
-                        withAnimation(.fluidSpring) {
+                        withAnimation(.fluidQuick) {
                             library.toggleFavorite(videoId: video.id)
                         }
                     } label: {
@@ -613,7 +607,6 @@ public struct VideoGridCardView: View {
                             Image(systemName: video.isFavorite ? "star.fill" : "star")
                                 .font(.system(size: 11))
                                 .foregroundStyle(video.isFavorite ? goldenFavoriteColor : Color.white.opacity(0.85))
-                                .scaleEffect(video.isFavorite ? 1.05 : 0.95)
                         }
                         .frame(width: 28, height: 28)
                         .contentShape(Circle())
@@ -622,8 +615,8 @@ public struct VideoGridCardView: View {
                     .contentShape(Circle())
                     .pointingHand()
                     .opacity(isHovered || video.isFavorite ? 1.0 : 0.0)
-                    .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isHovered)
-                    .animation(.fluidSpring, value: video.isFavorite)
+                    .animation(.fluidQuick, value: isHovered)
+                    .animation(.fluidQuick, value: video.isFavorite)
                     .help(video.isFavorite ? "Remove from Favorites" : "Add to Favorites")
                 }
                 .padding(8)
@@ -660,7 +653,6 @@ public struct VideoGridCardView: View {
                 RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
                     .strokeBorder(isHovered ? ShadcnTheme.borderActive : ShadcnTheme.border, lineWidth: 1)
             )
-            .shadow(color: isHovered ? Color.black.opacity(0.18) : Color.clear, radius: 8, x: 0, y: 4)
 
             // Title and Meta Information
             VStack(alignment: .leading, spacing: 3) {
@@ -689,13 +681,12 @@ public struct VideoGridCardView: View {
             }
             .padding(.horizontal, 2)
         }
-        .offset(y: isHovered && !reduceMotion ? -2 : 0)
         .scaleEffect(isPressed && !reduceMotion ? 0.98 : 1.0)
-        .animation(reduceMotion ? nil : .spring(response: 0.25, dampingFraction: 0.75), value: isHovered)
-        .animation(reduceMotion ? nil : .spring(response: 0.22, dampingFraction: 0.75), value: isPressed)
+        .animation(.fluidQuick, value: isHovered)
+        .animation(.fluidQuick, value: isPressed)
         .contentShape(Rectangle())
         ._onButtonGesture(pressing: { pressing in
-            withAnimation(reduceMotion ? nil : .spring(response: 0.22, dampingFraction: 0.75)) {
+            withAnimation(.fluidQuick) {
                 isPressed = pressing
             }
         }, perform: {
@@ -812,7 +803,7 @@ public struct VideoListRowView: View {
                     .font(.system(size: 14, weight: .light))
                     .foregroundStyle(ShadcnTheme.foregroundMuted.opacity(0.65))
 
-                // Hover Play Overlay (shows play button only on thumbnail hover with spring reveal)
+                // Hover Play Overlay (shows play button only on thumbnail hover)
                 ZStack {
                     Color.black.opacity(isThumbnailHovered ? Self.scrimOpacity : 0.0)
                         .overlay(
@@ -833,12 +824,11 @@ public struct VideoListRowView: View {
                                         .foregroundStyle(ShadcnTheme.foreground)
                                         .offset(x: 1)
                                 )
-                                .scaleEffect(isThumbnailHovered ? 1.0 : 0.75)
                                 .opacity(isThumbnailHovered ? 1.0 : 0.0)
-                                .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isThumbnailHovered)
+                                .animation(.fluidQuick, value: isThumbnailHovered)
                         )
                 }
-                .animation(.easeInOut(duration: 0.2), value: isThumbnailHovered)
+                .animation(.fluidQuick, value: isThumbnailHovered)
             }
             .frame(width: Self.thumbnailWidth, height: Self.thumbnailHeight)
             .clipShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
@@ -849,7 +839,7 @@ public struct VideoListRowView: View {
             .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
             .pointingHand()
             .onHover { hovering in
-                withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
+                withAnimation(.fluidQuick) {
                     isThumbnailHovered = hovering
                 }
                 onThumbnailHover?(hovering)
@@ -897,7 +887,7 @@ public struct VideoListRowView: View {
 
             // Instant Favorite Star Button
             Button {
-                withAnimation(.fluidSpring) {
+                withAnimation(.fluidQuick) {
                     library.toggleFavorite(videoId: video.id)
                 }
             } label: {
@@ -908,7 +898,6 @@ public struct VideoListRowView: View {
                     Image(systemName: video.isFavorite ? "star.fill" : "star")
                         .font(.system(size: 12))
                         .foregroundStyle(video.isFavorite ? goldenFavoriteColor : ShadcnTheme.foregroundMuted)
-                        .scaleEffect(video.isFavorite ? 1.08 : 0.95)
                 }
                 .frame(width: 28, height: 28)
                 .contentShape(Circle())
@@ -917,8 +906,8 @@ public struct VideoListRowView: View {
             .contentShape(Circle())
             .pointingHand()
             .opacity(isHovered || video.isFavorite ? 1.0 : 0.0)
-            .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isHovered)
-            .animation(.fluidSpring, value: video.isFavorite)
+            .animation(.fluidQuick, value: isHovered)
+            .animation(.fluidQuick, value: video.isFavorite)
             .help(video.isFavorite ? "Remove from Favorites" : "Add to Favorites")
         }
         .padding(.horizontal, 12)
@@ -931,15 +920,14 @@ public struct VideoListRowView: View {
             RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                 .strokeBorder(isHovered ? ShadcnTheme.borderActive : ShadcnTheme.border, lineWidth: 1)
         )
-        .offset(y: isHovered && !reduceMotion ? -1 : 0)
         .scaleEffect(isPressed && !reduceMotion ? 0.98 : 1.0)
-        .animation(reduceMotion ? nil : .spring(response: 0.25, dampingFraction: 0.75), value: isHovered)
-        .animation(reduceMotion ? nil : .spring(response: 0.22, dampingFraction: 0.75), value: isPressed)
-        .animation(reduceMotion ? nil : .fluidSpring, value: containerWidth >= 380)
-        .animation(reduceMotion ? nil : .fluidSpring, value: containerWidth >= 460)
+        .animation(.fluidQuick, value: isHovered)
+        .animation(.fluidQuick, value: isPressed)
+        .animation(.fluidQuick, value: containerWidth >= 380)
+        .animation(.fluidQuick, value: containerWidth >= 460)
         .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
         ._onButtonGesture(pressing: { pressing in
-            withAnimation(reduceMotion ? nil : .spring(response: 0.22, dampingFraction: 0.75)) {
+            withAnimation(.fluidQuick) {
                 isPressed = pressing
             }
         }, perform: {
@@ -955,7 +943,7 @@ public struct VideoListRowView: View {
         }
         .onChange(of: isHovered) { _, hovered in
             if !hovered {
-                withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
+                withAnimation(.fluidQuick) {
                     isThumbnailHovered = false
                 }
             }

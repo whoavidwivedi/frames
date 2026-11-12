@@ -126,9 +126,9 @@ public struct AppleLiquidGlassNativeButtonStyle: ButtonStyle {
                 x: 0,
                 y: isHovered ? 3 : 2
             )
-            .scaleEffect(configuration.isPressed ? 0.93 : (isHovered ? 1.05 : 1.0))
-            .animation(.spring(response: 0.24, dampingFraction: 0.72), value: isHovered)
-            .animation(.spring(response: 0.18, dampingFraction: 0.8), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed ? 0.93 : 1.0)
+            .animation(.fluidQuick, value: isHovered)
+            .animation(.fluidQuick, value: configuration.isPressed)
     }
 
     @ViewBuilder
@@ -373,7 +373,7 @@ public struct AppleLiquidGlassButton<Content: View>: View {
             isHovered: isHovered
         ))
         .onHover { hovering in
-            withAnimation(.spring(response: 0.24, dampingFraction: 0.75)) {
+            withAnimation(.fluidQuick) {
                 isHovered = hovering
             }
         }
@@ -505,14 +505,14 @@ public struct LiquidGlassVolumeSlider: View {
                     }
             )
             .onHover { hovering in
-                withAnimation(.spring(response: 0.22, dampingFraction: 0.75)) {
+                withAnimation(.fluidQuick) {
                     isHovered = hovering
                 }
             }
         }
         .frame(width: width, height: height)
-        .animation(.spring(response: 0.22, dampingFraction: 0.75), value: isHovered)
-        .animation(.spring(response: 0.22, dampingFraction: 0.75), value: isDragging)
+        .animation(.fluidQuick, value: isHovered)
+        .animation(.fluidQuick, value: isDragging)
         .pointingHand()
     }
 }

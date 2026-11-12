@@ -12,7 +12,7 @@ private struct TactileTransportButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed && !reduceMotion ? scale : 1.0)
-            .animation(reduceMotion ? nil : spring, value: configuration.isPressed)
+            .animation(.fluidQuick, value: configuration.isPressed)
     }
 }
 
@@ -66,8 +66,8 @@ public struct FluidVolumeSlider: View {
                     .shadow(color: Color.black.opacity(isHovering || isDragging ? 0.35 : 0.15), radius: 3, x: 0, y: 1)
                     .scaleEffect(isDragging ? 1.15 : 1.0)
                     .offset(x: max(0, min(width - thumbRadius * 2, fillWidth - thumbRadius)))
-                    .animation(.spring(response: 0.22, dampingFraction: 0.74), value: isHovering)
-                    .animation(.spring(response: 0.18, dampingFraction: 0.72), value: isDragging)
+                    .animation(.fluidQuick, value: isHovering)
+                    .animation(.fluidQuick, value: isDragging)
             }
             .frame(height: height)
             .contentShape(Rectangle())
@@ -91,7 +91,7 @@ public struct FluidVolumeSlider: View {
         .contentShape(Rectangle())
         .pointingHand()
         .onHover { h in
-            withAnimation(reduceMotion ? nil : .spring(response: 0.22, dampingFraction: 0.74)) {
+            withAnimation(.fluidQuick) {
                 isHovering = h
             }
         }
@@ -209,7 +209,7 @@ public struct LiquidGlassHUD: View {
                     .accessibilityValue("\(Int(engine.volume * 100))%")
                     .help(isNarrow ? "Volume Slider" : (engine.isMuted ? "Unmute (M)" : "Mute (M)"))
                     .onHover { h in
-                        withAnimation(.spring(response: 0.24, dampingFraction: 0.74)) {
+                        withAnimation(.fluidQuick) {
                             hoveredButton = h ? "volume" : nil
                         }
                     }
@@ -303,7 +303,7 @@ public struct LiquidGlassHUD: View {
                     .accessibilityHint("Toggles video playback")
                     .help(engine.isPlaying ? "Pause (Space)" : (engine.hasEnded ? "Replay (Space)" : "Play (Space)"))
                     .onHover { h in
-                        withAnimation(.spring(response: 0.24, dampingFraction: 0.74)) {
+                        withAnimation(.fluidQuick) {
                             hoveredButton = h ? "play" : nil
                         }
                     }
@@ -354,7 +354,7 @@ public struct LiquidGlassHUD: View {
     .padding(.horizontal, 20)
     .padding(.bottom, 20)
     .environment(\.colorScheme, .dark)
-    .animation(.spring(response: 0.26, dampingFraction: 0.76), value: engine.activeInspectorSheet)
+    .animation(.fluidQuick, value: engine.activeInspectorSheet)
     }
 
     public static func formatRate(_ rate: Float) -> String {
@@ -382,7 +382,7 @@ public struct LiquidGlassHUD: View {
         let isOpen = engine.activeInspectorSheet == .audio
 
         return Button {
-            withAnimation(.spring(response: 0.26, dampingFraction: 0.76)) {
+            withAnimation(.fluidQuick) {
                 engine.activeInspectorSheet = (isOpen ? nil : .audio)
             }
         } label: {
@@ -418,7 +418,7 @@ public struct LiquidGlassHUD: View {
         .accessibilityLabel("Audio track")
         .accessibilityValue(audioButtonLabel)
         .onHover { h in
-            withAnimation(.spring(response: 0.24, dampingFraction: 0.74)) {
+            withAnimation(.fluidQuick) {
                 isAudioHovered = h
             }
         }
@@ -431,7 +431,7 @@ public struct LiquidGlassHUD: View {
         let subTitle = isSubOn ? engine.selectedSubtitleTrack.title : "Subtitles"
 
         return Button {
-            withAnimation(.spring(response: 0.26, dampingFraction: 0.76)) {
+            withAnimation(.fluidQuick) {
                 engine.activeInspectorSheet = (isOpen ? nil : .subtitles)
             }
         } label: {
@@ -467,7 +467,7 @@ public struct LiquidGlassHUD: View {
         .accessibilityLabel("Subtitles")
         .accessibilityValue(subTitle)
         .onHover { h in
-            withAnimation(.spring(response: 0.24, dampingFraction: 0.74)) {
+            withAnimation(.fluidQuick) {
                 isSubtitlesHovered = h
             }
         }
@@ -479,7 +479,7 @@ public struct LiquidGlassHUD: View {
         let isNonStandard = abs(engine.playbackRate - 1.0) > 0.01
 
         return Button {
-            withAnimation(.spring(response: 0.26, dampingFraction: 0.76)) {
+            withAnimation(.fluidQuick) {
                 engine.activeInspectorSheet = (isOpen ? nil : .speed)
             }
         } label: {
@@ -504,7 +504,7 @@ public struct LiquidGlassHUD: View {
         .accessibilityLabel("Playback speed")
         .accessibilityValue(Self.formatRate(engine.playbackRate))
         .onHover { h in
-            withAnimation(.spring(response: 0.24, dampingFraction: 0.74)) {
+            withAnimation(.fluidQuick) {
                 isSpeedHovered = h
             }
         }
@@ -534,7 +534,7 @@ public struct LiquidGlassHUD: View {
         .help(help)
         .accessibilityLabel(accessibilityLabel ?? help)
         .onHover { h in
-            withAnimation(.spring(response: 0.24, dampingFraction: 0.74)) {
+            withAnimation(.fluidQuick) {
                 hoveredButton = h ? id : nil
             }
         }

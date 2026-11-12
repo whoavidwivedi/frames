@@ -83,10 +83,7 @@ public struct CustomScrubber: View {
                         .shadow(color: Color.black.opacity(0.35), radius: isInteracting ? 3 : 1.5, x: 0, y: 1)
                         .shadow(color: ShadcnTheme.primary.opacity(isInteracting ? 0.5 : 0.0), radius: 4, x: 0, y: 0)
                         .scaleEffect(isInteracting ? 1.0 : 0.5)
-                        .animation(
-                            reduceMotion ? nil : .spring(response: 0.22, dampingFraction: 0.75),
-                            value: isInteracting
-                        )
+                        .animation(.fluidQuick, value: isInteracting)
                         .position(x: max(4, min(totalWidth - 4, progressWidth)), y: proxy.size.height / 2)
                         .allowsHitTesting(false)
                 }
@@ -155,7 +152,7 @@ public struct CustomScrubber: View {
                             ))
                     }
                 }
-                .animation(reduceMotion ? nil : .spring(response: 0.22, dampingFraction: 0.75), value: isHovering)
+                .animation(.fluidQuick, value: isHovering)
             }
             .frame(height: 24)
         }

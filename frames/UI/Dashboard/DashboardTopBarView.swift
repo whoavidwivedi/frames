@@ -7,7 +7,7 @@ public struct TopBarIconButtonStyle: ButtonStyle {
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.93 : 1.0)
-            .animation(.spring(response: 0.22, dampingFraction: 0.75), value: configuration.isPressed)
+            .animation(.fluidQuick, value: configuration.isPressed)
     }
 }
 
@@ -16,7 +16,7 @@ public struct TopBarPillButtonStyle: ButtonStyle {
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
-            .animation(.spring(response: 0.22, dampingFraction: 0.75), value: configuration.isPressed)
+            .animation(.fluidQuick, value: configuration.isPressed)
     }
 }
 
@@ -69,7 +69,7 @@ public struct DashboardTopBarView: View {
                 HStack(spacing: 4) {
                     // 1. Sidebar Toggle Icon
                     Button {
-                        withAnimation(.snappy(duration: 0.2)) {
+                        withAnimation(.fluidQuick) {
                             library.toggleSidebar()
                         }
                     } label: {
@@ -238,7 +238,7 @@ public struct DashboardTopBarView: View {
                             )
                     )
                     .shadow(color: isSearchFocused ? ShadcnTheme.ring.opacity(0.18) : Color.clear, radius: 4, x: 0, y: 0)
-                    .animation(.spring(response: 0.22, dampingFraction: 0.75), value: isSearchFocused)
+                    .animation(.fluidQuick, value: isSearchFocused)
                     .contentShape(Rectangle())
                     .pointingHand()
                     .transition(
@@ -270,7 +270,7 @@ public struct DashboardTopBarView: View {
 
                         // Dedicated Sort Button (Click to cycle, right-click for direct choice)
                         Button {
-                            withAnimation(.snappy(duration: 0.15)) {
+                            withAnimation(.fluidQuick) {
                                 library.cycleSortOption()
                             }
                         } label: {
@@ -301,7 +301,7 @@ public struct DashboardTopBarView: View {
                         .contextMenu {
                             ForEach(SortOption.allCases) { opt in
                                 Button {
-                                    withAnimation(.snappy(duration: 0.15)) {
+                                    withAnimation(.fluidQuick) {
                                         library.sortOption = opt
                                     }
                                 } label: {
@@ -322,7 +322,7 @@ public struct DashboardTopBarView: View {
 
                         // 1-Click View Mode Toggle Button (Grid <-> List) - Tactile press & active focus ring
                         Button {
-                            withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
+                            withAnimation(.fluidQuick) {
                                 library.toggleViewMode()
                             }
                         } label: {
@@ -343,7 +343,7 @@ public struct DashboardTopBarView: View {
                         }
                         .buttonStyle(TopBarIconButtonStyle())
                         .pointingHand()
-                        .animation(.spring(response: 0.25, dampingFraction: 0.75), value: library.viewMode)
+                        .animation(.fluidQuick, value: library.viewMode)
                         .help(library.viewMode == .grid ? "Switch to List View" : "Switch to Grid View")
                         .onHover { h in
                             hoveredButton = h ? .viewMode : nil
@@ -353,7 +353,7 @@ public struct DashboardTopBarView: View {
                     // OTA Update Available Pill Button (Strict Shadcn neutral b1VlK05Q)
                     if updateManager.hasUpdate {
                         Button {
-                            withAnimation(.snappy(duration: 0.18)) {
+                            withAnimation(.fluidQuick) {
                                 updateManager.presentUpdatePrompt()
                             }
                         } label: {
@@ -389,7 +389,7 @@ public struct DashboardTopBarView: View {
 
                     // 1-Click Theme Toggle Button - Icon-Only
                     Button {
-                        withAnimation(.snappy(duration: 0.2)) {
+                        withAnimation(.fluidQuick) {
                             themeManager.toggleTheme()
                         }
                     } label: {
@@ -407,7 +407,7 @@ public struct DashboardTopBarView: View {
                     }
                     .buttonStyle(TopBarIconButtonStyle())
                     .pointingHand()
-                    .animation(.snappy(duration: 0.2), value: themeManager.isDark)
+                    .animation(.fluidQuick, value: themeManager.isDark)
                     .help(themeManager.isDark ? "Switch to Light Mode" : "Switch to Dark Mode")
                     .onHover { h in
                         hoveredButton = h ? .theme : nil
@@ -422,8 +422,8 @@ public struct DashboardTopBarView: View {
                     TitleBarDragArea()
                 }
             )
-            .animation(.snappy(duration: 0.2), value: library.isSearchActive)
-            .animation(.snappy(duration: 0.2), value: library.viewMode)
+            .animation(.fluidQuick, value: library.isSearchActive)
+            .animation(.fluidQuick, value: library.viewMode)
         }
         .frame(height: 32)
         .macOSDefaultTitleBar()

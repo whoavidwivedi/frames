@@ -170,7 +170,7 @@ struct ContentView: View {
                             .ignoresSafeArea()
                             .contentShape(Rectangle())
                             .onTapGesture {
-                                withAnimation(.fluidSpring) {
+                                withAnimation(.fluidQuick) {
                                     engine.activeInspectorSheet = nil
                                 }
                             }
@@ -252,20 +252,20 @@ struct ContentView: View {
                 ResumePlaybackOverlay(
                     prompt: prompt,
                     onResume: { url, seekTime in
-                        withAnimation(.fluidSpring) {
+                        withAnimation(.fluidQuick) {
                             pendingResumePrompt = nil
                         }
                         playVideo(url: url, seekTo: seekTime)
                     },
                     onStartOver: { url in
-                        withAnimation(.fluidSpring) {
+                        withAnimation(.fluidQuick) {
                             pendingResumePrompt = nil
                         }
                         library.resetPlaybackProgress(for: url)
                         playVideo(url: url, seekTo: 0.0)
                     },
                     onCancel: {
-                        withAnimation(.fluidSpring) {
+                        withAnimation(.fluidQuick) {
                             pendingResumePrompt = nil
                         }
                     }
@@ -298,7 +298,7 @@ struct ContentView: View {
                     Color.black.opacity(0.55)
                         .ignoresSafeArea()
                         .onTapGesture {
-                            withAnimation(.fluidSpring) {
+                            withAnimation(.fluidQuick) {
                                 settings.closeSettings()
                             }
                         }
@@ -338,7 +338,7 @@ struct ContentView: View {
                     update: update,
                     manager: updateManager,
                     onDismiss: {
-                        withAnimation(.fluidSpring) {
+                        withAnimation(.fluidQuick) {
                             updateManager.dismissPrompt()
                         }
                     }
@@ -364,7 +364,7 @@ struct ContentView: View {
             // Splash Screen Animation on App Launch
             if showSplash {
                 SplashScreenView {
-                    withAnimation(.fluidSmooth) {
+                    withAnimation(.fluidQuick) {
                         showSplash = false
                     }
                 }
@@ -375,8 +375,10 @@ struct ContentView: View {
             }
         }
         .frame(minWidth: 460, minHeight: 320)
-        .animation(.fluidSpring, value: engine.currentURL != nil)
-        .animation(engine.controlsVisible ? .spring(response: 0.24, dampingFraction: 0.78) : .easeOut(duration: 0.16), value: engine.controlsVisible)
+        .animation(.fluidQuick, value: engine.currentURL != nil)
+        .animation(.fluidQuick, value: engine.controlsVisible)
+        .animation(.fluidOverlay, value: settings.isSettingsPresented)
+        .animation(.fluidOverlay, value: updateManager.isUpdatePromptPresented)
         .onChange(of: engine.controlsVisible) { _, visible in
             if !visible && engine.isPlaying {
                 NSCursor.setHiddenUntilMouseMoves(true)
@@ -387,7 +389,7 @@ struct ContentView: View {
                 resetControlsTimer(force: true)
             } else {
                 hideControlsTimer?.invalidate()
-                withAnimation(.fluidSpring) {
+                withAnimation(.fluidQuick) {
                     engine.controlsVisible = true
                 }
                 if engine.hasEnded {
@@ -470,7 +472,7 @@ struct ContentView: View {
 
             let item = library.videos.first(where: { $0.url == url })
             let dur = item?.duration ?? 0.0
-            withAnimation(.fluidSpring) {
+            withAnimation(.fluidQuick) {
                 pendingResumePrompt = ResumePromptData(
                     url: url,
                     resumeSeconds: resume.seconds,
@@ -499,7 +501,7 @@ struct ContentView: View {
         hideControlsTimer?.invalidate()
         NSCursor.setHiddenUntilMouseMoves(false)
         updateWindowRepresentation(for: nil)
-        withAnimation(.fluidSpring) {
+        withAnimation(.fluidQuick) {
             engine.controlsVisible = true
             engine.unloadMedia()
         }
@@ -537,7 +539,7 @@ struct ContentView: View {
         guard force || now.timeIntervalSince(lastControlsTimerReset) >= 0.25 else { return }
         lastControlsTimerReset = now
 
-        withAnimation(.fluidSpring) {
+        withAnimation(.fluidQuick) {
             engine.controlsVisible = true
         }
         hideControlsTimer?.invalidate()
@@ -547,7 +549,7 @@ struct ContentView: View {
             hideControlsTimer = Timer.scheduledTimer(withTimeInterval: 2.5, repeats: false) { _ in
                 Task { @MainActor in
                     if engine.isPlaying && !engine.hasEnded && engine.activeInspectorSheet == nil && !engine.isScrubbing {
-                        withAnimation(.easeInOut(duration: 0.22)) {
+                        withAnimation(.fluidQuick) {
                             engine.controlsVisible = false
                         }
                         NSCursor.setHiddenUntilMouseMoves(true)

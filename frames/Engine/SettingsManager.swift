@@ -172,6 +172,7 @@ public final class SettingsManager {
     public static let volumeNormalizationKey = "frames_settings_volume_normalization_v1"
     public static let subtitleFontSizeKey = "frames_settings_subtitle_font_size_v1"
     public static let subtitleTextColorHexKey = "frames_settings_subtitle_text_color_hex_v1"
+    public static let subtitleBackgroundColorHexKey = "frames_settings_subtitle_background_color_hex_v1"
     public static let subtitleScrimOpacityKey = "frames_settings_subtitle_scrim_opacity_v1"
     public static let liveCaptionsEnabledKey = "frames_settings_live_captions_enabled_v1"
     public static let liveCaptionsEngineKey = "frames_settings_live_captions_engine_v1"
@@ -294,10 +295,25 @@ public final class SettingsManager {
 
     public var subtitleTextColor: Color {
         get {
-            Color(hex: subtitleTextColorHex) ?? Color(red: 0.29, green: 0.87, blue: 0.50)
+            Color(hex: subtitleTextColorHex) ?? .white
         }
         set {
-            subtitleTextColorHex = newValue.toHex() ?? "#4ADE80"
+            subtitleTextColorHex = newValue.toHex() ?? "#FFFFFF"
+        }
+    }
+
+    public var subtitleBackgroundColorHex: String {
+        didSet {
+            UserDefaults.standard.set(subtitleBackgroundColorHex, forKey: Self.subtitleBackgroundColorHexKey)
+        }
+    }
+
+    public var subtitleBackgroundColor: Color {
+        get {
+            Color(hex: subtitleBackgroundColorHex) ?? .black
+        }
+        set {
+            subtitleBackgroundColorHex = newValue.toHex() ?? "#000000"
         }
     }
 
@@ -454,7 +470,8 @@ public final class SettingsManager {
             self.subtitleFontSize = 20.0
         }
 
-        self.subtitleTextColorHex = defaults.string(forKey: Self.subtitleTextColorHexKey) ?? "#4ADE80"
+        self.subtitleTextColorHex = defaults.string(forKey: Self.subtitleTextColorHexKey) ?? "#FFFFFF"
+        self.subtitleBackgroundColorHex = defaults.string(forKey: Self.subtitleBackgroundColorHexKey) ?? "#000000"
 
         if defaults.object(forKey: Self.subtitleScrimOpacityKey) != nil {
             self.subtitleBackgroundScrimOpacity = defaults.double(forKey: Self.subtitleScrimOpacityKey)
@@ -544,7 +561,8 @@ public final class SettingsManager {
         defaultAudioLanguage = "System"
         volumeNormalizationEnabled = false
         subtitleFontSize = 20.0
-        subtitleTextColorHex = "#4ADE80"
+        subtitleTextColorHex = "#FFFFFF"
+        subtitleBackgroundColorHex = "#000000"
         subtitleBackgroundScrimOpacity = 0.85
         liveCaptionsEnabled = false
         liveCaptionsEngine = .appleNeuralEngine

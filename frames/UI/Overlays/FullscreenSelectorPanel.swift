@@ -21,7 +21,7 @@ public struct FullscreenSelectorPanel: View {
             // Option 1: Windowed Full Screen
             Button {
                 windowManager.toggleWindowedFullscreen()
-                withAnimation(.fluidSpring) {
+                withAnimation(.fluidQuick) {
                     engine.activeInspectorSheet = nil
                 }
             } label: {
@@ -67,7 +67,7 @@ public struct FullscreenSelectorPanel: View {
             // Option 2: Native Full Screen
             Button {
                 windowManager.toggleNativeFullscreen()
-                withAnimation(.fluidSpring) {
+                withAnimation(.fluidQuick) {
                     engine.activeInspectorSheet = nil
                 }
             } label: {
@@ -117,7 +117,7 @@ public struct FullscreenSelectorPanel: View {
 
                 Button {
                     windowManager.exitAnyFullscreen()
-                    withAnimation(.fluidSpring) {
+                    withAnimation(.fluidQuick) {
                         engine.activeInspectorSheet = nil
                     }
                 } label: {
