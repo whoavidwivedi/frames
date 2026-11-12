@@ -158,8 +158,7 @@ public struct FramesCommandPalette: View {
             ZStack {
                 // MARK: - Modal Backdrop
                 Rectangle()
-                    .fill(.ultraThinMaterial)
-                    .overlay(Color.black.opacity(0.12))
+                    .fill(Color.black.opacity(0.25))
                     .ignoresSafeArea()
                     .onTapGesture {
                         closePalette()
