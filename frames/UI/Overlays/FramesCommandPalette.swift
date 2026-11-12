@@ -103,10 +103,10 @@ private struct PaletteRowItem: View {
                 .strokeBorder(isSelected ? ShadcnTheme.borderActive : (isHovered ? ShadcnTheme.borderSubtle : Color.clear), lineWidth: 1)
         )
         .contentShape(Rectangle())
-        .scaleEffect(isSelected ? 1.0 : (isHovered ? 1.004 : 1.0))
+
         .opacity(item.isDisabled ? 0.4 : 1.0)
-        .animation(.spring(response: 0.22, dampingFraction: 0.78), value: isSelected)
-        .animation(.spring(response: 0.20, dampingFraction: 0.78), value: isHovered)
+        .animation(.fluidQuick, value: isSelected)
+        .animation(.fluidQuick, value: isHovered)
         .pointingHand()
         .onHover { h in
             isHovered = h && !item.isDisabled
@@ -156,10 +156,9 @@ public struct FramesCommandPalette: View {
     public var body: some View {
         if isPresented {
             ZStack {
-                // MARK: - Modal Backdrop with Fluid Blur (Emil Kowalski Grade)
+                // MARK: - Modal Backdrop
                 Rectangle()
-                    .fill(.ultraThinMaterial)
-                    .overlay(Color.black.opacity(0.48))
+                    .fill(Color.black.opacity(0.25))
                     .ignoresSafeArea()
                     .onTapGesture {
                         closePalette()
@@ -280,7 +279,6 @@ public struct FramesCommandPalette: View {
                     )
                 )
             }
-            .environment(\.colorScheme, .dark)
             .onAppear {
                 searchQuery = ""
                 updateSelectionForFilter()

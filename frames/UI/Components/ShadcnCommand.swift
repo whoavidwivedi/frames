@@ -738,7 +738,7 @@ public struct CommandDialog<Content: View>: View {
     }
 
     private func closeDialog() {
-        withAnimation(.fluidSpring) {
+        withAnimation(.fluidQuick) {
             isPresented = false
         }
     }
@@ -815,19 +815,19 @@ public final class CommandPaletteManager {
     public var isPresented: Bool = false
 
     public func toggle() {
-        withAnimation(.fluidSpring) {
+        withAnimation(.fluidQuick) {
             isPresented.toggle()
         }
     }
 
     public func open() {
-        withAnimation(.fluidSpring) {
+        withAnimation(.fluidQuick) {
             isPresented = true
         }
     }
 
     public func close() {
-        withAnimation(.fluidSpring) {
+        withAnimation(.fluidQuick) {
             isPresented = false
         }
     }

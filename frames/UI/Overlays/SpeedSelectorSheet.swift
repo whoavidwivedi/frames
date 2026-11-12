@@ -6,7 +6,7 @@ private struct TactileSpeedPresetStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.94 : 1.0)
-            .animation(.spring(response: 0.20, dampingFraction: 0.75), value: configuration.isPressed)
+            .animation(.fluidQuick, value: configuration.isPressed)
     }
 }
 
@@ -14,7 +14,7 @@ private struct TactileSpeedCloseStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.90 : 1.0)
-            .animation(.spring(response: 0.22, dampingFraction: 0.74), value: configuration.isPressed)
+            .animation(.fluidQuick, value: configuration.isPressed)
     }
 }
 
@@ -50,7 +50,7 @@ public struct SpeedSelectorPanel: View {
 
                 // Close Button with Fluid Spring Dismissal
                 Button {
-                    withAnimation(.spring(response: 0.26, dampingFraction: 0.76)) {
+                    withAnimation(.fluidQuick) {
                         engine.activeInspectorSheet = nil
                     }
                 } label: {
@@ -90,7 +90,7 @@ public struct SpeedSelectorPanel: View {
                     Spacer()
                     if abs(engine.playbackRate - 1.0) > 0.01 {
                         Button("Reset (1.0×)") {
-                            withAnimation(.spring(response: 0.22, dampingFraction: 0.76)) {
+                            withAnimation(.fluidQuick) {
                                 engine.playbackRate = 1.0
                             }
                         }
@@ -124,7 +124,7 @@ public struct SpeedSelectorPanel: View {
         let isHovered = hoveredSpeed == speed
 
         return Button {
-            withAnimation(.spring(response: 0.22, dampingFraction: 0.76)) {
+            withAnimation(.fluidQuick) {
                 engine.playbackRate = speed
             }
         } label: {
@@ -140,7 +140,7 @@ public struct SpeedSelectorPanel: View {
                     .font(.system(size: 11, weight: isSelected ? .bold : .medium, design: .monospaced))
                     .foregroundStyle(isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
             }
-            .animation(.spring(response: 0.24, dampingFraction: 0.72), value: isSelected)
+            .animation(.fluidQuick, value: isSelected)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 6)
             .background(
@@ -156,7 +156,7 @@ public struct SpeedSelectorPanel: View {
         .buttonStyle(TactileSpeedPresetStyle())
         .pointingHand()
         .onHover { h in
-            withAnimation(.spring(response: 0.22, dampingFraction: 0.8)) {
+            withAnimation(.fluidQuick) {
                 hoveredSpeed = h ? speed : nil
             }
         }

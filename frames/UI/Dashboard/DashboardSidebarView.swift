@@ -9,7 +9,7 @@ public struct SidebarRowButtonStyle: ButtonStyle {
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed && !reduceMotion ? 0.98 : 1.0)
-            .animation(reduceMotion ? nil : .spring(response: 0.22, dampingFraction: 0.75), value: configuration.isPressed)
+            .animation(.fluidQuick, value: configuration.isPressed)
     }
 }
 
@@ -20,7 +20,7 @@ public struct TactileIconButtonStyle: ButtonStyle {
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed && !reduceMotion ? 0.92 : 1.0)
-            .animation(reduceMotion ? nil : .spring(response: 0.22, dampingFraction: 0.75), value: configuration.isPressed)
+            .animation(.fluidQuick, value: configuration.isPressed)
     }
 }
 
@@ -56,7 +56,7 @@ public struct DashboardSidebarView: View {
                             badge: "\(library.videos.count)",
                             isSelected: library.selectedCategory == .allVideos
                         ) {
-                            withAnimation(.spring(response: 0.28, dampingFraction: 0.78)) {
+                            withAnimation(.fluidQuick) {
                                 library.navigate(to: .allVideos)
                             }
                         }
@@ -68,7 +68,7 @@ public struct DashboardSidebarView: View {
                             badge: recentCount > 0 ? "\(recentCount)" : nil,
                             isSelected: library.selectedCategory == .recent
                         ) {
-                            withAnimation(.spring(response: 0.28, dampingFraction: 0.78)) {
+                            withAnimation(.fluidQuick) {
                                 library.navigate(to: .recent)
                             }
                         }
@@ -80,7 +80,7 @@ public struct DashboardSidebarView: View {
                             badge: favCount > 0 ? "\(favCount)" : nil,
                             isSelected: library.selectedCategory == .favorites
                         ) {
-                            withAnimation(.spring(response: 0.28, dampingFraction: 0.78)) {
+                            withAnimation(.fluidQuick) {
                                 library.navigate(to: .favorites)
                             }
                         }
@@ -140,7 +140,7 @@ public struct DashboardSidebarView: View {
                 .padding(.horizontal, 10)
                 .padding(.top, 12)
             }
-            .animation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.78), value: library.selectedCategory)
+            .animation(.fluidQuick, value: library.selectedCategory)
 
             Spacer()
 
@@ -151,7 +151,7 @@ public struct DashboardSidebarView: View {
                     icon: "gearshape",
                     isSelected: library.selectedCategory == .settings
                 ) {
-                    withAnimation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.78)) {
+                    withAnimation(.fluidQuick) {
                         library.navigate(to: .settings)
                     }
                 }
@@ -298,7 +298,7 @@ public struct DashboardSidebarView: View {
         .buttonStyle(SidebarRowButtonStyle())
         .pointingHand()
         .onHover { h in
-            withAnimation(.spring(response: 0.22, dampingFraction: 0.75)) {
+            withAnimation(.fluidQuick) {
                 hoveredRow = h ? title : nil
             }
         }
@@ -309,7 +309,7 @@ public struct DashboardSidebarView: View {
         let isHovered = hoveredFolderId == folder.id
 
         return Button {
-            withAnimation(.spring(response: 0.28, dampingFraction: 0.78)) {
+            withAnimation(.fluidQuick) {
                 library.navigate(to: .folder(id: folder.id))
             }
         } label: {
@@ -336,7 +336,7 @@ public struct DashboardSidebarView: View {
                     }
 
                     Button {
-                        withAnimation(.spring(response: 0.24, dampingFraction: 0.74)) {
+                        withAnimation(.fluidQuick) {
                             library.removeFolder(id: folder.id)
                         }
                     } label: {
@@ -379,7 +379,7 @@ public struct DashboardSidebarView: View {
         .buttonStyle(SidebarRowButtonStyle())
         .pointingHand()
         .onHover { h in
-            withAnimation(.spring(response: 0.22, dampingFraction: 0.75)) {
+            withAnimation(.fluidQuick) {
                 hoveredFolderId = h ? folder.id : nil
             }
         }

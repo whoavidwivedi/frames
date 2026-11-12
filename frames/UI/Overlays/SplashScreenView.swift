@@ -69,7 +69,7 @@ public struct SplashScreenView: View {
 
     private func startTypographicSequence() {
         // Stage 1: Text emerges symmetrically from the optical center (0.0s - 0.65s)
-        withAnimation(.easeOut(duration: 0.65)) {
+        withAnimation(.fluidQuick) {
             textOpacity = 1.0
             blurRadius = 0.0
             textScale = 1.0
@@ -79,11 +79,11 @@ public struct SplashScreenView: View {
         // Stage 2: Symmetrical crystalline radial light bloom expanding outward from the center (0.3s - 0.95s)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             bloomOpacity = 0.85
-            withAnimation(.easeInOut(duration: 0.65)) {
+            withAnimation(.fluidQuick) {
                 bloomRadius = 180.0
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                withAnimation(.easeOut(duration: 0.25)) {
+                withAnimation(.fluidQuick) {
                     bloomOpacity = 0.0
                 }
             }
@@ -91,7 +91,7 @@ public struct SplashScreenView: View {
 
         // Stage 3: Gentle Cinematic Dissolve from the center into App (1.25s)
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.25) {
-            withAnimation(.easeOut(duration: 0.22)) {
+            withAnimation(.fluidQuick) {
                 exitScale = 1.04
                 exitOpacity = 0.0
             }
@@ -102,7 +102,7 @@ public struct SplashScreenView: View {
     }
 
     private func quickDismiss() {
-        withAnimation(.easeOut(duration: 0.15)) {
+        withAnimation(.fluidQuick) {
             exitScale = 1.02
             exitOpacity = 0.0
         }

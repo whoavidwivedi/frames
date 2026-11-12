@@ -159,7 +159,7 @@ public final class LibraryManager {
         guard category != selectedCategory else { return }
         backStack.append(selectedCategory)
         forwardStack.removeAll()
-        withAnimation(.fluidSpring) {
+        withAnimation(.fluidQuick) {
             selectedCategory = category
         }
     }
@@ -167,7 +167,7 @@ public final class LibraryManager {
     public func goBack() {
         guard let prev = backStack.popLast() else { return }
         forwardStack.append(selectedCategory)
-        withAnimation(.fluidSpring) {
+        withAnimation(.fluidQuick) {
             selectedCategory = prev
         }
     }
@@ -175,7 +175,7 @@ public final class LibraryManager {
     public func goForward() {
         guard let next = forwardStack.popLast() else { return }
         backStack.append(selectedCategory)
-        withAnimation(.fluidSpring) {
+        withAnimation(.fluidQuick) {
             selectedCategory = next
         }
     }
@@ -199,7 +199,7 @@ public final class LibraryManager {
     }
 
     public func toggleSearch() {
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+        withAnimation(.fluidQuick) {
             isSearchActive.toggle()
             if !isSearchActive {
                 searchQuery = ""

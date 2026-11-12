@@ -8,7 +8,7 @@ private struct TactileSheetRowStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
-            .animation(.spring(response: 0.20, dampingFraction: 0.75), value: configuration.isPressed)
+            .animation(.fluidQuick, value: configuration.isPressed)
     }
 }
 
@@ -18,7 +18,7 @@ private struct TactileSheetButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? scale : 1.0)
-            .animation(.spring(response: 0.22, dampingFraction: 0.74), value: configuration.isPressed)
+            .animation(.fluidQuick, value: configuration.isPressed)
     }
 }
 
@@ -44,7 +44,7 @@ private struct SpringCheckmarkIndicator: View {
                     .transition(.scale(scale: 0.90).combined(with: .opacity))
             }
         }
-        .animation(.spring(response: 0.24, dampingFraction: 0.72), value: isSelected)
+        .animation(.fluidQuick, value: isSelected)
     }
 }
 
@@ -64,11 +64,17 @@ public struct SubtitleSelectorPanel: View {
     }
 
     private let colorPresets: [(name: String, color: Color, hex: String)] = [
-        ("Green", Color(red: 0.29, green: 0.87, blue: 0.50), "#4ADE80"),
-        ("Mint", Color(red: 0.20, green: 0.83, blue: 0.60), "#34D399"),
-        ("Yellow", Color(red: 0.98, green: 0.80, blue: 0.08), "#FACC15"),
         ("White", Color.white, "#FFFFFF"),
-        ("Cyan", Color(red: 0.22, green: 0.74, blue: 0.97), "#38BDF8")
+        ("Yellow", Color(red: 0.98, green: 0.80, blue: 0.08), "#FACC15"),
+        ("Cyan", Color(red: 0.22, green: 0.74, blue: 0.97), "#38BDF8"),
+        ("Green", Color(red: 0.20, green: 0.84, blue: 0.29), "#32D74B")
+    ]
+
+    private let backgroundPresets: [(name: String, color: Color, hex: String)] = [
+        ("Black", .black, "#000000"),
+        ("Charcoal", Color(red: 0.11, green: 0.11, blue: 0.12), "#1C1C1E"),
+        ("Navy", Color(red: 0.06, green: 0.09, blue: 0.16), "#0F172A"),
+        ("White", .white, "#FFFFFF")
     ]
 
     public init(engine: VideoPlayerEngine) {
@@ -102,7 +108,7 @@ public struct SubtitleSelectorPanel: View {
 
                 // Close Button with Fluid Spring Dismissal
                 Button {
-                    withAnimation(.spring(response: 0.26, dampingFraction: 0.76)) {
+                    withAnimation(.fluidQuick) {
                         engine.activeInspectorSheet = nil
                     }
                 } label: {
@@ -123,7 +129,7 @@ public struct SubtitleSelectorPanel: View {
                 ForEach(SubtitleTab.allCases) { tab in
                     let isTabActive = selectedTab == tab
                     Button {
-                        withAnimation(.spring(response: 0.22, dampingFraction: 0.76)) {
+                        withAnimation(.fluidQuick) {
                             selectedTab = tab
                         }
                     } label: {
@@ -177,7 +183,7 @@ public struct SubtitleSelectorPanel: View {
                     // Off Option
                     let isOff = engine.selectedSubtitleTrack.id == SubtitleTrack.off.id
                     Button {
-                        withAnimation(.spring(response: 0.22, dampingFraction: 0.76)) {
+                        withAnimation(.fluidQuick) {
                             engine.selectSubtitleTrack(SubtitleTrack.off)
                         }
                     } label: {
@@ -209,7 +215,7 @@ public struct SubtitleSelectorPanel: View {
                     .buttonStyle(TactileSheetRowStyle())
                     .pointingHand()
                     .onHover { h in
-                        withAnimation(.spring(response: 0.22, dampingFraction: 0.8)) {
+                        withAnimation(.fluidQuick) {
                             hoveredTrackId = h ? "off" : nil
                         }
                     }
@@ -218,7 +224,7 @@ public struct SubtitleSelectorPanel: View {
                     ForEach(engine.availableSubtitleTracks.filter { $0.id != SubtitleTrack.off.id }) { track in
                         let isSelected = engine.selectedSubtitleTrack.id == track.id
                         Button {
-                            withAnimation(.spring(response: 0.22, dampingFraction: 0.76)) {
+                            withAnimation(.fluidQuick) {
                                 engine.selectSubtitleTrack(track)
                             }
                         } label: {
@@ -270,7 +276,7 @@ public struct SubtitleSelectorPanel: View {
                         .buttonStyle(TactileSheetRowStyle())
                         .pointingHand()
                         .onHover { h in
-                            withAnimation(.spring(response: 0.22, dampingFraction: 0.8)) {
+                            withAnimation(.fluidQuick) {
                                 hoveredTrackId = h ? track.id : nil
                             }
                         }
@@ -338,28 +344,48 @@ public struct SubtitleSelectorPanel: View {
                 .fill(ShadcnTheme.borderSubtle)
                 .frame(height: 1)
 
-            // 2. Font Size
+            // 2. Background Color Quick Presets
             VStack(alignment: .leading, spacing: 5) {
-                HStack {
-                    Text("Typography Size")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                    Spacer()
-                    Text("\(Int(engine.subtitleFontSize))pt")
-                        .font(.system(size: 11, weight: .bold, design: .monospaced))
-                        .foregroundStyle(ShadcnTheme.foreground)
-                }
+                Text("Background Color")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(ShadcnTheme.foregroundSecondary)
 
-                HStack(spacing: 4) {
-                    fontSizePresetButton(label: "Small", size: 16)
-                    fontSizePresetButton(label: "Standard", size: 20)
-                    fontSizePresetButton(label: "Large", size: 24)
-                    fontSizePresetButton(label: "XL", size: 28)
+                HStack(spacing: 5) {
+                    ForEach(backgroundPresets, id: \.hex) { preset in
+                        let isSelected = settings.subtitleBackgroundColorHex.uppercased() == preset.hex.uppercased()
+                        Button {
+                            withAnimation(.fluidQuick) {
+                                settings.subtitleBackgroundColorHex = preset.hex
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Circle()
+                                    .fill(preset.color)
+                                    .frame(width: 8, height: 8)
+                                    .overlay(
+                                        Circle().strokeBorder(Color.white.opacity(0.2), lineWidth: 0.5)
+                                    )
+                                Text(preset.name)
+                                    .font(.system(size: 9.5, weight: isSelected ? .bold : .medium))
+                                    .lineLimit(1)
+                            }
+                            .foregroundStyle(isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 4)
+                            .background(
+                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                    .fill(isSelected ? ShadcnTheme.cardHover : ShadcnTheme.secondary.opacity(0.35))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                            .strokeBorder(isSelected ? ShadcnTheme.borderActive : Color.clear, lineWidth: 1)
+                                    )
+                            )
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(TactileSheetButtonStyle(scale: 0.96))
+                        .pointingHand()
+                    }
                 }
-
-                Slider(value: $engine.subtitleFontSize, in: 14...34, step: 2)
-                    .tint(ShadcnTheme.foreground)
-                    .pointingHand()
             }
 
             Rectangle()
@@ -379,7 +405,7 @@ public struct SubtitleSelectorPanel: View {
                     ForEach(colorPresets, id: \.hex) { preset in
                         let isSelected = settings.subtitleTextColorHex.uppercased() == preset.hex.uppercased()
                         Button {
-                            withAnimation(.spring(response: 0.20, dampingFraction: 0.75)) {
+                            withAnimation(.fluidQuick) {
                                 settings.subtitleTextColorHex = preset.hex
                             }
                         } label: {
@@ -424,30 +450,6 @@ public struct SubtitleSelectorPanel: View {
                 .overlay(
                     RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                         .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
-                )
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(TactileSheetButtonStyle(scale: 0.96))
-        .pointingHand()
-    }
-
-    private func fontSizePresetButton(label: String, size: CGFloat) -> some View {
-        let isSelected = abs(engine.subtitleFontSize - size) < 1.0
-        return Button {
-            withAnimation(.spring(response: 0.20, dampingFraction: 0.75)) {
-                engine.subtitleFontSize = size
-            }
-        } label: {
-            Text(label)
-                .font(.system(size: 9.5, weight: isSelected ? .bold : .medium))
-                .foregroundStyle(isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 4)
-                .background(isSelected ? ShadcnTheme.cardHover : ShadcnTheme.secondary.opacity(0.35))
-                .clipShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                        .strokeBorder(isSelected ? ShadcnTheme.borderActive : ShadcnTheme.borderSubtle, lineWidth: 1)
                 )
                 .contentShape(Rectangle())
         }
@@ -510,7 +512,7 @@ public struct AudioSelectorPanel: View {
 
                 // Close Button with Fluid Spring Dismissal
                 Button {
-                    withAnimation(.spring(response: 0.26, dampingFraction: 0.76)) {
+                    withAnimation(.fluidQuick) {
                         engine.activeInspectorSheet = nil
                     }
                 } label: {
@@ -561,7 +563,7 @@ public struct AudioSelectorPanel: View {
                         ForEach(engine.availableAudioTracks) { track in
                             let isSelected = engine.selectedAudioTrack?.id == track.id
                             Button {
-                                withAnimation(.spring(response: 0.22, dampingFraction: 0.76)) {
+                                withAnimation(.fluidQuick) {
                                     engine.selectAudioTrack(track)
                                 }
                             } label: {
@@ -626,7 +628,7 @@ public struct AudioSelectorPanel: View {
                             .buttonStyle(TactileSheetRowStyle())
                             .pointingHand()
                             .onHover { h in
-                                withAnimation(.spring(response: 0.22, dampingFraction: 0.8)) {
+                                withAnimation(.fluidQuick) {
                                     hoveredTrackId = h ? track.id : nil
                                 }
                             }

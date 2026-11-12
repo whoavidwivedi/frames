@@ -1848,7 +1848,8 @@ public enum FramesTestSuite {
         assertTest("Settings Default Audio Language Is System", condition: sm.defaultAudioLanguage == "System")
         assertTest("Settings Default Volume Normalization Disabled", condition: sm.volumeNormalizationEnabled == false)
         assertTest("Settings Default Subtitle Font Size 20pt", condition: abs(sm.subtitleFontSize - 20.0) < 0.001)
-        assertTest("Settings Default Subtitle Text Color Hex Green", condition: sm.subtitleTextColorHex == "#4ADE80")
+        assertTest("Settings Default Subtitle Text Color Hex White", condition: sm.subtitleTextColorHex == "#FFFFFF")
+        assertTest("Settings Default Subtitle Background Color Hex Black", condition: sm.subtitleBackgroundColorHex == "#000000")
         assertTest("Settings Default Subtitle Scrim Opacity 0.85", condition: abs(sm.subtitleBackgroundScrimOpacity - 0.85) < 0.001)
         assertTest("Settings Default Live Captions Disabled", condition: sm.liveCaptionsEnabled == false)
         assertTest("Settings Default Live Captions Engine Apple Neural Engine", condition: sm.liveCaptionsEngine == .appleNeuralEngine)
@@ -1891,6 +1892,9 @@ public enum FramesTestSuite {
 
         sm.subtitleTextColorHex = "#FFD700"
         assertTest("Settings Subtitle Color Hex Mutation Persists", condition: UserDefaults.standard.string(forKey: SettingsManager.subtitleTextColorHexKey) == "#FFD700")
+
+        sm.subtitleBackgroundColorHex = "#1C1C1E"
+        assertTest("Settings Subtitle Background Color Mutation Persists", condition: UserDefaults.standard.string(forKey: SettingsManager.subtitleBackgroundColorHexKey) == "#1C1C1E")
 
         sm.subtitleBackgroundScrimOpacity = 0.85
         assertTest("Settings Subtitle Scrim Opacity Mutation Persists", condition: abs(UserDefaults.standard.double(forKey: SettingsManager.subtitleScrimOpacityKey) - 0.85) < 0.001)

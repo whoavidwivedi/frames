@@ -94,7 +94,7 @@ public final class WindowManager {
             MainActor.assumeIsolated {
                 guard let window = self?.contentWindow(from: notification) else { return }
                 self?.configureWindow(window)
-                withAnimation(.fluidWindow) {
+                withAnimation(.fluidQuick) {
                     self?.isTransitioning = true
                     self?.isNativeFullscreen = true
                     self?.updateLayoutState(window: window)
@@ -110,7 +110,7 @@ public final class WindowManager {
             MainActor.assumeIsolated {
                 guard let window = self?.contentWindow(from: notification) else { return }
                 self?.configureWindow(window)
-                withAnimation(.fluidWindow) {
+                withAnimation(.fluidQuick) {
                     self?.isTransitioning = false
                     self?.isNativeFullscreen = true
                     self?.updateLayoutState(window: window)
@@ -126,7 +126,7 @@ public final class WindowManager {
             MainActor.assumeIsolated {
                 guard let window = self?.contentWindow(from: notification) else { return }
                 self?.configureWindow(window)
-                withAnimation(.fluidWindow) {
+                withAnimation(.fluidQuick) {
                     self?.isTransitioning = true
                     self?.isNativeFullscreen = false
                     self?.updateLayoutState(window: window)
@@ -142,7 +142,7 @@ public final class WindowManager {
             MainActor.assumeIsolated {
                 guard let window = self?.contentWindow(from: notification) else { return }
                 self?.configureWindow(window)
-                withAnimation(.fluidWindow) {
+                withAnimation(.fluidQuick) {
                     self?.isTransitioning = false
                     self?.isNativeFullscreen = false
                     self?.updateLayoutState(window: window)
@@ -172,7 +172,7 @@ public final class WindowManager {
                       let window = self.contentWindow(from: notification) else { return }
                 self.configureWindow(window)
                 self.isLiveResizing = false
-                withAnimation(.fluidWindow) {
+                withAnimation(.fluidQuick) {
                     self.updateLayoutState(window: window)
                 }
             }

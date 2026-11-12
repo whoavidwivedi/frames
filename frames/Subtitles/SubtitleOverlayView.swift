@@ -29,6 +29,10 @@ public struct SubtitleOverlayView: View {
         overrideTextColor ?? settings.subtitleTextColor
     }
 
+    public var backgroundColor: Color {
+        settings.subtitleBackgroundColor
+    }
+
     public var scrimOpacity: Double {
         overrideScrimOpacity ?? settings.subtitleBackgroundScrimOpacity
     }
@@ -42,19 +46,18 @@ public struct SubtitleOverlayView: View {
             VStack {
                 Spacer()
                 Text(text)
-                    .font(.system(size: activeFontSize, weight: .semibold, design: .default))
+                    .font(.system(size: activeFontSize, weight: .medium, design: .default))
                     .foregroundStyle(activeTextColor)
                     .multilineTextAlignment(.center)
-                    .lineSpacing(3)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
+                    .lineSpacing(2)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
                     .background(
-                        RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
-                            .fill(Color.black.opacity(activeScrimOpacity))
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(backgroundColor.opacity(activeScrimOpacity))
                     )
-                    .shadow(color: Color.black.opacity(0.40), radius: 6, x: 0, y: 3)
                     .padding(.horizontal, 28)
-                    .transition(.opacity.animation(.fluidQuick))
+                    .transition(.opacity)
             }
             .allowsHitTesting(false)
         }

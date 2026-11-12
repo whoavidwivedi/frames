@@ -256,7 +256,7 @@ public struct PictureInPictureContentView: View {
             }
         }
         .onHover { hovering in
-            withAnimation(.spring(response: 0.18, dampingFraction: 0.8)) {
+            withAnimation(.fluidQuick) {
                 isHovered = hovering
             }
             if hovering {
@@ -272,7 +272,7 @@ public struct PictureInPictureContentView: View {
         hideTimer?.invalidate()
         hideTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { _ in
             Task { @MainActor in
-                withAnimation(.easeOut(duration: 0.16)) {
+                withAnimation(.fluidQuick) {
                     isHovered = false
                 }
             }
