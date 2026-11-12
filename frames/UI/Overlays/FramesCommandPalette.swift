@@ -156,10 +156,10 @@ public struct FramesCommandPalette: View {
     public var body: some View {
         if isPresented {
             ZStack {
-                // MARK: - Modal Backdrop with Fluid Blur (Emil Kowalski Grade)
+                // MARK: - Modal Backdrop
                 Rectangle()
                     .fill(.ultraThinMaterial)
-                    .overlay(Color.black.opacity(0.48))
+                    .overlay(Color.black.opacity(0.12))
                     .ignoresSafeArea()
                     .onTapGesture {
                         closePalette()
