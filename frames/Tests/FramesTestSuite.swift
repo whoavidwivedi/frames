@@ -1081,6 +1081,35 @@ public enum FramesTestSuite {
                     aBridge.stop()
                 }
 
+                // Switching audio tracks must not move the playback timeline
+                if demuxer.audioTracks.count > 1 {
+                    pipeline.seek(to: 60.0)
+                    pipeline.play()
+                    let warmupDeadline = Date().addingTimeInterval(1.0)
+                    while Date() < warmupDeadline {
+                        RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
+                        _ = pipeline.nextFrameForDisplay()
+                    }
+
+                    let beforeSwitch = pipeline.currentTime
+                    let switchStart = Date()
+                    pipeline.selectAudioTrack(trackNumber: demuxer.audioTracks[1].trackNumber)
+                    var maxDrift = 0.0
+                    let targetTrackNumber = demuxer.audioTracks[1].trackNumber
+                    while Date().timeIntervalSince(switchStart) < 1.0 {
+                        RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
+                        _ = pipeline.nextFrameForDisplay()
+                        let expected = beforeSwitch + Date().timeIntervalSince(switchStart)
+                        maxDrift = max(maxDrift, abs(pipeline.currentTime - expected))
+                    }
+                    assertTest(
+                        "Live Audio Switch Preserves Timeline",
+                        condition: maxDrift < 0.8 && pipeline.activeAudioTrackNumber == targetTrackNumber,
+                        "Track switched: \(pipeline.activeAudioTrackNumber == targetTrackNumber), max drift: \(String(format: "%.2f", maxDrift))s"
+                    )
+                    pipeline.pause()
+                }
+
                 // Concurrent I/O stress test: read thread while seek thread fires
                 let group = DispatchGroup()
                 nonisolated final class ErrorCounter: @unchecked Sendable {
@@ -2540,6 +2569,26 @@ public enum FramesTestSuite {
         let scrubberView = CustomScrubber(engine: hudEngineForTesting)
         let scrubberHost = NSHostingView(rootView: scrubberView)
         assertTest("CustomScrubber Timeline Mount Operable", condition: scrubberHost.fittingSize.height > 0)
+
+        // Decoupled Timeline Row & Gradient-Free Title Capsule Mount Operable
+        let timelineRowView = PlaybackTimelineRow(engine: hudEngineForTesting)
+        let timelineRowHost = NSHostingView(rootView: timelineRowView)
+        assertTest("PlaybackTimelineRow Mount Operable", condition: timelineRowHost.fittingSize.height > 0)
+
+        let topBarOverlayView = TopBarOverlay(engine: hudEngineForTesting)
+        let topBarOverlayHost = NSHostingView(rootView: topBarOverlayView)
+        assertTest("TopBarOverlay Title Capsule Mount Operable", condition: topBarOverlayHost.fittingSize.width > 0)
+
+        // Tier 1 always-on progress line and the rebuilt panel shell
+        let progressLineHost = NSHostingView(rootView: PlayerProgressLine(engine: hudEngineForTesting))
+        assertTest("PlayerProgressLine Mount Operable", condition: progressLineHost.fittingSize.width > 0)
+
+        let panelShellHost = NSHostingView(rootView: VStack { Text("Panel") }.frame(width: 120).playerPanel())
+        assertTest("Player Panel Shell Mount Operable", condition: panelShellHost.fittingSize.width > 0)
+
+        // Mid-left audio & subtitle cluster
+        let sideControlsHost = NSHostingView(rootView: PlayerSideControls(engine: hudEngineForTesting))
+        assertTest("PlayerSideControls Mount Operable", condition: sideControlsHost.fittingSize.width > 0)
 
         // Native macOS Window Buttons & Unified Titlebar Configuration
         let testWin = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 800, height: 600), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)

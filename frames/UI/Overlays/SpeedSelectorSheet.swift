@@ -115,7 +115,7 @@ public struct SpeedSelectorPanel: View {
         }
         .padding(14)
         .frame(width: 250)
-        .shadcnCard(cornerRadius: ShadcnTheme.radiusLg, padding: 0)
+        .playerPanel()
         .environment(\.colorScheme, .dark)
     }
 
