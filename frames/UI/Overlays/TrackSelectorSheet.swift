@@ -170,7 +170,7 @@ public struct SubtitleSelectorPanel: View {
         }
         .padding(14)
         .frame(width: 318)
-        .shadcnCard(cornerRadius: ShadcnTheme.radiusLg, padding: 0)
+        .playerPanel()
         .environment(\.colorScheme, .dark)
     }
 
@@ -640,7 +640,7 @@ public struct AudioSelectorPanel: View {
         }
         .padding(14)
         .frame(width: 308)
-        .shadcnCard(cornerRadius: ShadcnTheme.radiusLg, padding: 0)
+        .playerPanel()
         .environment(\.colorScheme, .dark)
     }
 }

@@ -824,8 +824,13 @@ public final class PlaybackPipeline: ObservableObject {
                 self.audioEngine = newEngine
                 self.activeAudioTrackNumber = trackNumber
                 self.routing.updateAudio(engine: newEngine, trackNumber: trackNumber)
-                self.resetClockTracker()
-                newEngine.seek(to: resumeTime)
+
+                // The demuxer reads ahead of the audible position, so the replacement
+                // engine would be fed packets from the future and re-anchor the master
+                // clock forward (timeline jump). Re-seek so packets resume at the
+                // position the listener is actually at; this also positions a switch
+                // made while paused for the next play. seek() seeks the new engine too.
+                self.seek(to: resumeTime)
                 if self.isPlaying {
                     newEngine.play()
                 }

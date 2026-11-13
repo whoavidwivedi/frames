@@ -413,7 +413,11 @@ public final class NativeMetalView: NSView {
         }
         updateFrameRateCadence()
         needsRender = true
-        renderNow()
+        // While playing, the display link presents the next frame with the new settings.
+        // Rendering here as well would re-enqueue the current frame off-cadence.
+        if !isPlaying {
+            renderNow()
+        }
     }
     
     private func stopDisplayLink() {
@@ -520,6 +524,8 @@ public struct MetalVideoCanvasView: NSViewRepresentable {
         nsView.onFrameRequested = onFrameRequested
         nsView.setPlaybackState(isPlaying: isPlaying, frameRate: videoFrameRate)
         nsView.decoupleOverlaysForFullscreen(isDecoupledFullscreen)
-        nsView.applySettings()
+        // Settings changes arrive through presentationEngineDidChangeNotification. Reapplying
+        // the full layer configuration (and re-rendering) on every SwiftUI update caused
+        // redundant drawable work and off-cadence frame enqueues during playback.
     }
 }

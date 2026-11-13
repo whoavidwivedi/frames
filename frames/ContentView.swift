@@ -134,6 +134,19 @@ struct ContentView: View {
                         }
                     }
 
+                    // Dismiss Active Inspector Sheets on outside click (Transparent, NO BLACK CURTAIN).
+                    // Kept below the controls so panel rows stay clickable.
+                    if engine.activeInspectorSheet != nil {
+                        Color.clear
+                            .ignoresSafeArea()
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                withAnimation(.fluidQuick) {
+                                    engine.activeInspectorSheet = nil
+                                }
+                            }
+                    }
+
                     // Docked Top Bar (Title, format, badges, return to dashboard)
                     if engine.controlsVisible {
                         VStack(spacing: 0) {
@@ -150,6 +163,22 @@ struct ContentView: View {
                         )
                     }
 
+                    // Mid-left audio & subtitle cluster (panels open beside it)
+                    if engine.controlsVisible {
+                        PlayerSideControls(engine: engine)
+                            .transition(.opacity)
+                    }
+
+                    // Tier 1: thin always-on progress line (fades out when the full controls appear)
+                    if engine.currentURL != nil {
+                        VStack(spacing: 0) {
+                            Spacer()
+                            PlayerProgressLine(engine: engine)
+                        }
+                        .opacity(engine.controlsVisible ? 0 : 1)
+                        .allowsHitTesting(false)
+                    }
+
                     // Docked Bottom Control Bar (Scrubber, Playback, Audio, Subtitles, Rate, PiP, Fullscreen)
                     if engine.controlsVisible {
                         VStack(spacing: 0) {
@@ -162,19 +191,6 @@ struct ContentView: View {
                                 removal: .opacity
                             )
                         )
-                    }
-
-                    // Dismiss Active Inspector Sheets on outside click (Transparent, NO BLACK CURTAIN)
-                    if engine.activeInspectorSheet != nil {
-                        Color.clear
-                            .ignoresSafeArea()
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                withAnimation(.fluidQuick) {
-                                    engine.activeInspectorSheet = nil
-                                }
-                            }
-                            .zIndex(35)
                     }
 
                     // Top-anchored Hardware Stats Panel (when active)
@@ -494,14 +510,11 @@ struct ContentView: View {
     }
 
     private func returnToDashboard() {
-        PictureInPictureManager.shared.exitPictureInPicture()
-        if let url = engine.currentURL, !url.path.isEmpty {
-            let progress = engine.hasEnded ? 1.0 : (engine.duration > 0 ? (engine.currentTime / engine.duration) : 0.0)
-            library.recordPlayback(url: url, duration: engine.duration, progress: progress)
-        }
         hideControlsTimer?.invalidate()
         NSCursor.setHiddenUntilMouseMoves(false)
         updateWindowRepresentation(for: nil)
+        // Progress is saved and PiP is closed inside unloadMedia; doing both here as well
+        // cost two extra UserDefaults persistence passes on the close path.
         withAnimation(.fluidQuick) {
             engine.controlsVisible = true
             engine.unloadMedia()
@@ -540,8 +553,10 @@ struct ContentView: View {
         guard force || now.timeIntervalSince(lastControlsTimerReset) >= 0.25 else { return }
         lastControlsTimerReset = now
 
-        withAnimation(.fluidQuick) {
-            engine.controlsVisible = true
+        if !engine.controlsVisible {
+            withAnimation(.fluidQuick) {
+                engine.controlsVisible = true
+            }
         }
         hideControlsTimer?.invalidate()
 

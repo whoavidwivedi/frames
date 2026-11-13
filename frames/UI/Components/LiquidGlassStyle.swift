@@ -63,6 +63,17 @@ public extension View {
     func liquidGlassPill(isSelected: Bool = false) -> some View {
         modifier(LiquidGlassPillModifier(isSelected: isSelected))
     }
+
+    /// Glass shell shared by the player's audio, subtitle and speed panels.
+    func playerPanel() -> some View {
+        let shape = RoundedRectangle(cornerRadius: ShadcnTheme.radiusLg, style: .continuous)
+        return self
+            .background(shape.fill(.ultraThinMaterial))
+            .background(shape.fill(ShadcnTheme.card.opacity(0.72)))
+            .overlay(shape.strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1))
+            .clipShape(shape)
+            .shadow(color: Color.black.opacity(0.35), radius: 18, x: 0, y: 8)
+    }
 }
 
 public struct GlassIconButton: View {
@@ -379,140 +390,5 @@ public struct AppleLiquidGlassButton<Content: View>: View {
         }
         .pointingHand()
         .help(helpText ?? "")
-    }
-}
-
-// MARK: - Apple-Grade Liquid Glass Volume Slider
-
-public struct LiquidGlassVolumeSlider: View {
-    @Binding public var value: Double
-    public var isMuted: Bool
-    public var width: CGFloat
-    public var height: CGFloat
-
-    @State private var isHovered: Bool = false
-    @State private var isDragging: Bool = false
-
-    public init(
-        value: Binding<Double>,
-        isMuted: Bool = false,
-        width: CGFloat = 58,
-        height: CGFloat = 24
-    ) {
-        self._value = value
-        self.isMuted = isMuted
-        self.width = width
-        self.height = height
-    }
-
-    public var body: some View {
-        let effectivePct = isMuted ? 0.0 : max(0.0, min(1.0, value))
-        let isExpanded = isHovered || isDragging
-        let trackHeight: CGFloat = isExpanded ? 7 : 5
-        let thumbSize: CGFloat = isExpanded ? 13 : 10
-
-        GeometryReader { proxy in
-            let sliderWidth = proxy.size.width
-            let thumbX = max(thumbSize / 2, min(sliderWidth - thumbSize / 2, CGFloat(effectivePct) * sliderWidth))
-
-            ZStack(alignment: .leading) {
-                // Background Track Channel
-                Capsule()
-                    .fill(.ultraThinMaterial)
-                    .environment(\.colorScheme, .dark)
-                    .frame(height: trackHeight)
-                    .overlay(
-                        Capsule()
-                            .fill(Color.white.opacity(0.18))
-                    )
-                    .overlay(
-                        Capsule()
-                            .strokeBorder(
-                                LinearGradient(
-                                    stops: [
-                                        .init(color: Color.white.opacity(0.40), location: 0.0),
-                                        .init(color: Color.white.opacity(0.18), location: 0.5),
-                                        .init(color: Color.white.opacity(0.08), location: 1.0)
-                                    ],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                ),
-                                lineWidth: 0.75
-                            )
-                    )
-
-                // Filled Liquid Glass Volume Level
-                Capsule()
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                isMuted ? Color.white.opacity(0.35) : Color.white.opacity(0.95),
-                                isMuted ? Color.white.opacity(0.20) : Color.white.opacity(0.85)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    .frame(width: max(0, min(sliderWidth, sliderWidth * CGFloat(effectivePct))), height: trackHeight)
-                    .overlay(
-                        Capsule()
-                            .strokeBorder(Color.white.opacity(0.50), lineWidth: 0.5)
-                    )
-
-                // Liquid Glass Thumb Bead
-                ZStack {
-                    Circle()
-                        .fill(.ultraThinMaterial)
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [Color.white, Color(white: 0.88)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                    Circle()
-                        .strokeBorder(
-                            LinearGradient(
-                                colors: [Color.white, Color.white.opacity(0.40)],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            ),
-                            lineWidth: 1
-                        )
-                    Ellipse()
-                        .fill(Color.white.opacity(0.90))
-                        .frame(width: thumbSize * 0.45, height: thumbSize * 0.22)
-                        .offset(y: -thumbSize * 0.22)
-                }
-                .frame(width: thumbSize, height: thumbSize)
-                .shadow(color: Color.black.opacity(isExpanded ? 0.45 : 0.25), radius: 2.5, y: 1)
-                .position(x: thumbX, y: proxy.size.height / 2)
-            }
-            .frame(width: sliderWidth, height: proxy.size.height)
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { gesture in
-                        isDragging = true
-                        let pct = max(0.0, min(1.0, Double(gesture.location.x / sliderWidth)))
-                        value = pct
-                    }
-                    .onEnded { gesture in
-                        let pct = max(0.0, min(1.0, Double(gesture.location.x / sliderWidth)))
-                        value = pct
-                        isDragging = false
-                    }
-            )
-            .onHover { hovering in
-                withAnimation(.fluidQuick) {
-                    isHovered = hovering
-                }
-            }
-        }
-        .frame(width: width, height: height)
-        .animation(.fluidQuick, value: isHovered)
-        .animation(.fluidQuick, value: isDragging)
-        .pointingHand()
     }
 }

@@ -501,6 +501,7 @@ public final class LibraryManager {
         }
 
         let validProgress = min(max(progress, 0.0), 1.0)
+        var addedNewVideo = false
         if let idx = videos.firstIndex(where: { $0.url == url }) {
             videos[idx].lastPlayedDate = Date()
             videos[idx].progress = validProgress
@@ -515,6 +516,7 @@ public final class LibraryManager {
             item.lastPlayedDate = Date()
             videos.insert(item, at: 0)
             loadMetadataAsync(for: item)
+            addedNewVideo = true
         }
         persistedProgress[url.path] = [
             "progress": validProgress,
@@ -522,7 +524,10 @@ public final class LibraryManager {
             "duration": duration
         ]
         savePersistedState()
-        updateDirectoryWatcher()
+        // Progress updates run every 5s during playback; only a new item changes watched paths.
+        if addedNewVideo {
+            updateDirectoryWatcher()
+        }
     }
 
     public func addSingleVideoFile(url: URL) {
@@ -911,7 +916,10 @@ public final class LibraryManager {
 
     private func setupPeriodicSync() {
         guard !CommandLine.arguments.contains("--run-tests") else { return }
-        syncTimer = Timer.scheduledTimer(withTimeInterval: 2.5, repeats: true) { [weak self] _ in
+        // Fallback sweep for unmounted volumes; live changes already arrive via the
+        // directory watcher and app-activation checks. A 2.5s sweep re-stat'd every
+        // library file on the main thread during playback.
+        syncTimer = Timer.scheduledTimer(withTimeInterval: 60.0, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self = self, !self.videos.isEmpty || !self.folders.isEmpty else { return }
                 self.verifyAndPruneMissingFiles()
