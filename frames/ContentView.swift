@@ -241,6 +241,7 @@ struct ContentView: View {
                         )
                     }
                 }
+                .background(Color.black.ignoresSafeArea())
                 .onContinuousHover { _ in
                     resetControlsTimer(force: false)
                 }
