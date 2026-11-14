@@ -3566,6 +3566,22 @@ public enum FramesTestSuite {
             "Result: \(String(describing: asyncLoadResult))"
         )
 
+        // Skip scrub traverses frames instead of cutting.
+        let skipPipeline = PlaybackPipeline()
+        let skipLoad = skipPipeline.loadSync(url: tempMP4URL)
+        assertTest("Skip Scrub Load", condition: skipLoad)
+        let skipStart = skipPipeline.currentTime
+        skipPipeline.seek(to: skipStart, isScrubbing: true)
+        skipPipeline.setScrubTarget(skipStart + 5.0)
+        assertTest("Skip Scrub Target Applied", condition: abs(skipPipeline.currentTime - (skipStart + 5.0)) < 0.001, "got \(skipPipeline.currentTime)")
+        skipPipeline.endScrubbing()
+        let skipDeadline = Date().addingTimeInterval(3)
+        while skipPipeline.state != .paused && Date() < skipDeadline {
+            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
+        }
+        assertTest("Skip Scrub Final Position", condition: abs(skipPipeline.currentTime - (skipStart + 5.0)) < 0.5, "got \(skipPipeline.currentTime)")
+        skipPipeline.stop()
+
         // Deferred stop resets observable state immediately; heavy teardown runs in the background.
         asyncPipeline.stopDeferringHeavyTeardown()
         assertTest(
