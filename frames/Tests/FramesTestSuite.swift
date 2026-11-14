@@ -3550,6 +3550,29 @@ public enum FramesTestSuite {
         assertTest("PlaybackPipeline Seek Dispatched Successfully", condition: true)
         mp4Pipeline.stop()
 
+        // Async load builds demuxer/decoder/audio off-main, then installs on the main actor.
+        let asyncPipeline = PlaybackPipeline()
+        var asyncLoadResult: Bool?
+        Task { @MainActor in
+            asyncLoadResult = await asyncPipeline.load(url: tempMP4URL)
+        }
+        let asyncDeadline = Date().addingTimeInterval(5)
+        while asyncLoadResult == nil && Date() < asyncDeadline {
+            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
+        }
+        assertTest(
+            "PlaybackPipeline Async Load Installs Demuxer",
+            condition: asyncLoadResult == true && asyncPipeline.demuxer != nil,
+            "Result: \(String(describing: asyncLoadResult))"
+        )
+
+        // Deferred stop resets observable state immediately; heavy teardown runs in the background.
+        asyncPipeline.stopDeferringHeavyTeardown()
+        assertTest(
+            "PlaybackPipeline Deferred Stop Resets State Immediately",
+            condition: asyncPipeline.demuxer == nil && asyncPipeline.state == .stopped
+        )
+
         try? FileManager.default.removeItem(at: tempMP4URL)
         try? FileManager.default.removeItem(at: tempMKVURL2)
         // 12. Real File Hardware Zero-Copy Demuxing via mmap
