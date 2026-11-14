@@ -39,74 +39,91 @@ public struct ResumePlaybackOverlay: View {
     }
 
     public var body: some View {
-        ZStack {
-            Color.black.opacity(0.3)
-                .ignoresSafeArea()
-                .onTapGesture { onCancel() }
+        GeometryReader { geo in
+            let resumeX = geo.size.width * CGFloat(min(max(prompt.progress, 0), 1))
 
-            VStack {
-                Spacer()
+            ZStack {
+                Color.black.opacity(0.25)
+                    .ignoresSafeArea()
+                    .onTapGesture { onCancel() }
 
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(spacing: 10) {
-                        ZStack {
-                            Circle().fill(ShadcnTheme.primary.opacity(0.18)).frame(width: 32, height: 32)
-                            Image(systemName: "play.fill").font(.system(size: 13, weight: .semibold)).foregroundStyle(ShadcnTheme.primary).offset(x: 1)
-                        }
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text("Resume Playback").font(.system(size: 14, weight: .semibold)).foregroundStyle(ShadcnTheme.foreground)
-                            Text(prompt.title).font(.system(size: 11, weight: .medium)).foregroundStyle(ShadcnTheme.foregroundSecondary).lineLimit(1).truncationMode(.middle)
-                        }
-                        Spacer()
-                        Button { onCancel() } label: {
-                            Image(systemName: "xmark").font(.system(size: 10, weight: .semibold)).foregroundStyle(ShadcnTheme.foregroundMuted).frame(width: 22, height: 22).background(Circle().fill(ShadcnTheme.cardHover))
-                        }.buttonStyle(.plain).pointingHand().keyboardShortcut(.cancelAction)
-                    }
+                VStack {
+                    Spacer()
 
-                    VStack(alignment: .leading, spacing: 5) {
-                        GeometryReader { geo in
-                            ZStack(alignment: .leading) {
-                                Capsule().fill(ShadcnTheme.border.opacity(0.5)).frame(height: 5)
-                                Capsule().fill(LinearGradient(colors: [ShadcnTheme.primary, ShadcnTheme.primary.opacity(0.7)], startPoint: .leading, endPoint: .trailing))
-                                    .frame(width: max(5, geo.size.width * CGFloat(min(max(prompt.progress, 0), 1))), height: 5)
+                    // Pill badge anchored to resume position on the timeline
+                    VStack(spacing: 4) {
+                        // tail
+                        Triangle()
+                            .fill(ShadcnTheme.card.opacity(0.9))
+                            .frame(width: 12, height: 6)
+
+                        HStack(spacing: 8) {
+                            Text("Resume from \(prompt.formattedTime)?")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(ShadcnTheme.foreground)
+
+                            Button { onStartOver(prompt.url) } label: {
+                                Text("Start Over")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                                    .padding(.horizontal, 8)
+                                    .frame(height: 24)
+                                    .background(Capsule().fill(ShadcnTheme.cardHover))
+                                    .overlay(Capsule().strokeBorder(ShadcnTheme.border, lineWidth: 1))
                             }
-                        }.frame(height: 5)
-                        HStack {
-                            Text(prompt.formattedTime).font(.system(size: 10, weight: .medium, design: .monospaced)).foregroundStyle(ShadcnTheme.foreground)
-                            Spacer()
-                            Text(prompt.formattedDuration).font(.system(size: 10, weight: .medium, design: .monospaced)).foregroundStyle(ShadcnTheme.foregroundMuted)
-                        }
-                    }
+                            .buttonStyle(.plain)
+                            .pointingHand()
 
-                    HStack(spacing: 8) {
-                        Button { onStartOver(prompt.url) } label: {
-                            Text("Start Over").font(.system(size: 12, weight: .medium)).foregroundStyle(ShadcnTheme.foregroundSecondary).frame(maxWidth: .infinity).frame(height: 32)
-                                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(ShadcnTheme.cardHover))
-                                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(ShadcnTheme.border, lineWidth: 1))
-                        }.buttonStyle(.plain).pointingHand().keyboardShortcut("r", modifiers: [])
-
-                        Button { onResume(prompt.url, prompt.resumeSeconds) } label: {
-                            HStack(spacing: 5) {
-                                Image(systemName: "play.fill").font(.system(size: 10, weight: .bold))
-                                Text("Resume").font(.system(size: 12, weight: .semibold))
+                            Button { onResume(prompt.url, prompt.resumeSeconds) } label: {
+                                Text("Continue")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(ShadcnTheme.primaryForeground)
+                                    .padding(.horizontal, 10)
+                                    .frame(height: 24)
+                                    .background(Capsule().fill(isHoveringResume ? ShadcnTheme.primaryHighlight : ShadcnTheme.primary))
                             }
-                            .foregroundStyle(ShadcnTheme.primaryForeground).frame(maxWidth: .infinity).frame(height: 32)
-                            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(isHoveringResume ? ShadcnTheme.primaryHighlight : ShadcnTheme.primary))
-                        }.buttonStyle(.plain).pointingHand().keyboardShortcut(.defaultAction).onHover { h in isHoveringResume = h }
+                            .buttonStyle(.plain)
+                            .pointingHand()
+                            .onHover { h in isHoveringResume = h }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(.ultraThinMaterial)
+                        )
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(ShadcnTheme.card.opacity(0.7))
+                        )
+                        .overlay(
+                            Capsule(style: .continuous)
+                                .strokeBorder(ShadcnTheme.border, lineWidth: 1)
+                        )
+                        .shadow(color: .black.opacity(0.35), radius: 14, y: 6)
+                    }
+                    .scaleEffect(appeared ? 1 : 0.85)
+                    .opacity(appeared ? 1 : 0)
+                    .offset(y: appeared ? 0 : 10)
+                    .position(x: max(110, min(geo.size.width - 110, resumeX)), y: geo.size.height - 86)
+                }
+                .onAppear {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.76)) {
+                        appeared = true
                     }
                 }
-                .padding(16)
-                .frame(width: 340)
-                .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(.ultraThinMaterial))
-                .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(ShadcnTheme.card.opacity(0.6)))
-                .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(ShadcnTheme.border, lineWidth: 1))
-                .shadow(color: .black.opacity(0.35), radius: 24, y: 10)
-                .scaleEffect(appeared ? 1 : 0.9)
-                .opacity(appeared ? 1 : 0)
-                .offset(y: appeared ? 0 : 24)
-                .padding(.bottom, 24)
-                .onAppear { withAnimation(.spring(response: 0.4, dampingFraction: 0.76)) { appeared = true } }
             }
         }
+    }
+}
+
+struct Triangle: Shape {
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        p.move(to: CGPoint(x: rect.midX, y: rect.maxY))
+        p.addLine(to: CGPoint(x: rect.minX, y: rect.minY))
+        p.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        p.closeSubpath()
+        return p
     }
 }
