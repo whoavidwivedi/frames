@@ -2568,6 +2568,31 @@ public enum FramesTestSuite {
         let hudHost = NSHostingView(rootView: fullHUD)
         assertTest("LiquidGlassHUD Full Surface Mount Operable", condition: hudHost.fittingSize.height > 0)
 
+        // Volume button group steps and clamps; muted decreases stay silent at 0
+        assertTest(
+            "Volume Group Step Up Unmutes",
+            condition: VolumeButtonGroup.adjustedVolume(from: 0.5, isMuted: true, by: 0.05) == 0.05
+        )
+        assertTest(
+            "Volume Group Step Down Muted Stays Zero",
+            condition: VolumeButtonGroup.adjustedVolume(from: 0.5, isMuted: true, by: -0.05) == 0
+        )
+        assertTest(
+            "Volume Group Clamps At Bounds",
+            condition: VolumeButtonGroup.adjustedVolume(from: 0.98, isMuted: false, by: 0.05) == 1
+                && VolumeButtonGroup.adjustedVolume(from: 0.02, isMuted: false, by: -0.05) == 0
+        )
+
+        // Volume readout re-shows on volume and mute changes
+        let tokenBefore = hudEngineForTesting.volumeHUDToken
+        hudEngineForTesting.setVolumeDelta(0.05)
+        let tokenAfterVolume = hudEngineForTesting.volumeHUDToken
+        hudEngineForTesting.toggleMute()
+        assertTest(
+            "Volume Readout Token Bumps On Change",
+            condition: tokenAfterVolume > tokenBefore && hudEngineForTesting.volumeHUDToken > tokenAfterVolume
+        )
+
         // CustomScrubber Timeline Mount Operable
         let scrubberView = CustomScrubber(engine: hudEngineForTesting)
         let scrubberHost = NSHostingView(rootView: scrubberView)

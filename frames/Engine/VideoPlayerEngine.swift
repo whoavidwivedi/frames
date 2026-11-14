@@ -83,6 +83,7 @@ public final class VideoPlayerEngine {
             if isNativePipelineActive {
                 nativePipeline.setVolume(isMuted ? 0.0 : clamped)
             }
+            volumeHUDToken &+= 1
         }
     }
     public var isMuted: Bool = false {
@@ -93,8 +94,11 @@ public final class VideoPlayerEngine {
             if isNativePipelineActive {
                 nativePipeline.setVolume(clamped)
             }
+            volumeHUDToken &+= 1
         }
     }
+    /// Bumped on every volume or mute change so the transient top-right readout can re-show.
+    public var volumeHUDToken: Int = 0
     public var playbackRate: Float = 1.0 {
         didSet {
             guard oldValue != playbackRate else { return }
