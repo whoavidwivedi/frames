@@ -592,7 +592,7 @@ public final class PlaybackPipeline: ObservableObject {
     
     // Decoded Frame Ring Buffer & Scrub Frame Cache
     public let frameQueue = FrameQueue(maxCount: 18)
-    private let scrubCache = ScrubFrameCache(maxCapacity: 48)
+    private let scrubCache = ScrubFrameCache(maxCapacity: 24)
     public let packetChunkBuffer = PacketChunkBuffer(maxCapacity: 256)
     private var lastReportedUIClock: Double = -1.0
     public private(set) var nominalFrameDuration: Double = 1.0 / 30.0
@@ -825,7 +825,7 @@ public final class PlaybackPipeline: ObservableObject {
         let isNetworkOrNAS = url.path.hasPrefix("/Volumes/") || url.scheme == "smb" || url.scheme == "afp" || url.scheme == "nfs"
         let estBitrate = (demuxer.duration > 0 && demuxer.fileSize > 0) ? (Double(demuxer.fileSize * 8) / demuxer.duration) : 0.0
         self.frameQueue.configureBuffering(isNetworkOrNAS: isNetworkOrNAS, bitrate: estBitrate)
-        self.packetChunkBuffer.setCapacity(isNetworkOrNAS || estBitrate > 30_000_000 ? 512 : 256)
+        self.packetChunkBuffer.setCapacity(isNetworkOrNAS || estBitrate > 30_000_000 ? 256 : 128)
 
         let q = self.frameQueue
         let cache = self.scrubCache
