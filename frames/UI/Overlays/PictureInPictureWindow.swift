@@ -129,9 +129,8 @@ public struct PictureInPictureContentView: View {
                 }
             }
 
-            // Transient skip readout
-            SkipReadout(engine: engine)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            // Transient skip flow overlay
+            SkipFlowOverlay(engine: engine)
                 .zIndex(65)
 
             // Controls Overlay
