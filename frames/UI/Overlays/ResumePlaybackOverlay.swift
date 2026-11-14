@@ -43,12 +43,22 @@ public struct ResumePlaybackOverlay: View {
             let resumeX = geo.size.width * CGFloat(min(max(prompt.progress, 0), 1))
 
             ZStack {
-                Color.black.opacity(0.25)
+                Color.black.opacity(0.12)
                     .ignoresSafeArea()
                     .onTapGesture { onCancel() }
 
                 VStack {
                     Spacer()
+
+                    // Resume marker on the timeline
+                    GeometryReader { mgeo in
+                        let rx = mgeo.size.width * CGFloat(min(max(prompt.progress, 0), 1))
+                        Rectangle()
+                            .fill(ShadcnTheme.primary)
+                            .frame(width: 2, height: 14)
+                            .position(x: rx, y: mgeo.size.height - 4)
+                    }
+                    .allowsHitTesting(false)
 
                     // Pill badge anchored to resume position on the timeline
                     VStack(spacing: 4) {
