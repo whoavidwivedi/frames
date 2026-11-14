@@ -532,26 +532,11 @@ public final class PlaybackPipeline: ObservableObject {
     }
 
     public nonisolated static func probeContainerType(at url: URL) -> ContainerType {
-        // 1. Sniff magic bytes
-        if let handle = try? FileHandle(forReadingFrom: url) {
-            defer { try? handle.close() }
-            let header = handle.readData(ofLength: 16)
-            if header.count >= 4 {
-                // EBML Header: 0x1A 0x45 0xDF 0xA3
-                if header[0] == 0x1A && header[1] == 0x45 && header[2] == 0xDF && header[3] == 0xA3 {
-                    return .matroska
-                }
-                // ISO BMFF: bytes 4..<8 are 'ftyp', 'moov', 'wide', 'mdat', 'free', 'skip', 'styp'
-                if header.count >= 8 {
-                    let fourCC = String(decoding: header[4..<8], as: UTF8.self)
-                    if ["ftyp", "moov", "wide", "mdat", "free", "skip", "styp"].contains(fourCC) {
-                        return .mp4
-                    }
-                }
-            }
-        }
-
-        // 2. Fallback to path extension
+        // Native C++ probe (fast path)
+        let result = url.path.withCString { frames_probe_container_type($0) }
+        if result == 0 { return .matroska }
+        if result == 1 { return .mp4 }
+        // Swift fallback
         let ext = url.pathExtension.lowercased()
         if ["mp4", "mov", "m4v", "m4a", "3gp", "3g2"].contains(ext) {
             return .mp4

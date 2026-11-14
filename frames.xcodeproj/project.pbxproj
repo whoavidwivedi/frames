@@ -53,6 +53,7 @@
 		F46963707DBB1A5F906A39B2 /* PointerCursor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9981A90A8E4365A9AD362F1 /* PointerCursor.swift */; };
 		29A58F0A50DE177DC630FC3A /* ShadcnButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A93AE87A96BD61073FD3861 /* ShadcnButton.swift */; };
 		AA11BB22CC33DD44EE55FF01 /* ShadcnBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF02 /* ShadcnBadge.swift */; };
+		CD9049EBB6F842B69C78EB00 /* frames_native.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 306CE39FE786451EA7C220E5 /* frames_native.cpp */; };
 		12718C145356E808E0FE8118 /* ShadcnCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6068EABAB8736A26617F768 /* ShadcnCommand.swift */; };
 		0228E85A8A1C399717EC310C /* ShadcnTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA43A3F961654503C7149A23 /* ShadcnTheme.swift */; };
 		770F21E1E6CB2D1B6762027A /* TimeFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01A1CEAB2CB8DF9D706583D5 /* TimeFormatting.swift */; };
@@ -141,6 +142,9 @@
 		B9981A90A8E4365A9AD362F1 /* PointerCursor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PointerCursor.swift"; sourceTree = "<group>"; };
 		4A93AE87A96BD61073FD3861 /* ShadcnButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ShadcnButton.swift"; sourceTree = "<group>"; };
 		AA11BB22CC33DD44EE55FF02 /* ShadcnBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ShadcnBadge.swift"; sourceTree = "<group>"; };
+		208AD723EA644CF38AED1734 /* frames_native.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "frames_native.h"; sourceTree = "<group>"; };
+		306CE39FE786451EA7C220E5 /* frames_native.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "frames_native.cpp"; sourceTree = "<group>"; };
+		715273E5E5C44C97A75DDB44 /* frames-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "frames-Bridging-Header.h"; sourceTree = "<group>"; };
 		E6068EABAB8736A26617F768 /* ShadcnCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ShadcnCommand.swift"; sourceTree = "<group>"; };
 		AA43A3F961654503C7149A23 /* ShadcnTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ShadcnTheme.swift"; sourceTree = "<group>"; };
 		01A1CEAB2CB8DF9D706583D5 /* TimeFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TimeFormatting.swift"; sourceTree = "<group>"; };
@@ -247,6 +251,8 @@
 				5F2A7EE38BE1E1E18CC563B8 /* Updater */,
 				3918E2CCB1716611A02CD3FB /* VideoPlayerEngine.swift */,
 				20553256215CEFBC9E2B14C3 /* WindowManager.swift */,
+				306CE39FE786451EA7C220E5 /* frames_native.cpp */, 
+				208AD723EA644CF38AED1734 /* frames_native.h */,
 			);
 			path = "Engine";
 			sourceTree = "<group>";
@@ -541,6 +547,7 @@
 				3DCBE380FDED3344437546C5 /* UpdateModels.swift in Sources */,
 				EFEE6CE9D95C66D5D329A094 /* VideoPlayerEngine.swift in Sources */,
 				6BD900F709036A023F010669 /* WindowManager.swift in Sources */,
+				CD9049EBB6F842B69C78EB00 /* frames_native.cpp in Sources */,
 				9A47E197F466CB8878534FF6 /* AudioTrack.swift in Sources */,
 				B49AB8A0C7DB4CE64F46035E /* LanguageHelper.swift in Sources */,
 				FFDF8F47AD432860A508D5F2 /* LibraryItem.swift in Sources */,
@@ -748,6 +755,7 @@
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
+				SWIFT_OBJC_BRIDGING_HEADER = "frames/frames-Bridging-Header.h";
 			};
 			name = Debug;
 		};
@@ -776,6 +784,7 @@
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
+				SWIFT_OBJC_BRIDGING_HEADER = "frames/frames-Bridging-Header.h";
 			};
 			name = Release;
 		};
@@ -797,6 +806,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
+				SWIFT_OBJC_BRIDGING_HEADER = "frames/frames-Bridging-Header.h";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/frames.app/Contents/MacOS/frames";
 			};
 			name = Debug;
@@ -819,6 +829,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
+				SWIFT_OBJC_BRIDGING_HEADER = "frames/frames-Bridging-Header.h";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/frames.app/Contents/MacOS/frames";
 			};
 			name = Release;
