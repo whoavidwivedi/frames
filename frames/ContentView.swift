@@ -522,6 +522,9 @@ struct ContentView: View {
 
     private func returnToDashboard() {
         hideControlsTimer?.invalidate()
+        if WindowManager.shared.isAnyFullscreen {
+            WindowManager.shared.exitAnyFullscreen()
+        }
         NSCursor.setHiddenUntilMouseMoves(false)
         updateWindowRepresentation(for: nil)
         // Progress is saved and PiP is closed inside unloadMedia; doing both here as well

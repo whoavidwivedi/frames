@@ -403,22 +403,14 @@ public final class KeyboardHandler {
                         SettingsManager.shared.closeSettings()
                         return
                     }
-                    if engine.activeInspectorSheet != nil {
-                        engine.activeInspectorSheet = nil
-                    } else if engine.playbackError != nil {
-                        if WindowManager.shared.isAnyFullscreen {
-                            WindowManager.shared.exitAnyFullscreen()
-                        }
-                        NotificationCenter.default.post(name: .returnToDashboardNotification, object: nil)
-                    } else if engine.hasEnded {
+                    // Escape always leaves the player for the dashboard.
+                    if engine.currentURL != nil {
                         if WindowManager.shared.isAnyFullscreen {
                             WindowManager.shared.exitAnyFullscreen()
                         }
                         NotificationCenter.default.post(name: .returnToDashboardNotification, object: nil)
                     } else if WindowManager.shared.isAnyFullscreen {
                         WindowManager.shared.exitAnyFullscreen()
-                    } else if engine.currentURL != nil {
-                        NotificationCenter.default.post(name: .returnToDashboardNotification, object: nil)
                     }
                 }
                 return nil
