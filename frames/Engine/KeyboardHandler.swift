@@ -8,6 +8,7 @@ public final class KeyboardHandler {
         case toggleMute
         case stepForward
         case stepBackward
+        case showTime
         case faster
         case slower
         case toggleFullscreen
@@ -84,6 +85,10 @@ public final class KeyboardHandler {
             return .slower
         case "r":
             return .replay
+        case "e":
+            return .stepForward
+        case "t":
+            return .showTime
         default:
             if keyCode == 49 {
                 return .playPause
@@ -345,6 +350,10 @@ public final class KeyboardHandler {
                         engine.activeInspectorSheet = .stats
                     }
                 }
+                return nil
+
+            case .showTime:
+                Task { @MainActor in engine.timeHUDToken &+= 1 }
                 return nil
 
             case .stepForward:

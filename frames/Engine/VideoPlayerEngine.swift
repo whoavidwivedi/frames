@@ -101,6 +101,8 @@ public final class VideoPlayerEngine {
     public var volumeHUDToken: Int = 0
     /// Bumped on every skip so the transient skip readout can re-show.
     public var skipHUDToken: Int = 0
+    /// Bumped when the user asks to see watched/total time.
+    public var timeHUDToken: Int = 0
     /// Signed delta (seconds) of the most recent skip, for the transient readout.
     public var lastSkipDelta: Double = 0
     public var playbackRate: Float = 1.0 {
@@ -533,7 +535,13 @@ public final class VideoPlayerEngine {
 
     public func stepFrame(forward: Bool) {
         pause()
-        player.currentItem?.step(byCount: forward ? 1 : -1)
+        if isNativePipelineActive {
+            let frameDuration = nativePipeline.nominalFrameDuration
+            let target = currentTime + (forward ? frameDuration : -frameDuration)
+            seek(to: max(0, target), exact: true)
+        } else {
+            player.currentItem?.step(byCount: forward ? 1 : -1)
+        }
     }
 
     public func toggleMute() {

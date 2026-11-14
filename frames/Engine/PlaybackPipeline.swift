@@ -595,7 +595,7 @@ public final class PlaybackPipeline: ObservableObject {
     private let scrubCache = ScrubFrameCache(maxCapacity: 48)
     public let packetChunkBuffer = PacketChunkBuffer(maxCapacity: 256)
     private var lastReportedUIClock: Double = -1.0
-    private var nominalFrameDuration: Double = 1.0 / 30.0
+    public private(set) var nominalFrameDuration: Double = 1.0 / 30.0
     
     public var currentNominalFrameDuration: Double {
         nominalFrameDuration
