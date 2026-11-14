@@ -220,8 +220,8 @@ struct ContentView: View {
                         .padding(.trailing, 16)
                         .zIndex(70)
 
-                    // Transient skip readout (top corners, fades after ±skip)
-                    SkipReadout(engine: engine)
+                    // Transient skip flow overlay (liquid glass, sides)
+                    SkipFlowOverlay(engine: engine)
                         .zIndex(65)
 
                     // Transient watched/total time readout (top right, fades after T)

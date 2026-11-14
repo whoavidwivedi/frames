@@ -645,54 +645,89 @@ public struct PlayerSideControls: View {
         }
     }
 }
+// MARK: - Transient Skip Flow Overlay (liquid glass)
 
-// MARK: - Transient Skip Readout (huge text, top corners)
-
-public struct SkipReadout: View {
+public struct SkipFlowOverlay: View {
     @Bindable var engine: VideoPlayerEngine
     @State private var isVisible = false
+    @State private var isForward = true
 
     public init(engine: VideoPlayerEngine) {
         self.engine = engine
     }
 
-    private var delta: Double { engine.lastSkipDelta }
-    private var seconds: Int { Int(abs(delta).rounded()) }
-    private var isForward: Bool { delta >= 0 }
-
     public var body: some View {
-        HStack {
-            if !isForward {
-                Text("-\(seconds)s")
-                    .font(.system(size: 64, weight: .heavy, design: .rounded))
-                    .foregroundStyle(.white)
-                    .shadow(color: .black.opacity(0.6), radius: 8, y: 4)
+        GeometryReader { geo in
+            ZStack {
+                if isVisible {
+                    HStack(spacing: 0) {
+                        if !isForward {
+                            glassPanel(width: geo.size.width * 0.38, leading: true)
+                                .transition(.move(edge: .leading).combined(with: .opacity))
+                        }
+                        Spacer(minLength: 0)
+                        if isForward {
+                            glassPanel(width: geo.size.width * 0.38, leading: false)
+                                .transition(.move(edge: .trailing).combined(with: .opacity))
+                        }
+                    }
+                }
             }
-            Spacer(minLength: 0)
-            if isForward {
-                Text("+\(seconds)s")
-                    .font(.system(size: 64, weight: .heavy, design: .rounded))
-                    .foregroundStyle(.white)
-                    .shadow(color: .black.opacity(0.6), radius: 8, y: 4)
-            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .padding(.horizontal, 40)
-        .padding(.top, 70)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .opacity(isVisible ? 1 : 0)
-        .scaleEffect(isVisible ? 1 : 0.85, anchor: isForward ? .topTrailing : .topLeading)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
         .task(id: engine.skipHUDToken) {
             guard engine.skipHUDToken > 0 else { return }
-            withAnimation(.fluidQuick) { isVisible = true }
+            isForward = engine.lastSkipDelta >= 0
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.72)) { isVisible = true }
             do {
-                try await Task.sleep(nanoseconds: 900_000_000)
+                try await Task.sleep(nanoseconds: 650_000_000)
             } catch {
                 return
             }
-            withAnimation(.fluidQuick) { isVisible = false }
+            withAnimation(.easeOut(duration: 0.32)) { isVisible = false }
         }
+    }
+
+    private func glassPanel(width: CGFloat, leading: Bool) -> some View {
+        ZStack {
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .environment(\.colorScheme, .dark)
+            LinearGradient(
+                colors: [
+                    Color.white.opacity(0.18),
+                    Color.white.opacity(0.04),
+                    Color.clear
+                ],
+                startPoint: leading ? .leading : .trailing,
+                endPoint: leading ? .trailing : .leading
+            )
+            VStack {
+                Spacer()
+                Image(systemName: isForward ? "chevron.right.2" : "chevron.left.2")
+                    .font(.system(size: 46, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.85))
+                    .shadow(color: .black.opacity(0.4), radius: 6, y: 3)
+                Spacer()
+            }
+        }
+        .frame(width: width)
+        .frame(maxHeight: .infinity)
+        .clipped()
+        .overlay(
+            Rectangle()
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.35), Color.white.opacity(0.05)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: 1
+                )
+                .blendMode(.overlay)
+        )
     }
 }
 
