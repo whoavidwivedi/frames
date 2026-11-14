@@ -644,13 +644,13 @@ public struct PlayerSideControls: View {
             }
         }
     }
-}
-// MARK: - Transient Skip Flow Overlay (liquid glass)
+}// MARK: - Transient Skip Flow Overlay (liquid glass, full video)
 
 public struct SkipFlowOverlay: View {
     @Bindable var engine: VideoPlayerEngine
     @State private var isVisible = false
     @State private var isForward = true
+    @State private var progress: CGFloat = 0
 
     public init(engine: VideoPlayerEngine) {
         self.engine = engine
@@ -660,17 +660,22 @@ public struct SkipFlowOverlay: View {
         GeometryReader { geo in
             ZStack {
                 if isVisible {
-                    HStack(spacing: 0) {
-                        if !isForward {
-                            glassPanel(width: geo.size.width * 0.38, leading: true)
-                                .transition(.move(edge: .leading).combined(with: .opacity))
-                        }
-                        Spacer(minLength: 0)
-                        if isForward {
-                            glassPanel(width: geo.size.width * 0.38, leading: false)
-                                .transition(.move(edge: .trailing).combined(with: .opacity))
-                        }
-                    }
+                    Rectangle()
+                        .fill(.ultraThinMaterial)
+                        .environment(\.colorScheme, .dark)
+                        .opacity(0.30)
+                        .overlay(
+                            Rectangle()
+                                .fill(LinearGradient(
+                                    colors: [.clear, .white.opacity(0.40), .clear],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                ))
+                                .frame(width: geo.size.width * 0.42)
+                                .offset(x: (isForward ? (progress * 2 - 1) : (1 - progress * 2)) * geo.size.width)
+                                .blur(radius: 10)
+                        )
+                        .transition(.opacity)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -680,56 +685,21 @@ public struct SkipFlowOverlay: View {
         .task(id: engine.skipHUDToken) {
             guard engine.skipHUDToken > 0 else { return }
             isForward = engine.lastSkipDelta >= 0
-            withAnimation(.spring(response: 0.32, dampingFraction: 0.72)) { isVisible = true }
+            progress = 0
+            withAnimation(.easeOut(duration: 0.08)) { isVisible = true }
+            withAnimation(.easeInOut(duration: 0.62)) { progress = 1 }
             do {
-                try await Task.sleep(nanoseconds: 650_000_000)
+                try await Task.sleep(nanoseconds: 680_000_000)
             } catch {
                 return
             }
             withAnimation(.easeOut(duration: 0.32)) { isVisible = false }
+            try? await Task.sleep(nanoseconds: 320_000_000)
+            progress = 0
         }
-    }
-
-    private func glassPanel(width: CGFloat, leading: Bool) -> some View {
-        ZStack {
-            Rectangle()
-                .fill(.ultraThinMaterial)
-                .environment(\.colorScheme, .dark)
-            LinearGradient(
-                colors: [
-                    Color.white.opacity(0.18),
-                    Color.white.opacity(0.04),
-                    Color.clear
-                ],
-                startPoint: leading ? .leading : .trailing,
-                endPoint: leading ? .trailing : .leading
-            )
-            VStack {
-                Spacer()
-                Image(systemName: isForward ? "chevron.right.2" : "chevron.left.2")
-                    .font(.system(size: 46, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.85))
-                    .shadow(color: .black.opacity(0.4), radius: 6, y: 3)
-                Spacer()
-            }
-        }
-        .frame(width: width)
-        .frame(maxHeight: .infinity)
-        .clipped()
-        .overlay(
-            Rectangle()
-                .strokeBorder(
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.35), Color.white.opacity(0.05)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    ),
-                    lineWidth: 1
-                )
-                .blendMode(.overlay)
-        )
     }
 }
+
 
 // MARK: - Transient Time Readout (top right)
 
