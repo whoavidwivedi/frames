@@ -14,8 +14,6 @@ struct ContentView: View {
     @State private var isTargetedForDrop: Bool = false
     @State private var lastControlsTimerReset = Date.distantPast
     @State private var showSplash: Bool = false
-    @State private var skipEffect: CGFloat = 0
-    @State private var skipEffectForward: Bool = true
     @State private var pendingResumePrompt: ResumePromptData? = nil
     @State private var updateManager = UpdateManager.shared
     @State private var settings = SettingsManager.shared
@@ -95,9 +93,6 @@ struct ContentView: View {
                         ) {
                             engine.nativePipeline.nextFrameForDisplay()
                         }
-                        .scaleEffect(1 + 0.06 * skipEffect)
-                        .offset(x: (skipEffectForward ? -1 : 1) * 30 * skipEffect)
-                        .blur(radius: 8 * skipEffect)
                         .ignoresSafeArea()
                         .contentShape(Rectangle())
                         .onTapGesture(count: 2) {
@@ -118,9 +113,6 @@ struct ContentView: View {
                                 toggleFullscreen()
                             }
                         )
-                        .scaleEffect(1 + 0.06 * skipEffect)
-                        .offset(x: (skipEffectForward ? -1 : 1) * 30 * skipEffect)
-                        .blur(radius: 8 * skipEffect)
                         .ignoresSafeArea()
                     }
 
@@ -231,17 +223,6 @@ struct ContentView: View {
                     // Transient watched/total time readout (top right, fades after T)
                     TimeReadout(engine: engine)
                         .zIndex(66)
-                        .task(id: engine.skipHUDToken) {
-                            guard engine.skipHUDToken > 0 else { return }
-                            skipEffectForward = engine.lastSkipDelta >= 0
-                            withAnimation(.easeOut(duration: 0.12)) { skipEffect = 1 }
-                            do {
-                                try await Task.sleep(nanoseconds: 260_000_000)
-                            } catch {
-                                return
-                            }
-                            withAnimation(.easeIn(duration: 0.28)) { skipEffect = 0 }
-                        }
 
                     // Buffering Indicator
                     if engine.isBuffering {

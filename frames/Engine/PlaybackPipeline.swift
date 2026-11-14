@@ -1124,6 +1124,16 @@ public final class PlaybackPipeline: ObservableObject {
         startFeederTask(demuxer: demuxer, targetSeekTime: isPlaying ? nil : time, generation: gen)
     }
 
+    /// Drives the scrub worker to an intermediate target during a programmatic
+    /// skip so the video visibly traverses the skipped range.
+    public func setScrubTarget(_ time: Double) {
+        guard isScrubbingActive else { return }
+        let clamped = duration > 0 ? max(0.0, min(time, duration)) : max(0.0, time)
+        pendingScrubTarget = clamped
+        currentTime = clamped
+        onTimeUpdate?(clamped)
+    }
+
     /// Ends a scrub gesture without seeking a second time. The scrub worker is
     /// already positioned at the displayed frame; playback hands off from there.
     public func endScrubbing() {

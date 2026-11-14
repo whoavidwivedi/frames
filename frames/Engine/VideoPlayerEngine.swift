@@ -170,6 +170,7 @@ public final class VideoPlayerEngine {
     private var bufferingTimer: Timer?
     private let securityBox = SecurityScopedBox()
     private var loadGeneration: UInt = 0
+    private var skipScrubToken: UInt = 0
     private var seekGeneration: UInt = 0
     private var pendingInitialSeekTime: Double?
 
@@ -528,9 +529,36 @@ public final class VideoPlayerEngine {
     }
 
     public func skip(seconds: Double) {
-        lastSkipDelta = seconds
-        skipHUDToken &+= 1
-        seek(to: currentTime + seconds, exact: true)
+        let target = currentTime + seconds
+        if isNativePipelineActive {
+            skipScrubToken &+= 1
+            let token = skipScrubToken
+            nativePipeline.seek(to: currentTime, isScrubbing: true)
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let steps = 14
+                let start = self.currentTime
+                for i in 1...steps {
+                    if self.skipScrubToken != token { return }
+                    try? await Task.sleep(nanoseconds: 38_000_000)
+                    if self.skipScrubToken != token { return }
+                    let t = start + (target - start) * Double(i) / Double(steps)
+                    self.nativePipeline.setScrubTarget(t)
+                    self.currentTime = t
+                    self.lastSyncTime = t
+                    self.displayTime = t
+                }
+                if self.skipScrubToken != token { return }
+                try? await Task.sleep(nanoseconds: 60_000_000)
+                if self.skipScrubToken != token { return }
+                self.nativePipeline.endScrubbing()
+                self.currentTime = target
+                self.lastSyncTime = target
+                self.displayTime = target
+            }
+        } else {
+            seek(to: target, exact: true)
+        }
     }
 
     public func stepFrame(forward: Bool) {
