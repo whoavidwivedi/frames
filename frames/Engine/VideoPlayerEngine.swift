@@ -239,6 +239,7 @@ public final class VideoPlayerEngine {
         isPlaying = false
         isBuffering = false
         hasEnded = false
+        isScrubbing = false
         playbackError = nil
         activeSubtitleText = ""
         availableSubtitleTracks = [SubtitleTrack.off]
@@ -268,6 +269,7 @@ public final class VideoPlayerEngine {
         loadGeneration &+= 1
         let generation = loadGeneration
         clearPlayerItemObservers()
+        isScrubbing = false
 
         if isNativePipelineActive {
             nativePipeline.stopDeferringHeavyTeardown()
@@ -835,12 +837,14 @@ public final class VideoPlayerEngine {
         loadGeneration &+= 1
         let generation = loadGeneration
         clearPlayerItemObservers()
+        isScrubbing = false
         player.pause()
         player.replaceCurrentItem(with: nil)
         isNativePipelineActive = true
         isPlaying = false
         isBuffering = false
         playbackError = nil
+        isScrubbing = false
 
         metadata.title = url.deletingPathExtension().lastPathComponent
         metadata.container = url.pathExtension.uppercased()
@@ -849,13 +853,16 @@ public final class VideoPlayerEngine {
             guard let self else { return }
             let success = await nativePipeline.load(url: url)
             guard loadGeneration == generation, currentURL == url else {
-                if success { nativePipeline.stop() }
+                // A newer load (or unload) owns the pipeline now; do not touch
+                // nativePipeline here or we corrupt its load token / subsystems.
                 return
             }
 
             guard success else {
                 // Milestone 2 Fallback: Gracefully fall back to AVFoundation
                 // if the native demuxer encounters an unsupported track layout or codec.
+                self.nativePipeline.stopDeferringHeavyTeardown()
+                self.isNativePipelineActive = false
                 self.loadAVPlayerPipeline(url: url, initialSeekTime: initialSeekTime, generation: generation)
                 return
             }
