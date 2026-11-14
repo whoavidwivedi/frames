@@ -283,14 +283,16 @@ struct ContentView: View {
                         withAnimation(.fluidQuick) {
                             pendingResumePrompt = nil
                         }
-                        playVideo(url: url, seekTo: seekTime)
+                        engine.seek(to: seekTime, exact: true)
+                        engine.play()
                     },
                     onStartOver: { url in
                         withAnimation(.fluidQuick) {
                             pendingResumePrompt = nil
                         }
                         library.resetPlaybackProgress(for: url)
-                        playVideo(url: url, seekTo: 0.0)
+                        engine.seek(to: 0, exact: true)
+                        engine.play()
                     },
                     onCancel: {
                         withAnimation(.fluidQuick) {
@@ -500,6 +502,9 @@ struct ContentView: View {
 
             let item = library.videos.first(where: { $0.url == url })
             let dur = item?.duration ?? 0.0
+            // Load the video paused at the resume position so the prompt sits
+            // inside the player, over the timeline.
+            playVideo(url: url, seekTo: resume.seconds, autoPlay: false)
             withAnimation(.fluidQuick) {
                 pendingResumePrompt = ResumePromptData(
                     url: url,
@@ -514,9 +519,9 @@ struct ContentView: View {
         }
     }
 
-    private func playVideo(url: URL, seekTo: Double = 0.0) {
+    private func playVideo(url: URL, seekTo: Double = 0.0, autoPlay: Bool = true) {
         library.addSingleVideoFile(url: url)
-        engine.loadMedia(from: url, initialSeekTime: seekTo > 0 ? seekTo : nil)
+        engine.loadMedia(from: url, initialSeekTime: seekTo > 0 ? seekTo : nil, autoPlay: autoPlay)
         updateWindowRepresentation(for: url)
     }
 

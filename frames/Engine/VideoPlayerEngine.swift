@@ -257,7 +257,7 @@ public final class VideoPlayerEngine {
     }
 
     // MARK: - Loading Media
-    public func loadMedia(from url: URL, initialSeekTime: Double? = nil) {
+    public func loadMedia(from url: URL, initialSeekTime: Double? = nil, autoPlay: Bool = true) {
         // Defensive check: if empty or a directory (except HLS movpkg bundles), unload cleanly
         var isDir: ObjCBool = false
         let fileExists = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir)
@@ -301,7 +301,7 @@ public final class VideoPlayerEngine {
         // Milestone 2 Unified Playback Core: Route all supported media containers
         // (MKV, WebM, MKA, MP4, MOV, M4V, 3GP) to the zero-copy Apple Silicon native pipeline.
         if canUseNativePipeline(for: url) {
-            startNativePipeline(url: url, initialSeekTime: initialSeekTime)
+            startNativePipeline(url: url, initialSeekTime: initialSeekTime, autoPlay: autoPlay)
             return
         }
 
@@ -310,7 +310,7 @@ public final class VideoPlayerEngine {
 
     /// Secondary fallback pipeline leveraging AVFoundation for streaming protocols
     /// and formats outside of Frames' native binary demuxer suite.
-    private func loadAVPlayerPipeline(url: URL, initialSeekTime: Double?, generation: UInt) {
+    private func loadAVPlayerPipeline(url: URL, initialSeekTime: Double?, generation: UInt, autoPlay: Bool = true) {
         self.isNativePipelineActive = false
 
         let asset = AVURLAsset(url: url)
@@ -333,7 +333,9 @@ public final class VideoPlayerEngine {
             player.seek(to: target, toleranceBefore: .zero, toleranceAfter: .zero)
         }
 
-        play()
+        if autoPlay {
+            play()
+        }
 
         Task { [weak self] in
             guard let self else { return }
@@ -850,7 +852,7 @@ public final class VideoPlayerEngine {
     /// Launches the zero-copy Apple Silicon native pipeline (Metal + VideoToolbox).
     /// If the native demuxer or hardware decoder rejects the stream, it gracefully
     /// falls back to AVFoundation without interrupting user playback.
-    private func startNativePipeline(url: URL, initialSeekTime: Double? = nil) {
+    private func startNativePipeline(url: URL, initialSeekTime: Double? = nil, autoPlay: Bool = true) {
         loadGeneration &+= 1
         let generation = loadGeneration
         clearPlayerItemObservers()
@@ -880,7 +882,7 @@ public final class VideoPlayerEngine {
                 // if the native demuxer encounters an unsupported track layout or codec.
                 self.nativePipeline.stopDeferringHeavyTeardown()
                 self.isNativePipelineActive = false
-                self.loadAVPlayerPipeline(url: url, initialSeekTime: initialSeekTime, generation: generation)
+                self.loadAVPlayerPipeline(url: url, initialSeekTime: initialSeekTime, generation: generation, autoPlay: autoPlay)
                 return
             }
 
@@ -992,7 +994,9 @@ public final class VideoPlayerEngine {
             if let initialSeekTime, initialSeekTime > 0 {
                 seek(to: initialSeekTime, exact: true)
             }
-            play()
+            if autoPlay {
+                play()
+            }
             checkForExternalSubtitles(videoURL: url)
         }
     }
