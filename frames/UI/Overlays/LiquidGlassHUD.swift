@@ -644,62 +644,59 @@ public struct PlayerSideControls: View {
             }
         }
     }
-}// MARK: - Transient Skip Flow Overlay (liquid glass, full video)
+}
 
-public struct SkipFlowOverlay: View {
+// MARK: - Transient Skip Readout (huge animated text, top)
+
+public struct SkipReadout: View {
     @Bindable var engine: VideoPlayerEngine
     @State private var isVisible = false
     @State private var isForward = true
-    @State private var progress: CGFloat = 0
 
     public init(engine: VideoPlayerEngine) {
         self.engine = engine
     }
 
+    private var seconds: Int { Int(abs(engine.lastSkipDelta).rounded()) }
+
     public var body: some View {
-        GeometryReader { geo in
-            ZStack {
-                if isVisible {
-                    Rectangle()
-                        .fill(.ultraThinMaterial)
-                        .environment(\.colorScheme, .dark)
-                        .opacity(0.30)
-                        .overlay(
-                            Rectangle()
-                                .fill(LinearGradient(
-                                    colors: [.clear, .white.opacity(0.40), .clear],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                ))
-                                .frame(width: geo.size.width * 0.42)
-                                .offset(x: (isForward ? (progress * 2 - 1) : (1 - progress * 2)) * geo.size.width)
-                                .blur(radius: 10)
-                        )
-                        .transition(.opacity)
-                }
+        HStack {
+            if !isForward {
+                Text("-\(seconds)s")
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            Spacer(minLength: 0)
+            if isForward {
+                Text("+\(seconds)s")
+            }
         }
+        .font(.system(size: 72, weight: .heavy, design: .rounded))
+        .foregroundStyle(.white)
+        .shadow(color: .black.opacity(0.6), radius: 10, y: 5)
+        .padding(.horizontal, 48)
+        .padding(.top, 60)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .opacity(isVisible ? 1 : 0)
+        .scaleEffect(isVisible ? 1 : 0.6, anchor: isForward ? .topTrailing : .topLeading)
+        .offset(x: isVisible ? 0 : (isForward ? 40 : -40))
         .allowsHitTesting(false)
         .accessibilityHidden(true)
         .task(id: engine.skipHUDToken) {
             guard engine.skipHUDToken > 0 else { return }
             isForward = engine.lastSkipDelta >= 0
-            progress = 0
-            withAnimation(.easeOut(duration: 0.08)) { isVisible = true }
-            withAnimation(.easeInOut(duration: 0.62)) { progress = 1 }
+            withAnimation(.spring(response: 0.38, dampingFraction: 0.62)) {
+                isVisible = true
+            }
             do {
-                try await Task.sleep(nanoseconds: 680_000_000)
+                try await Task.sleep(nanoseconds: 900_000_000)
             } catch {
                 return
             }
-            withAnimation(.easeOut(duration: 0.32)) { isVisible = false }
-            try? await Task.sleep(nanoseconds: 320_000_000)
-            progress = 0
+            withAnimation(.easeOut(duration: 0.32)) {
+                isVisible = false
+            }
         }
     }
 }
-
 
 // MARK: - Transient Time Readout (top right)
 

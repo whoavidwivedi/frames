@@ -130,7 +130,7 @@ public struct PictureInPictureContentView: View {
             }
 
             // Transient skip flow overlay
-            SkipFlowOverlay(engine: engine)
+            SkipReadout(engine: engine)
                 .zIndex(65)
 
             // Controls Overlay

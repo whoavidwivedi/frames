@@ -221,7 +221,7 @@ struct ContentView: View {
                         .zIndex(70)
 
                     // Transient skip flow overlay (liquid glass, sides)
-                    SkipFlowOverlay(engine: engine)
+                    SkipReadout(engine: engine)
                         .zIndex(65)
 
                     // Transient watched/total time readout (top right, fades after T)
