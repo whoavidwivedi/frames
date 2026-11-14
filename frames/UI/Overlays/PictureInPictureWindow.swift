@@ -129,6 +129,11 @@ public struct PictureInPictureContentView: View {
                 }
             }
 
+            // Transient skip readout
+            SkipReadout(engine: engine)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                .zIndex(65)
+
             // Controls Overlay
             if isHovered {
                 Color.black.opacity(0.32)
