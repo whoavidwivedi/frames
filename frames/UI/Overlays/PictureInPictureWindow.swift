@@ -51,6 +51,10 @@ public final class PictureInPictureManager {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.titleVisibility = .hidden
         panel.titlebarAppearsTransparent = true
+        // PiP is chrome-free: hide the traffic lights but keep the titled panel for rounded corners/resizing.
+        panel.standardWindowButton(.closeButton)?.isHidden = true
+        panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
+        panel.standardWindowButton(.zoomButton)?.isHidden = true
         panel.isMovableByWindowBackground = true
         panel.backgroundColor = .black
         panel.hasShadow = true
@@ -255,6 +259,7 @@ public struct PictureInPictureContentView: View {
                 .transition(.opacity.combined(with: .scale(scale: 0.96)))
             }
         }
+        .ignoresSafeArea()
         .onHover { hovering in
             withAnimation(.fluidQuick) {
                 isHovered = hovering

@@ -16,29 +16,113 @@ private struct TactileTransportButtonStyle: ButtonStyle {
     }
 }
 
-// MARK: - Fluid Volume Slider with Smooth Thumb Hover Expansion
+// MARK: - Shadcn-style volume button group (− +)
 
-public struct FluidVolumeSlider: View {
+public struct VolumeButtonGroup: View {
     @Binding var volume: Float
     var isMuted: Bool = false
+    @State private var hovered: String?
 
     public init(volume: Binding<Float>, isMuted: Bool = false) {
         self._volume = volume
         self.isMuted = isMuted
     }
 
+    private var percent: Int { isMuted ? 0 : Int((volume * 100).rounded()) }
+
     public var body: some View {
-        // Default macOS slider look: native track, accent fill and round knob.
-        Slider(
-            value: Binding(
-                get: { isMuted ? 0 : Double(volume) },
-                set: { volume = Float($0) }
-            ),
-            in: 0...1
+        HStack(spacing: 0) {
+            stepButton(id: "minus", icon: "minus", label: "Volume down") { step(-0.05) }
+            stepButton(id: "plus", icon: "plus", label: "Volume up") { step(0.05) }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                .fill(ShadcnTheme.secondary)
         )
-        .controlSize(.small)
+        .accessibilityElement(children: .contain)
         .accessibilityLabel("Volume")
-        .accessibilityValue("\(isMuted ? 0 : Int(volume * 100))%")
+        .accessibilityValue("\(percent)%")
+    }
+
+    private func step(_ delta: Float) {
+        volume = Self.adjustedVolume(from: volume, isMuted: isMuted, by: delta)
+    }
+
+    /// Muted reads as 0%, so a decrease from muted stays at 0 and keeps the mute.
+    public static func adjustedVolume(from volume: Float, isMuted: Bool, by delta: Float) -> Float {
+        min(1, max(0, (isMuted ? 0 : volume) + delta))
+    }
+
+    private func stepButton(id: String, icon: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(hovered == id ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
+                .frame(width: 26, height: 26)
+                .background(
+                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                        .fill(hovered == id ? ShadcnTheme.cardHover : Color.clear)
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(TactileTransportButtonStyle(scale: 0.9))
+        .pointingHand()
+        .help(label)
+        .accessibilityLabel(label)
+        .onHover { h in
+            withAnimation(.fluidQuick) {
+                if h {
+                    hovered = id
+                } else if hovered == id {
+                    hovered = nil
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Transient volume readout (top-right)
+
+public struct VolumeReadout: View {
+    @Bindable var engine: VideoPlayerEngine
+    @State private var isVisible = false
+
+    public init(engine: VideoPlayerEngine) {
+        self.engine = engine
+    }
+
+    private var percent: Int { engine.isMuted ? 0 : Int((engine.volume * 100).rounded()) }
+
+    public var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: engine.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                .font(.system(size: 10, weight: .semibold))
+
+            Text("\(percent)%")
+                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .frame(minWidth: 30, alignment: .trailing)
+        }
+        .foregroundStyle(ShadcnTheme.foreground)
+        .padding(.horizontal, 10)
+        .frame(height: 26)
+        .background(Capsule(style: .continuous).fill(.ultraThinMaterial))
+        .background(Capsule(style: .continuous).fill(ShadcnTheme.card.opacity(0.55)))
+        .overlay(Capsule(style: .continuous).strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1))
+        .shadow(color: Color.black.opacity(0.25), radius: 8, y: 3)
+        .opacity(isVisible ? 1 : 0)
+        .scaleEffect(isVisible ? 1 : 0.95, anchor: .topTrailing)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+        .task(id: engine.volumeHUDToken) {
+            guard engine.volumeHUDToken > 0 else { return }
+            withAnimation(.fluidQuick) { isVisible = true }
+            do {
+                try await Task.sleep(nanoseconds: 1_200_000_000)
+            } catch {
+                return // A newer change restarted the task; keep the readout visible.
+            }
+            withAnimation(.fluidQuick) { isVisible = false }
+        }
     }
 }
 
@@ -103,8 +187,7 @@ public struct LiquidGlassHUD: View {
                 muteButton(isNarrow: isNarrow)
 
                 if !isNarrow {
-                    FluidVolumeSlider(volume: volumeBinding, isMuted: engine.isMuted)
-                        .frame(width: 74)
+                    VolumeButtonGroup(volume: volumeBinding, isMuted: engine.isMuted)
                         .padding(.horizontal, 4)
                 }
 
@@ -327,8 +410,7 @@ public struct LiquidGlassHUD: View {
                         .font(.system(size: 10, weight: .medium, design: .monospaced))
                         .foregroundStyle(ShadcnTheme.foregroundSecondary)
                 }
-                FluidVolumeSlider(volume: volumeBinding, isMuted: engine.isMuted)
-                    .frame(width: 130)
+                VolumeButtonGroup(volume: volumeBinding, isMuted: engine.isMuted)
 
                 Button(engine.isMuted ? "Unmute" : "Mute") {
                     engine.toggleMute()

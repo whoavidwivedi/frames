@@ -531,7 +531,7 @@ public final class PlaybackPipeline: ObservableObject {
         case mp4
     }
 
-    public static func probeContainerType(at url: URL) -> ContainerType {
+    public nonisolated static func probeContainerType(at url: URL) -> ContainerType {
         // 1. Sniff magic bytes
         if let handle = try? FileHandle(forReadingFrom: url) {
             defer { try? handle.close() }
@@ -616,6 +616,7 @@ public final class PlaybackPipeline: ObservableObject {
     private var scrubResiduePending: Bool = false
     private var audioSwitchTask: Task<Void, Never>?
     private var pendingAudioTrackNumber: UInt64?
+    private var loadToken: UInt64 = 0
     private var isPlaying = false
     private var playbackStartTime: CFTimeInterval = 0
     private var playbackStartPts: Double = 0
@@ -658,122 +659,199 @@ public final class PlaybackPipeline: ObservableObject {
     }
     
     // MARK: - Load File
-    
-    /// Opens and prepares a media file for native zero-copy playback synchronously.
-    @discardableResult
-    public func loadSync(url: URL) -> Bool {
-        stop()
-        resetClockTracker()
-        self.isDemuxerEOF = false
-        
-        transition(to: .loading)
-        self.currentURL = url
-        
-        // 1. Initialize pure Swift streaming demuxer (MP4/MOV or Matroska/WebM)
+
+    public enum PlaybackLoadError: LocalizedError {
+        case demuxFailed(Error)
+        case decoderUnavailable
+
+        public var errorDescription: String? {
+            switch self {
+            case .demuxFailed(let error):
+                return "Failed to demux container: \(error.localizedDescription)"
+            case .decoderUnavailable:
+                return "Failed to initialize VideoToolbox hardware decoder"
+            }
+        }
+    }
+
+    /// Demuxer + decoder + audio engine built off the main actor, then installed in one hop.
+    public struct PreparedPlayback: @unchecked Sendable {
+        let demuxer: any MediaDemuxer
+        let decoder: VideoToolboxDecoder
+        let audioEngine: AudioEngineBridge?
+        let audioTrackNumber: UInt64?
+    }
+
+    /// Opens the container, spins up VideoToolbox and CoreAudio. Blocking work, safe off-main.
+    nonisolated static func prepare(url: URL, preferredAudioLanguage pref: String, playbackRate: Float) throws -> PreparedPlayback {
+        let containerType = probeContainerType(at: url)
+        let demuxer: any MediaDemuxer
         do {
-            let containerType = Self.probeContainerType(at: url)
-            let d: any MediaDemuxer
             if containerType == .mp4 {
                 do {
-                    d = try MP4Demuxer(url: url)
+                    demuxer = try MP4Demuxer(url: url)
                 } catch {
-                    d = try MatroskaDemuxer(url: url)
+                    demuxer = try MatroskaDemuxer(url: url)
                 }
             } else {
                 do {
-                    d = try MatroskaDemuxer(url: url)
+                    demuxer = try MatroskaDemuxer(url: url)
                 } catch {
-                    d = try MP4Demuxer(url: url)
+                    demuxer = try MP4Demuxer(url: url)
                 }
             }
-            self.demuxer = d
-            self.duration = d.duration
-            
-            // 2. Select primary video track & setup VideoToolbox decoder
-            guard let vTrack = d.videoTracks.first,
-                  let decoder = VideoToolboxDecoder(track: vTrack) else {
-                transition(to: .error("Failed to initialize VideoToolbox hardware decoder"))
+        } catch {
+            throw PlaybackLoadError.demuxFailed(error)
+        }
+
+        guard let videoTrack = demuxer.videoTracks.first,
+              let decoder = VideoToolboxDecoder(track: videoTrack) else {
+            throw PlaybackLoadError.decoderUnavailable
+        }
+
+        let audioTrack = preferredAudioTrack(in: demuxer, pref: pref)
+        let audioEngine: AudioEngineBridge? = audioTrack.flatMap {
+            AudioEngineBridge(track: $0, initialRate: playbackRate)
+        }
+        return PreparedPlayback(
+            demuxer: demuxer,
+            decoder: decoder,
+            audioEngine: audioEngine,
+            audioTrackNumber: audioTrack?.trackNumber
+        )
+    }
+
+    nonisolated static func preferredAudioTrack(in demuxer: any MediaDemuxer, pref: String) -> DemuxedTrack? {
+        if pref == "System" {
+            let sysLang = Locale.current.language.languageCode?.identifier ?? "en"
+            let sysName = LanguageHelper.displayName(for: sysLang).lowercased()
+            return demuxer.audioTracks.first {
+                let name = LanguageHelper.displayName(for: $0.language).lowercased()
+                return name == sysName || $0.language?.lowercased() == sysLang
+            }
+        } else if pref == "Original" {
+            return demuxer.audioTracks.first(where: { $0.isDefault }) ?? demuxer.audioTracks.first
+        } else {
+            let prefLower = pref.lowercased()
+            return demuxer.audioTracks.first {
+                let name = LanguageHelper.displayName(for: $0.language).lowercased()
+                return name == prefLower || $0.language?.lowercased() == prefLower || ($0.name?.lowercased().contains(prefLower) ?? false)
+            }
+        }
+    }
+
+    /// Opens and prepares a media file asynchronously; heavy setup never runs on the main actor.
+    @discardableResult
+    public func load(url: URL) async -> Bool {
+        let pref = SettingsManager.shared.defaultAudioLanguage
+        let rate = playbackRate
+        stopDeferringHeavyTeardown()
+        loadToken &+= 1
+        let token = loadToken
+        resetClockTracker()
+        isDemuxerEOF = false
+        transition(to: .loading)
+        currentURL = url
+
+        do {
+            let prepared = try await Task.detached(priority: .userInitiated) {
+                try Self.prepare(url: url, preferredAudioLanguage: pref, playbackRate: rate)
+            }.value
+            guard token == loadToken else {
+                prepared.audioEngine?.stop()
+                prepared.decoder.invalidate()
+                prepared.demuxer.close()
                 return false
             }
-            
-            // Resolution-aware scrub cache scaling
-            let trackWidth = vTrack.pixelWidth > 0 ? vTrack.pixelWidth : vTrack.displayWidth
-            let trackHeight = vTrack.pixelHeight > 0 ? vTrack.pixelHeight : vTrack.displayHeight
+            return install(prepared, url: url)
+        } catch {
+            guard token == loadToken else { return false }
+            transition(to: .error(error.localizedDescription))
+            return false
+        }
+    }
+
+    /// Opens and prepares a media file synchronously (tests and callers that cannot await).
+    @discardableResult
+    public func loadSync(url: URL) -> Bool {
+        let pref = SettingsManager.shared.defaultAudioLanguage
+        stop()
+        loadToken &+= 1
+        resetClockTracker()
+        self.isDemuxerEOF = false
+
+        transition(to: .loading)
+        self.currentURL = url
+
+        do {
+            let prepared = try Self.prepare(url: url, preferredAudioLanguage: pref, playbackRate: playbackRate)
+            return install(prepared, url: url)
+        } catch {
+            transition(to: .error(error.localizedDescription))
+            return false
+        }
+    }
+
+    private func install(_ prepared: PreparedPlayback, url: URL) -> Bool {
+        let demuxer = prepared.demuxer
+        let videoTrack = demuxer.videoTracks.first
+        self.demuxer = demuxer
+        self.duration = demuxer.duration
+        self.videoDecoder = prepared.decoder
+
+        // Resolution-aware scrub cache scaling
+        if let videoTrack {
+            let trackWidth = videoTrack.pixelWidth > 0 ? videoTrack.pixelWidth : videoTrack.displayWidth
+            let trackHeight = videoTrack.pixelHeight > 0 ? videoTrack.pixelHeight : videoTrack.displayHeight
             if trackWidth > 0 && trackHeight > 0 {
                 scrubCache.updateCapacity(forWidth: trackWidth, height: trackHeight)
-            } else if let dims = decoder.videoDimensions, dims.width > 0 && dims.height > 0 {
+            } else if let dims = prepared.decoder.videoDimensions, dims.width > 0, dims.height > 0 {
                 scrubCache.updateCapacity(forWidth: dims.width, height: dims.height)
             }
-            
+
             // Frame-rate aware nominal cadence configuration
             let nominalDuration: Double
-            if let defaultDur = vTrack.defaultDurationNs, defaultDur > 0 {
+            if let defaultDur = videoTrack.defaultDurationNs, defaultDur > 0 {
                 nominalDuration = Double(defaultDur) / 1_000_000_000.0
-            } else if let fps = vTrack.estimatedFPS, fps > 0 {
+            } else if let fps = videoTrack.estimatedFPS, fps > 0 {
                 nominalDuration = 1.0 / fps
             } else {
                 nominalDuration = 1.0 / 30.0
             }
             self.nominalFrameDuration = nominalDuration
             self.frameQueue.setNominalFrameDuration(nominalDuration)
-            let isNetworkOrNAS = url.path.hasPrefix("/Volumes/") || url.scheme == "smb" || url.scheme == "afp" || url.scheme == "nfs"
-            let estBitrate = (d.duration > 0 && d.fileSize > 0) ? (Double(d.fileSize * 8) / d.duration) : 0.0
-            self.frameQueue.configureBuffering(isNetworkOrNAS: isNetworkOrNAS, bitrate: estBitrate)
-            self.packetChunkBuffer.setCapacity(isNetworkOrNAS || estBitrate > 30_000_000 ? 512 : 256)
-            
-            let q = self.frameQueue
-            let cache = self.scrubCache
-            decoder.setFrameHandler { frame in
-                let w = CVPixelBufferGetWidth(frame.pixelBuffer)
-                let h = CVPixelBufferGetHeight(frame.pixelBuffer)
-                if w > 0 && h > 0 {
-                    cache.updateCapacity(forWidth: w, height: h)
-                }
-                cache.insert(buffer: frame.pixelBuffer, pts: frame.pts)
-                q.enqueue(frame)
-            }
-            self.videoDecoder = decoder
-            
-            // 3. Select primary audio track & setup CoreAudio engine
-            let pref = SettingsManager.shared.defaultAudioLanguage
-            let preferredAudio: DemuxedTrack? = {
-                if pref == "System" {
-                    let sysLang = Locale.current.language.languageCode?.identifier ?? "en"
-                    let sysName = LanguageHelper.displayName(for: sysLang).lowercased()
-                    return d.audioTracks.first {
-                        let name = LanguageHelper.displayName(for: $0.language).lowercased()
-                        return name == sysName || $0.language?.lowercased() == sysLang
-                    }
-                } else if pref == "Original" {
-                    return d.audioTracks.first(where: { $0.isDefault }) ?? d.audioTracks.first
-                } else {
-                    let prefLower = pref.lowercased()
-                    return d.audioTracks.first {
-                        let name = LanguageHelper.displayName(for: $0.language).lowercased()
-                        return name == prefLower || $0.language?.lowercased() == prefLower || ($0.name?.lowercased().contains(prefLower) ?? false)
-                    }
-                }
-            }()
-            let defaultAudio = preferredAudio ?? (d.audioTracks.first(where: { $0.isDefault }) ?? d.audioTracks.first)
-            if let aTrack = defaultAudio {
-                let bridge = AudioEngineBridge(track: aTrack, initialRate: playbackRate)
-                self.audioEngine = bridge
-                self.activeAudioTrackNumber = aTrack.trackNumber
-                routing.updateAudio(engine: bridge, trackNumber: aTrack.trackNumber)
-            } else {
-                self.activeAudioTrackNumber = nil
-                routing.updateAudio(engine: nil, trackNumber: nil)
-            }
-            self.activeSubtitleTrackNumber = nil
-            routing.updateSubtitle(trackNumber: nil)
-            routing.setPlaybackRate(playbackRate)
-            
-            transition(to: .paused)
-            return true
-        } catch {
-            transition(to: .error("Failed to demux container: \(error.localizedDescription)"))
-            return false
         }
+
+        let isNetworkOrNAS = url.path.hasPrefix("/Volumes/") || url.scheme == "smb" || url.scheme == "afp" || url.scheme == "nfs"
+        let estBitrate = (demuxer.duration > 0 && demuxer.fileSize > 0) ? (Double(demuxer.fileSize * 8) / demuxer.duration) : 0.0
+        self.frameQueue.configureBuffering(isNetworkOrNAS: isNetworkOrNAS, bitrate: estBitrate)
+        self.packetChunkBuffer.setCapacity(isNetworkOrNAS || estBitrate > 30_000_000 ? 512 : 256)
+
+        let q = self.frameQueue
+        let cache = self.scrubCache
+        prepared.decoder.setFrameHandler { frame in
+            let w = CVPixelBufferGetWidth(frame.pixelBuffer)
+            let h = CVPixelBufferGetHeight(frame.pixelBuffer)
+            if w > 0 && h > 0 {
+                cache.updateCapacity(forWidth: w, height: h)
+            }
+            cache.insert(buffer: frame.pixelBuffer, pts: frame.pts)
+            q.enqueue(frame)
+        }
+
+        self.audioEngine = prepared.audioEngine
+        self.activeAudioTrackNumber = prepared.audioTrackNumber
+        if let audio = prepared.audioEngine, let trackNumber = prepared.audioTrackNumber {
+            routing.updateAudio(engine: audio, trackNumber: trackNumber)
+        } else {
+            routing.updateAudio(engine: nil, trackNumber: nil)
+        }
+        self.activeSubtitleTrackNumber = nil
+        routing.updateSubtitle(trackNumber: nil)
+        routing.setPlaybackRate(playbackRate)
+
+        transition(to: .paused)
+        return true
     }
     
     // MARK: - Track Switching
@@ -860,12 +938,6 @@ public final class PlaybackPipeline: ObservableObject {
         audioEngine?.setPlaybackRate(clamped)
     }
     
-    /// Opens and prepares a media file for native zero-copy playback.
-    @discardableResult
-    public func load(url: URL) async -> Bool {
-        return loadSync(url: url)
-    }
-    
     // MARK: - Playback Control
     
     public func play() {
@@ -931,6 +1003,33 @@ public final class PlaybackPipeline: ObservableObject {
     }
     
     public func stop() {
+        let subsystems = resetForStop()
+        subsystems?.teardown()
+    }
+
+    /// Stops playback and tears down decoders/demuxer off the main thread so UI returns instantly.
+    public func stopDeferringHeavyTeardown() {
+        guard let subsystems = resetForStop() else { return }
+        Task.detached(priority: .userInitiated) {
+            subsystems.teardown()
+        }
+    }
+
+    private struct PlaybackSubsystems: @unchecked Sendable {
+        let audioEngine: AudioEngineBridge?
+        let videoDecoder: VideoToolboxDecoder?
+        let demuxer: (any MediaDemuxer)?
+
+        func teardown() {
+            audioEngine?.stop()
+            videoDecoder?.invalidate()
+            demuxer?.close()
+        }
+    }
+
+    @discardableResult
+    private func resetForStop() -> PlaybackSubsystems? {
+        loadToken &+= 1
         isPlaying = false
         self.isDemuxerEOF = false
         isScrubbingActive = false
@@ -945,19 +1044,23 @@ public final class PlaybackPipeline: ObservableObject {
         feederTask = nil
         lastReportedUIClock = -1.0
         resetClockTracker()
-        
-        audioEngine?.stop()
-        videoDecoder?.invalidate()
+
+        let subsystems = PlaybackSubsystems(audioEngine: audioEngine, videoDecoder: videoDecoder, demuxer: demuxer)
+        audioEngine = nil
         videoDecoder = nil
-        demuxer?.close()
         demuxer = nil
-        
+
         frameQueue.removeAll()
         scrubCache.clear()
         packetChunkBuffer.removeAll()
         renderer?.clearFrame()
         currentTime = 0
         transition(to: .stopped)
+
+        guard subsystems.audioEngine != nil || subsystems.videoDecoder != nil || subsystems.demuxer != nil else {
+            return nil
+        }
+        return subsystems
     }
     
     /// Seeks to target timestamp with artifact-free GOP preroll decoding and scrub cache lookup.

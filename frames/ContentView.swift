@@ -213,6 +213,13 @@ struct ContentView: View {
                         .zIndex(60)
                     }
 
+                    // Transient volume readout (top-right, fades after adjustment)
+                    VolumeReadout(engine: engine)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                        .padding(.top, 58)
+                        .padding(.trailing, 16)
+                        .zIndex(70)
+
                     // Buffering Indicator
                     if engine.isBuffering {
                         ProgressView()

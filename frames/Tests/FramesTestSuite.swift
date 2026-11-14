@@ -506,6 +506,9 @@ public enum FramesTestSuite {
         let sidebarViewHost = NSHostingView(rootView: DashboardSidebarView(library: lib, width: 210, onPlayURL: { _ in }))
         assertTest("DashboardSidebarView NSHostingView Mount", condition: sidebarViewHost.fittingSize.width >= 0)
         assertTest("DashboardSidebarView App Version Available", condition: !UpdateManager.shared.currentVersionString.isEmpty)
+        assertTest("Sidebar Update Status Idle Offers Check", condition: DashboardSidebarView.updateStatusText(for: .idle) == "Check for updates")
+        assertTest("Sidebar Update Status Latest Shows Version", condition: DashboardSidebarView.updateStatusText(for: .upToDate(checkedVersion: "1.7.3")) == "Latest · v1.7.3")
+        assertTest("Sidebar Update Status Error Offers Retry", condition: DashboardSidebarView.updateStatusText(for: .error(message: "offline")).contains("retry"))
 
         let topBarViewHost = NSHostingView(rootView: DashboardTopBarView(library: lib, onPlayURL: { _ in }))
         assertTest("DashboardTopBarView NSHostingView Mount", condition: topBarViewHost.fittingSize.width >= 0)
@@ -2565,6 +2568,31 @@ public enum FramesTestSuite {
         let hudHost = NSHostingView(rootView: fullHUD)
         assertTest("LiquidGlassHUD Full Surface Mount Operable", condition: hudHost.fittingSize.height > 0)
 
+        // Volume button group steps and clamps; muted decreases stay silent at 0
+        assertTest(
+            "Volume Group Step Up Unmutes",
+            condition: VolumeButtonGroup.adjustedVolume(from: 0.5, isMuted: true, by: 0.05) == 0.05
+        )
+        assertTest(
+            "Volume Group Step Down Muted Stays Zero",
+            condition: VolumeButtonGroup.adjustedVolume(from: 0.5, isMuted: true, by: -0.05) == 0
+        )
+        assertTest(
+            "Volume Group Clamps At Bounds",
+            condition: VolumeButtonGroup.adjustedVolume(from: 0.98, isMuted: false, by: 0.05) == 1
+                && VolumeButtonGroup.adjustedVolume(from: 0.02, isMuted: false, by: -0.05) == 0
+        )
+
+        // Volume readout re-shows on volume and mute changes
+        let tokenBefore = hudEngineForTesting.volumeHUDToken
+        hudEngineForTesting.setVolumeDelta(0.05)
+        let tokenAfterVolume = hudEngineForTesting.volumeHUDToken
+        hudEngineForTesting.toggleMute()
+        assertTest(
+            "Volume Readout Token Bumps On Change",
+            condition: tokenAfterVolume > tokenBefore && hudEngineForTesting.volumeHUDToken > tokenAfterVolume
+        )
+
         // CustomScrubber Timeline Mount Operable
         let scrubberView = CustomScrubber(engine: hudEngineForTesting)
         let scrubberHost = NSHostingView(rootView: scrubberView)
@@ -2597,6 +2625,11 @@ public enum FramesTestSuite {
         let minBtn = testWin.standardWindowButton(.miniaturizeButton)
         let zoomBtn = testWin.standardWindowButton(.zoomButton)
         assertTest("Native macOS Traffic Lights Visible", condition: closeBtn?.isHidden == false && minBtn?.isHidden == false && zoomBtn?.isHidden == false)
+
+        // Menu bar popups and other borderless windows must not drive the dashboard layout
+        assertTest("WindowManager Tracks Titled Content Window", condition: WindowManager.isContentWindow(testWin))
+        let borderlessWin = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 200, height: 200), styleMask: [.borderless], backing: .buffered, defer: false)
+        assertTest("WindowManager Ignores Borderless Menu/Popup Window", condition: !WindowManager.isContentWindow(borderlessWin))
 
         // MARK: - 39. Core Optimization & Critic Audit Roadmap Verifications
         logs.append("\n[39] Testing Core Performance Optimization Roadmap...")
@@ -3516,6 +3549,29 @@ public enum FramesTestSuite {
         mp4Pipeline.seek(to: 5.0, isScrubbing: false)
         assertTest("PlaybackPipeline Seek Dispatched Successfully", condition: true)
         mp4Pipeline.stop()
+
+        // Async load builds demuxer/decoder/audio off-main, then installs on the main actor.
+        let asyncPipeline = PlaybackPipeline()
+        var asyncLoadResult: Bool?
+        Task { @MainActor in
+            asyncLoadResult = await asyncPipeline.load(url: tempMP4URL)
+        }
+        let asyncDeadline = Date().addingTimeInterval(5)
+        while asyncLoadResult == nil && Date() < asyncDeadline {
+            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
+        }
+        assertTest(
+            "PlaybackPipeline Async Load Installs Demuxer",
+            condition: asyncLoadResult == true && asyncPipeline.demuxer != nil,
+            "Result: \(String(describing: asyncLoadResult))"
+        )
+
+        // Deferred stop resets observable state immediately; heavy teardown runs in the background.
+        asyncPipeline.stopDeferringHeavyTeardown()
+        assertTest(
+            "PlaybackPipeline Deferred Stop Resets State Immediately",
+            condition: asyncPipeline.demuxer == nil && asyncPipeline.state == .stopped
+        )
 
         try? FileManager.default.removeItem(at: tempMP4URL)
         try? FileManager.default.removeItem(at: tempMKVURL2)

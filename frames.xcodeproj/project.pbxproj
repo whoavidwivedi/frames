@@ -52,6 +52,7 @@
 		C120853CAC1FCD904D32CCA8 /* LiquidGlassStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59E9E301B1965D9ED550466E /* LiquidGlassStyle.swift */; };
 		F46963707DBB1A5F906A39B2 /* PointerCursor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9981A90A8E4365A9AD362F1 /* PointerCursor.swift */; };
 		29A58F0A50DE177DC630FC3A /* ShadcnButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A93AE87A96BD61073FD3861 /* ShadcnButton.swift */; };
+		AA11BB22CC33DD44EE55FF01 /* ShadcnBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF02 /* ShadcnBadge.swift */; };
 		12718C145356E808E0FE8118 /* ShadcnCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6068EABAB8736A26617F768 /* ShadcnCommand.swift */; };
 		0228E85A8A1C399717EC310C /* ShadcnTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA43A3F961654503C7149A23 /* ShadcnTheme.swift */; };
 		770F21E1E6CB2D1B6762027A /* TimeFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01A1CEAB2CB8DF9D706583D5 /* TimeFormatting.swift */; };
@@ -139,6 +140,7 @@
 		59E9E301B1965D9ED550466E /* LiquidGlassStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LiquidGlassStyle.swift"; sourceTree = "<group>"; };
 		B9981A90A8E4365A9AD362F1 /* PointerCursor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PointerCursor.swift"; sourceTree = "<group>"; };
 		4A93AE87A96BD61073FD3861 /* ShadcnButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ShadcnButton.swift"; sourceTree = "<group>"; };
+		AA11BB22CC33DD44EE55FF02 /* ShadcnBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ShadcnBadge.swift"; sourceTree = "<group>"; };
 		E6068EABAB8736A26617F768 /* ShadcnCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ShadcnCommand.swift"; sourceTree = "<group>"; };
 		AA43A3F961654503C7149A23 /* ShadcnTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ShadcnTheme.swift"; sourceTree = "<group>"; };
 		01A1CEAB2CB8DF9D706583D5 /* TimeFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TimeFormatting.swift"; sourceTree = "<group>"; };
@@ -361,6 +363,7 @@
 				59E9E301B1965D9ED550466E /* LiquidGlassStyle.swift */,
 				B9981A90A8E4365A9AD362F1 /* PointerCursor.swift */,
 				4A93AE87A96BD61073FD3861 /* ShadcnButton.swift */,
+				AA11BB22CC33DD44EE55FF02 /* ShadcnBadge.swift */,
 				E6068EABAB8736A26617F768 /* ShadcnCommand.swift */,
 				AA43A3F961654503C7149A23 /* ShadcnTheme.swift */,
 				01A1CEAB2CB8DF9D706583D5 /* TimeFormatting.swift */,
@@ -551,6 +554,7 @@
 				C120853CAC1FCD904D32CCA8 /* LiquidGlassStyle.swift in Sources */,
 				F46963707DBB1A5F906A39B2 /* PointerCursor.swift in Sources */,
 				29A58F0A50DE177DC630FC3A /* ShadcnButton.swift in Sources */,
+				AA11BB22CC33DD44EE55FF01 /* ShadcnBadge.swift in Sources */,
 				12718C145356E808E0FE8118 /* ShadcnCommand.swift in Sources */,
 				0228E85A8A1C399717EC310C /* ShadcnTheme.swift in Sources */,
 				C11100032345678901234567 /* GoogleSansFont.swift in Sources */,

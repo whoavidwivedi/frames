@@ -31,6 +31,7 @@ public struct DashboardSidebarView: View {
     public var onPlayURL: (URL) -> Void
     @State private var hoveredFolderId: UUID? = nil
     @State private var hoveredRow: String? = nil
+    @State private var isHoveringVersion: Bool = false
     @State private var windowManager = WindowManager.shared
     @State private var updateManager = UpdateManager.shared
     @Namespace private var sidebarNamespace
@@ -160,65 +161,54 @@ public struct DashboardSidebarView: View {
             .padding(.horizontal, 10)
             .padding(.bottom, 4)
 
-            // Footer: App Version & Check for Updates (Shadcn Badge Style)
+            // Footer: shadcn badge showing latest version / update availability
             VStack(alignment: .leading, spacing: 6) {
                 Divider()
                     .overlay(ShadcnTheme.border)
                     .padding(.bottom, 4)
 
-                // App Version & Update Status
                 Button {
-                    updateManager.checkForUpdates(manual: true)
-                } label: {
-                    HStack(spacing: 6) {
-                        Text("Frames")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(ShadcnTheme.foreground)
-
-                        Text("v\(updateManager.currentVersionString)")
-                            .font(.system(size: 10, weight: .medium, design: .monospaced))
-                            .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1.5)
-                            .background(
-                                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                    .fill(ShadcnTheme.card.opacity(0.6))
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                    .strokeBorder(ShadcnTheme.border.opacity(0.7), lineWidth: 0.5)
-                            )
-
-                        Spacer()
-
-                        if updateManager.status == .checking {
-                            ProgressView()
-                                .controlSize(.mini)
-                                .scaleEffect(0.75)
-                        } else if updateManager.hasUpdate {
-                            HStack(spacing: 3) {
-                                Circle()
-                                    .fill(Color.blue)
-                                    .frame(width: 5, height: 5)
-                                Text("New")
-                                    .font(.system(size: 9, weight: .bold))
-                                    .foregroundStyle(Color.blue)
-                            }
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1)
-                            .background(Color.blue.opacity(0.12))
-                            .clipShape(Capsule())
+                    if updateManager.hasUpdate {
+                        withAnimation(.fluidQuick) {
+                            updateManager.presentUpdatePrompt()
                         }
+                    } else {
+                        updateManager.checkForUpdates(manual: true)
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 3)
+                } label: {
+                    HStack {
+                        ShadcnBadge(
+                            updateStatusText,
+                            icon: updateBadgeIcon,
+                            variant: updateBadgeVariant,
+                            isLoading: updateBadgeLoading,
+                            isHighlighted: isHoveringVersion
+                        )
+
+                        Spacer(minLength: 0)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(SidebarRowButtonStyle())
                 .pointingHand()
-                .help("Frames v\(updateManager.currentVersionString) • Click to check for updates")
-                .padding(.bottom, 8)
+                .help("Frames v\(updateManager.currentVersionString) • \(updateStatusText) • Click to check for updates")
+                .accessibilityLabel("Frames version \(updateManager.currentVersionString). \(updateStatusText)")
+                .onHover { hovering in
+                    withAnimation(.fluidQuick) {
+                        isHoveringVersion = hovering
+                    }
+                }
+
+                if case .downloading = updateManager.status {
+                    ProgressView(value: updateManager.downloadProgress)
+                        .progressViewStyle(.linear)
+                        .tint(Color.blue)
+                        .frame(height: 2)
+                }
             }
+            .padding(.horizontal, 10)
+            .padding(.bottom, 8)
         }
         .frame(width: width)
         .background(ShadcnTheme.sidebar)
@@ -229,6 +219,70 @@ public struct DashboardSidebarView: View {
             alignment: .trailing
         )
         .clipped()
+    }
+
+    // MARK: - Update Status (Sidebar Footer)
+
+    public static func updateStatusText(for status: UpdateStatus) -> String {
+        switch status {
+        case .idle:
+            return "Check for updates"
+        case .checking:
+            return "Checking for updates…"
+        case .upToDate(let checkedVersion):
+            return "Latest · v\(checkedVersion)"
+        case .available(let info):
+            return "\(info.tagName) available"
+        case .downloading:
+            return "Downloading update…"
+        case .extracting:
+            return "Preparing update…"
+        case .readyToRestart:
+            return "Restart to update"
+        case .error:
+            return "Check failed — retry"
+        }
+    }
+
+    private var updateStatusText: String {
+        Self.updateStatusText(for: updateManager.status)
+    }
+
+    private var updateBadgeVariant: ShadcnBadgeVariant {
+        switch updateManager.status {
+        case .available, .readyToRestart:
+            return .default
+        case .error:
+            return .destructive
+        case .idle, .checking, .upToDate, .downloading, .extracting:
+            return .secondary
+        }
+    }
+
+    private var updateBadgeIcon: String? {
+        switch updateManager.status {
+        case .idle:
+            return "arrow.clockwise"
+        case .upToDate:
+            return "checkmark"
+        case .available:
+            return "arrow.down.circle.fill"
+        case .readyToRestart:
+            return "restart"
+        case .error:
+            return "exclamationmark.triangle.fill"
+        case .checking, .downloading, .extracting:
+            return nil
+        }
+    }
+
+    private var updateBadgeLoading: Bool {
+        switch updateManager.status {
+        case .checking, .downloading, .extracting:
+            return true
+        default:
+            return false
+        }
     }
 
     // MARK: - Row Components (Shadcn Sidebar Design System)

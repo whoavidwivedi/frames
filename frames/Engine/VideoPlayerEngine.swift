@@ -83,6 +83,7 @@ public final class VideoPlayerEngine {
             if isNativePipelineActive {
                 nativePipeline.setVolume(isMuted ? 0.0 : clamped)
             }
+            volumeHUDToken &+= 1
         }
     }
     public var isMuted: Bool = false {
@@ -93,8 +94,11 @@ public final class VideoPlayerEngine {
             if isNativePipelineActive {
                 nativePipeline.setVolume(clamped)
             }
+            volumeHUDToken &+= 1
         }
     }
+    /// Bumped on every volume or mute change so the transient top-right readout can re-show.
+    public var volumeHUDToken: Int = 0
     public var playbackRate: Float = 1.0 {
         didSet {
             guard oldValue != playbackRate else { return }
@@ -205,15 +209,13 @@ public final class VideoPlayerEngine {
 
         PictureInPictureManager.shared.exitPictureInPicture()
         loadGeneration &+= 1
-        let teardownGeneration = loadGeneration
         seekGeneration &+= 1
         isSeekInProgress = false
         chaseTime = .zero
         clearPlayerItemObservers()
 
         // Switch the UI to the dashboard first. VideoToolbox invalidation and demuxer
-        // teardown block the main thread for a noticeable moment on close, so run them
-        // after the state change (skipped if another video loads in the meantime).
+        // teardown are handed to a background task so closing never blocks the main thread.
         let pipelineToStop = isNativePipelineActive
         isNativePipelineActive = false
 
@@ -243,11 +245,7 @@ public final class VideoPlayerEngine {
         updateBufferingStatus(false)
 
         if pipelineToStop {
-            let pipeline = nativePipeline
-            Task { [weak self] in
-                guard let self, self.loadGeneration == teardownGeneration else { return }
-                pipeline.stop()
-            }
+            nativePipeline.stopDeferringHeavyTeardown()
         }
     }
 
@@ -266,7 +264,7 @@ public final class VideoPlayerEngine {
         clearPlayerItemObservers()
 
         if isNativePipelineActive {
-            nativePipeline.stop()
+            nativePipeline.stopDeferringHeavyTeardown()
             isNativePipelineActive = false
         }
 
