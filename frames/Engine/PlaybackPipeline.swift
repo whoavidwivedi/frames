@@ -707,21 +707,22 @@ public final class PlaybackPipeline: ObservableObject {
     }
 
     nonisolated static func preferredAudioTrack(in demuxer: any MediaDemuxer, pref: String) -> DemuxedTrack? {
+        let fallback = { demuxer.audioTracks.first(where: { $0.isDefault }) ?? demuxer.audioTracks.first }
         if pref == "System" {
             let sysLang = Locale.current.language.languageCode?.identifier ?? "en"
             let sysName = LanguageHelper.displayName(for: sysLang).lowercased()
             return demuxer.audioTracks.first {
                 let name = LanguageHelper.displayName(for: $0.language).lowercased()
                 return name == sysName || $0.language?.lowercased() == sysLang
-            }
+            } ?? fallback()
         } else if pref == "Original" {
-            return demuxer.audioTracks.first(where: { $0.isDefault }) ?? demuxer.audioTracks.first
+            return fallback()
         } else {
             let prefLower = pref.lowercased()
             return demuxer.audioTracks.first {
                 let name = LanguageHelper.displayName(for: $0.language).lowercased()
                 return name == prefLower || $0.language?.lowercased() == prefLower || ($0.name?.lowercased().contains(prefLower) ?? false)
-            }
+            } ?? fallback()
         }
     }
 

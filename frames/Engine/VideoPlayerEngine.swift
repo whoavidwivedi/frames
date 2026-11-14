@@ -638,7 +638,24 @@ public final class VideoPlayerEngine {
 
         if !selectedSubtitleTrack.cues.isEmpty {
             let adjustedTime = time - subtitleDelay
-            let newText = selectedSubtitleTrack.cues.first(where: { adjustedTime >= $0.startTime && adjustedTime <= $0.endTime })?.text ?? ""
+            // Cues are stored in startTime order; binary search for the active cue.
+            let cues = selectedSubtitleTrack.cues
+            var lo = 0, hi = cues.count - 1, found = -1
+            while lo <= hi {
+                let mid = (lo + hi) >> 1
+                if adjustedTime >= cues[mid].startTime {
+                    found = mid
+                    lo = mid + 1
+                } else {
+                    hi = mid - 1
+                }
+            }
+            let newText: String
+            if found >= 0 && adjustedTime <= cues[found].endTime {
+                newText = cues[found].text
+            } else {
+                newText = ""
+            }
             if activeSubtitleText != newText {
                 activeSubtitleText = newText
             }
