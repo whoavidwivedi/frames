@@ -43,7 +43,7 @@ public struct ResumePlaybackOverlay: View {
             let resumeX = geo.size.width * CGFloat(min(max(prompt.progress, 0), 1))
 
             ZStack {
-                Color.black.opacity(0.12)
+                Color.black.opacity(0.05)
                     .ignoresSafeArea()
                     .onTapGesture { onCancel() }
 
@@ -115,7 +115,7 @@ public struct ResumePlaybackOverlay: View {
                     .scaleEffect(appeared ? 1 : 0.85)
                     .opacity(appeared ? 1 : 0)
                     .offset(y: appeared ? 0 : 10)
-                    .position(x: max(110, min(geo.size.width - 110, resumeX)), y: geo.size.height - 86)
+                    .position(x: max(110, min(geo.size.width - 110, resumeX)), y: geo.size.height - 52)
                 }
                 .onAppear {
                     withAnimation(.spring(response: 0.4, dampingFraction: 0.76)) {
