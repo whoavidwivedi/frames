@@ -43,7 +43,7 @@ public struct ResumePlaybackOverlay: View {
             let resumeX = geo.size.width * CGFloat(min(max(prompt.progress, 0), 1))
 
             ZStack {
-                Color.black.opacity(0.25)
+                Color.black.opacity(0.18)
                     .ignoresSafeArea()
                     .onTapGesture { onCancel() }
 
@@ -94,7 +94,6 @@ public struct ResumePlaybackOverlay: View {
                         .background(
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
                                 .fill(.ultraThinMaterial)
-                                .environment(\.colorScheme, .dark)
                         )
                         .background(
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
