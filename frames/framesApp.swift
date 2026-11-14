@@ -36,6 +36,8 @@ struct framesApp: App {
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 980, height: 620)
         .commands {
+            // Keep the menu bar to the essentials: app menu (About/Settings/Updates/Quit),
+            // File, Edit, View (fullscreen), Window and Help.
             SwiftUI.CommandGroup(after: .appInfo) {
                 Button("Check for Updates...") {
                     UpdateManager.shared.checkForUpdates(manual: true)
@@ -55,48 +57,7 @@ struct framesApp: App {
                 }
                 .keyboardShortcut("o", modifiers: .command)
 
-                Menu("Open Recent") {
-                    let recentVideos = LibraryManager.shared.videos.filter { $0.lastPlayedDate != nil }
-                    if recentVideos.isEmpty {
-                        Text("No Recent Videos")
-                    } else {
-                        ForEach(recentVideos) { video in
-                            Button(video.title) {
-                                NotificationCenter.default.post(name: .openVideoNotification, object: video.url)
-                            }
-                        }
-                        Divider()
-                        Button("Clear Menu") {
-                            SettingsManager.shared.clearWatchHistory()
-                        }
-                    }
-                }
-
                 Divider()
-
-                Button("Save Frame Snapshot") {
-                    NotificationCenter.default.post(
-                        name: .triggerSnapshotNotification,
-                        object: nil
-                    )
-                    if let currentURL = engine.currentURL {
-                        do {
-                            let metadata = try FrameCaptureEngine.shared.saveFrame(
-                                pixelBuffer: nil,
-                                videoTitle: currentURL.deletingPathExtension().lastPathComponent,
-                                timestampSeconds: engine.currentTime
-                            )
-                            NotificationCenter.default.post(
-                                name: Notification.Name("FramesSnapshotCapturedNotification"),
-                                object: metadata
-                            )
-                        } catch {
-                            print("Frame capture error: \(error)")
-                        }
-                    }
-                }
-                .keyboardShortcut("s", modifiers: .command)
-                .disabled(engine.currentURL == nil)
 
                 Button("Close Window") {
                     NSApp.keyWindow?.performClose(nil)
@@ -105,154 +66,10 @@ struct framesApp: App {
             }
 
             SwiftUI.CommandGroup(replacing: .sidebar) {
-                Button("Toggle Sidebar") {
-                    LibraryManager.shared.toggleSidebar()
-                }
-                .keyboardShortcut("b", modifiers: .command)
-
-                Divider()
-
                 Button(WindowManager.shared.isAnyFullscreen ? "Exit Full Screen" : "Enter Full Screen") {
                     WindowManager.shared.toggleNativeFullscreen()
                 }
                 .keyboardShortcut("f", modifiers: [.control, .command])
-
-                Button(PictureInPictureManager.shared.isPictureInPicture ? "Exit Picture in Picture" : "Picture in Picture") {
-                    PictureInPictureManager.shared.toggle(engine: engine)
-                }
-                .keyboardShortcut("p", modifiers: [])
-                .disabled(engine.currentURL == nil)
-
-                Button("Hardware Metrics Inspector") {
-                    engine.activeInspectorSheet = (engine.activeInspectorSheet == .stats ? nil : .stats)
-                }
-                .keyboardShortcut("i", modifiers: .command)
-                .disabled(engine.currentURL == nil)
-
-                Divider()
-
-                Button("Command Palette...") {
-                    CommandPaletteManager.shared.toggle()
-                }
-                .keyboardShortcut("k", modifiers: .command)
-            }
-
-            CommandMenu("Playback") {
-                Button(engine.isPlaying ? "Pause" : (engine.hasEnded ? "Replay" : "Play")) {
-                    engine.togglePlayPause()
-                }
-                .keyboardShortcut(.space, modifiers: [])
-                .disabled(engine.currentURL == nil)
-
-                Divider()
-
-                Button("Skip Forward 10s") {
-                    engine.skip(seconds: 10)
-                }
-                .keyboardShortcut(.rightArrow, modifiers: [])
-                .disabled(engine.currentURL == nil)
-
-                Button("Skip Backward 10s") {
-                    engine.skip(seconds: -10)
-                }
-                .keyboardShortcut(.leftArrow, modifiers: [])
-                .disabled(engine.currentURL == nil)
-
-                Button("Next Frame") {
-                    engine.stepFrame(forward: true)
-                }
-                .keyboardShortcut(".", modifiers: [])
-                .disabled(engine.currentURL == nil)
-
-                Button("Previous Frame") {
-                    engine.stepFrame(forward: false)
-                }
-                .keyboardShortcut(",", modifiers: [])
-                .disabled(engine.currentURL == nil)
-
-                Divider()
-
-                Button("Faster") {
-                    engine.playbackRate = min(3.0, ((engine.playbackRate + 0.1) * 10).rounded() / 10)
-                }
-                .keyboardShortcut("]", modifiers: [])
-                .disabled(engine.currentURL == nil)
-
-                Button("Slower") {
-                    engine.playbackRate = max(0.25, ((engine.playbackRate - 0.1) * 10).rounded() / 10)
-                }
-                .keyboardShortcut("[", modifiers: [])
-                .disabled(engine.currentURL == nil)
-
-                Button("Normal Speed (1.0×)") {
-                    engine.playbackRate = 1.0
-                }
-                .disabled(engine.currentURL == nil)
-
-                Divider()
-
-                Button("Volume Up") {
-                    engine.setVolumeDelta(0.05)
-                }
-                .keyboardShortcut(.upArrow, modifiers: [])
-
-                Button("Volume Down") {
-                    engine.setVolumeDelta(-0.05)
-                }
-                .keyboardShortcut(.downArrow, modifiers: [])
-
-                Button(engine.isMuted ? "Unmute" : "Mute") {
-                    engine.toggleMute()
-                }
-                .keyboardShortcut("m", modifiers: [])
-
-                Divider()
-
-                Menu("Subtitles") {
-                    Button("Off") {
-                        engine.selectSubtitleTrack(SubtitleTrack.off)
-                    }
-                    ForEach(engine.availableSubtitleTracks.filter { $0.id != SubtitleTrack.off.id }) { track in
-                        Button(track.title) {
-                            engine.selectSubtitleTrack(track)
-                        }
-                    }
-                }
-                .disabled(engine.currentURL == nil)
-
-                Menu("Audio Track") {
-                    ForEach(engine.availableAudioTracks) { track in
-                        Button(track.title) {
-                            engine.selectAudioTrack(track)
-                        }
-                    }
-                }
-                .disabled(engine.currentURL == nil)
-            }
-
-            CommandMenu("Navigate") {
-                Button("Back") {
-                    NotificationCenter.default.post(name: .returnToDashboardNotification, object: nil)
-                    LibraryManager.shared.goBack()
-                }
-                .keyboardShortcut("[", modifiers: .command)
-
-                Button("Forward") {
-                    LibraryManager.shared.goForward()
-                }
-                .keyboardShortcut("]", modifiers: .command)
-                .disabled(!LibraryManager.shared.canGoForward)
-            }
-
-            CommandMenu("Appearance") {
-                Picker("Theme", selection: Binding(
-                    get: { ThemeManager.shared.mode },
-                    set: { ThemeManager.shared.mode = $0 }
-                )) {
-                    ForEach(ThemeMode.allCases) { mode in
-                        Label(mode.displayName, systemImage: mode.icon).tag(mode)
-                    }
-                }
             }
         }
     }

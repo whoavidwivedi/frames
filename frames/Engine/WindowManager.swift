@@ -54,10 +54,18 @@ public final class WindowManager {
         window.standardWindowButton(.zoomButton)?.isHidden = false
     }
 
-    /// File pickers and sheets are NSPanels. Their resize/key notifications must
-    /// never drive the main window's layout, or the dashboard shrinks while Finder opens.
+    /// File pickers, sheets and the menu bar's own popup windows are not the content
+    /// window. Their resize/key notifications must never drive the main window's
+    /// layout, or the dashboard shrinks while a panel or menu opens.
+    public static func isContentWindow(_ window: NSWindow) -> Bool {
+        !(window is NSPanel)
+            && window.sheetParent == nil
+            && window.styleMask.contains(.titled)
+    }
+
     private func contentWindow(from notification: Notification) -> NSWindow? {
-        guard let window = notification.object as? NSWindow, !(window is NSPanel) else { return nil }
+        guard let window = notification.object as? NSWindow,
+              Self.isContentWindow(window) else { return nil }
         return window
     }
 

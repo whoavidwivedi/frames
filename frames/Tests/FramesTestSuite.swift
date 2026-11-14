@@ -2598,6 +2598,11 @@ public enum FramesTestSuite {
         let zoomBtn = testWin.standardWindowButton(.zoomButton)
         assertTest("Native macOS Traffic Lights Visible", condition: closeBtn?.isHidden == false && minBtn?.isHidden == false && zoomBtn?.isHidden == false)
 
+        // Menu bar popups and other borderless windows must not drive the dashboard layout
+        assertTest("WindowManager Tracks Titled Content Window", condition: WindowManager.isContentWindow(testWin))
+        let borderlessWin = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 200, height: 200), styleMask: [.borderless], backing: .buffered, defer: false)
+        assertTest("WindowManager Ignores Borderless Menu/Popup Window", condition: !WindowManager.isContentWindow(borderlessWin))
+
         // MARK: - 39. Core Optimization & Critic Audit Roadmap Verifications
         logs.append("\n[39] Testing Core Performance Optimization Roadmap...")
 
