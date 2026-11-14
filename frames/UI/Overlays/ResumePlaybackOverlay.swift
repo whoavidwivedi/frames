@@ -34,7 +34,7 @@ public struct ResumePlaybackOverlay: View {
 
     @State private var isHoveringResume: Bool = false
     @State private var isHoveringStartOver: Bool = false
-    @State private var isHoveringClose: Bool = false
+    @State private var appeared: Bool = false
 
     public init(
         prompt: ResumePromptData,
@@ -50,142 +50,152 @@ public struct ResumePlaybackOverlay: View {
 
     public var body: some View {
         ZStack {
-            // Minimal ambient backdrop
-            Color.black.opacity(0.3)
+            // Dimmed backdrop
+            Color.black.opacity(0.45)
                 .ignoresSafeArea()
-                .onTapGesture {
-                    onCancel()
-                }
+                .onTapGesture { onCancel() }
 
-            // Flat, clean & minimal card (zero drop shadows)
-            VStack(alignment: .leading, spacing: 12) {
-                // Header: Title + Close
-                HStack(alignment: .center, spacing: 8) {
-                    Image(systemName: "clock")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
+            // Glass card
+            VStack(alignment: .leading, spacing: 16) {
+                // Header
+                HStack(spacing: 10) {
+                    ZStack {
+                        Circle()
+                            .fill(ShadcnTheme.primary.opacity(0.18))
+                            .frame(width: 34, height: 34)
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(ShadcnTheme.primary)
+                            .offset(x: 1)
+                    }
 
-                    Text("Resume Playback?")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(ShadcnTheme.foreground)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Resume Playback")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(ShadcnTheme.foreground)
+                        Text(prompt.title)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
 
                     Spacer()
 
-                    Button {
-                        onCancel()
-                    } label: {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                .fill(isHoveringClose ? ShadcnTheme.cardHover : Color.black.opacity(0.0001))
-
-                            Image(systemName: "xmark")
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundStyle(isHoveringClose ? ShadcnTheme.foreground : ShadcnTheme.foregroundMuted)
-                        }
-                        .frame(width: 20, height: 20)
-                        .contentShape(Rectangle())
+                    Button { onCancel() } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(ShadcnTheme.foregroundMuted)
+                            .frame(width: 24, height: 24)
+                            .background(Circle().fill(ShadcnTheme.cardHover))
                     }
                     .buttonStyle(.plain)
-                    .contentShape(Rectangle())
                     .pointingHand()
                     .keyboardShortcut(.cancelAction)
-                    .help("Dismiss (Esc)")
-                    .onHover { h in
-                        isHoveringClose = h
+                }
+
+                // Timeline
+                VStack(alignment: .leading, spacing: 6) {
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule()
+                                .fill(ShadcnTheme.border.opacity(0.6))
+                                .frame(height: 6)
+                            Capsule()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [ShadcnTheme.primary, ShadcnTheme.primary.opacity(0.7)],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .frame(width: max(6, geo.size.width * CGFloat(min(max(prompt.progress, 0), 1))), height: 6)
+                            // playhead
+                            Circle()
+                                .fill(.white)
+                                .frame(width: 12, height: 12)
+                                .shadow(color: .black.opacity(0.4), radius: 4, y: 2)
+                                .offset(x: max(0, geo.size.width * CGFloat(min(max(prompt.progress, 0), 1)) - 6))
+                        }
+                    }
+                    .frame(height: 12)
+
+                    HStack {
+                        Text(prompt.formattedTime)
+                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                            .foregroundStyle(ShadcnTheme.foreground)
+                        Spacer()
+                        Text(prompt.formattedDuration)
+                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                            .foregroundStyle(ShadcnTheme.foregroundMuted)
                     }
                 }
 
-                // File name & time left off
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(prompt.title)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(ShadcnTheme.foreground)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-
-                    Text("Left off at \(prompt.formattedTime) of \(prompt.formattedDuration)")
-                        .font(.system(size: 11))
-                        .foregroundStyle(ShadcnTheme.foregroundMuted)
-                }
-
-                // Flat progress line
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule()
-                            .fill(ShadcnTheme.border)
-                            .frame(height: 3)
-
-                        Capsule()
-                            .fill(ShadcnTheme.foreground)
-                            .frame(width: max(3, geo.size.width * CGFloat(min(max(prompt.progress, 0.0), 1.0))), height: 3)
-                    }
-                }
-                .frame(height: 3)
-                .padding(.vertical, 2)
-
-                // Clean side-by-side action buttons
-                HStack(spacing: 8) {
-                    // Start Over
-                    Button {
-                        onStartOver(prompt.url)
-                    } label: {
+                // Actions
+                HStack(spacing: 10) {
+                    Button { onStartOver(prompt.url) } label: {
                         Text("Start Over")
-                            .font(.system(size: 12, weight: .medium))
+                            .font(.system(size: 13, weight: .medium))
                             .foregroundStyle(ShadcnTheme.foregroundSecondary)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 30)
+                            .frame(height: 36)
                             .background(
                                 RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                    .fill(isHoveringStartOver ? ShadcnTheme.cardHover : Color.black.opacity(0.0001))
+                                    .fill(ShadcnTheme.cardHover)
                             )
                             .overlay(
                                 RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                                     .strokeBorder(ShadcnTheme.border, lineWidth: 1)
                             )
-                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .contentShape(Rectangle())
                     .pointingHand()
                     .keyboardShortcut("r", modifiers: [])
-                    .onHover { h in
-                        isHoveringStartOver = h
-                    }
 
-                    // Resume
-                    Button {
-                        onResume(prompt.url, prompt.resumeSeconds)
-                    } label: {
-                        Text("Resume")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(ShadcnTheme.primaryForeground)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 30)
-                            .background(
-                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                    .fill(isHoveringResume ? ShadcnTheme.primaryHighlight : ShadcnTheme.primary)
-                            )
-                            .contentShape(Rectangle())
+                    Button { onResume(prompt.url, prompt.resumeSeconds) } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "play.fill")
+                                .font(.system(size: 11, weight: .bold))
+                            Text("Resume")
+                                .font(.system(size: 13, weight: .semibold))
+                        }
+                        .foregroundStyle(ShadcnTheme.primaryForeground)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 36)
+                        .background(
+                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                .fill(isHoveringResume ? ShadcnTheme.primaryHighlight : ShadcnTheme.primary)
+                        )
                     }
                     .buttonStyle(.plain)
-                    .contentShape(Rectangle())
                     .pointingHand()
                     .keyboardShortcut(.defaultAction)
-                    .onHover { h in
-                        isHoveringResume = h
-                    }
+                    .onHover { h in isHoveringResume = h }
                 }
             }
-            .padding(14)
-            .frame(width: 320)
+            .padding(20)
+            .frame(width: 360)
             .background(
-                RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
-                    .fill(ShadcnTheme.card)
+                RoundedRectangle(cornerRadius: ShadcnTheme.radiusLg, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                    .environment(\.colorScheme, .dark)
+            )
+            .background(
+                RoundedRectangle(cornerRadius: ShadcnTheme.radiusLg, style: .continuous)
+                    .fill(ShadcnTheme.card.opacity(0.6))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
+                RoundedRectangle(cornerRadius: ShadcnTheme.radiusLg, style: .continuous)
                     .strokeBorder(ShadcnTheme.border, lineWidth: 1)
             )
+            .shadow(color: .black.opacity(0.4), radius: 30, y: 12)
+            .scaleEffect(appeared ? 1 : 0.92)
+            .opacity(appeared ? 1 : 0)
+            .onAppear {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.78)) {
+                    appeared = true
+                }
+            }
         }
     }
 }
