@@ -99,6 +99,10 @@ public final class VideoPlayerEngine {
     }
     /// Bumped on every volume or mute change so the transient top-right readout can re-show.
     public var volumeHUDToken: Int = 0
+    /// Bumped on every skip so the transient skip readout can re-show.
+    public var skipHUDToken: Int = 0
+    /// Signed delta (seconds) of the most recent skip, for the transient readout.
+    public var lastSkipDelta: Double = 0
     public var playbackRate: Float = 1.0 {
         didSet {
             guard oldValue != playbackRate else { return }
@@ -522,6 +526,8 @@ public final class VideoPlayerEngine {
     }
 
     public func skip(seconds: Double) {
+        lastSkipDelta = seconds
+        skipHUDToken &+= 1
         seek(to: currentTime + seconds, exact: true)
     }
 

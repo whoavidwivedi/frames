@@ -645,3 +645,55 @@ public struct PlayerSideControls: View {
         }
     }
 }
+
+// MARK: - Transient Skip Readout
+
+public struct SkipReadout: View {
+    @Bindable var engine: VideoPlayerEngine
+    @State private var isVisible = false
+
+    public init(engine: VideoPlayerEngine) {
+        self.engine = engine
+    }
+
+    private var delta: Double { engine.lastSkipDelta }
+    private var seconds: Int { Int(abs(delta).rounded()) }
+    private var isForward: Bool { delta >= 0 }
+
+    public var body: some View {
+        HStack(spacing: 8) {
+            if isForward {
+                Text("\(seconds)s")
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                Image(systemName: "goforward")
+                    .font(.system(size: 16, weight: .semibold))
+            } else {
+                Image(systemName: "gobackward")
+                    .font(.system(size: 16, weight: .semibold))
+                Text("\(seconds)s")
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+            }
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 16)
+        .frame(height: 44)
+        .background(Capsule(style: .continuous).fill(.ultraThinMaterial))
+        .background(Capsule(style: .continuous).fill(Color.black.opacity(0.55)))
+        .overlay(Capsule(style: .continuous).strokeBorder(Color.white.opacity(0.25), lineWidth: 1))
+        .shadow(color: Color.black.opacity(0.35), radius: 12, y: 4)
+        .opacity(isVisible ? 1 : 0)
+        .scaleEffect(isVisible ? 1 : 0.9, anchor: .center)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+        .task(id: engine.skipHUDToken) {
+            guard engine.skipHUDToken > 0 else { return }
+            withAnimation(.fluidQuick) { isVisible = true }
+            do {
+                try await Task.sleep(nanoseconds: 900_000_000)
+            } catch {
+                return
+            }
+            withAnimation(.fluidQuick) { isVisible = false }
+        }
+    }
+}

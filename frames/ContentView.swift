@@ -220,6 +220,11 @@ struct ContentView: View {
                         .padding(.trailing, 16)
                         .zIndex(70)
 
+                    // Transient skip readout (center, fades after ±skip)
+                    SkipReadout(engine: engine)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                        .zIndex(65)
+
                     // Buffering Indicator
                     if engine.isBuffering {
                         ProgressView()
