@@ -646,7 +646,7 @@ public struct PlayerSideControls: View {
     }
 }
 
-// MARK: - Transient Skip Readout
+// MARK: - Transient Skip Readout (huge text, top corners)
 
 public struct SkipReadout: View {
     @Bindable var engine: VideoPlayerEngine
@@ -661,28 +661,26 @@ public struct SkipReadout: View {
     private var isForward: Bool { delta >= 0 }
 
     public var body: some View {
-        HStack(spacing: 8) {
+        HStack {
+            if !isForward {
+                Text("-\(seconds)s")
+                    .font(.system(size: 64, weight: .heavy, design: .rounded))
+                    .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.6), radius: 8, y: 4)
+            }
+            Spacer(minLength: 0)
             if isForward {
-                Text("\(seconds)s")
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                Image(systemName: "goforward")
-                    .font(.system(size: 16, weight: .semibold))
-            } else {
-                Image(systemName: "gobackward")
-                    .font(.system(size: 16, weight: .semibold))
-                Text("\(seconds)s")
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                Text("+\(seconds)s")
+                    .font(.system(size: 64, weight: .heavy, design: .rounded))
+                    .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.6), radius: 8, y: 4)
             }
         }
-        .foregroundStyle(.white)
-        .padding(.horizontal, 16)
-        .frame(height: 44)
-        .background(Capsule(style: .continuous).fill(.ultraThinMaterial))
-        .background(Capsule(style: .continuous).fill(Color.black.opacity(0.55)))
-        .overlay(Capsule(style: .continuous).strokeBorder(Color.white.opacity(0.25), lineWidth: 1))
-        .shadow(color: Color.black.opacity(0.35), radius: 12, y: 4)
+        .padding(.horizontal, 40)
+        .padding(.top, 70)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .opacity(isVisible ? 1 : 0)
-        .scaleEffect(isVisible ? 1 : 0.9, anchor: .center)
+        .scaleEffect(isVisible ? 1 : 0.85, anchor: isForward ? .topTrailing : .topLeading)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
         .task(id: engine.skipHUDToken) {
@@ -695,5 +693,50 @@ public struct SkipReadout: View {
             }
             withAnimation(.fluidQuick) { isVisible = false }
         }
+    }
+}
+
+// MARK: - Transient Time Readout (top right)
+
+public struct TimeReadout: View {
+    @Bindable var engine: VideoPlayerEngine
+    @State private var isVisible = false
+
+    public init(engine: VideoPlayerEngine) {
+        self.engine = engine
+    }
+
+    private static func fmt(_ t: Double) -> String {
+        guard t.isFinite && t >= 0 else { return "0:00" }
+        let total = Int(t.rounded())
+        let h = total / 3600
+        let m = (total % 3600) / 60
+        let s = total % 60
+        if h > 0 { return String(format: "%d:%02d:%02d", h, m, s) }
+        return String(format: "%d:%02d", m, s)
+    }
+
+    public var body: some View {
+        Text("\(Self.fmt(engine.currentTime)) / \(Self.fmt(engine.duration))")
+            .font(.system(size: 28, weight: .heavy, design: .rounded))
+            .foregroundStyle(.white)
+            .shadow(color: .black.opacity(0.6), radius: 8, y: 4)
+            .padding(.trailing, 24)
+            .padding(.top, 70)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+            .opacity(isVisible ? 1 : 0)
+            .scaleEffect(isVisible ? 1 : 0.85, anchor: .topTrailing)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            .task(id: engine.timeHUDToken) {
+                guard engine.timeHUDToken > 0 else { return }
+                withAnimation(.fluidQuick) { isVisible = true }
+                do {
+                    try await Task.sleep(nanoseconds: 4_000_000_000)
+                } catch {
+                    return
+                }
+                withAnimation(.fluidQuick) { isVisible = false }
+            }
     }
 }
