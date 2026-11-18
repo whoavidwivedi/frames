@@ -426,6 +426,8 @@ public struct GeneralSettingsTab: View {
                     }
                 }
             }
+
+            LibraryCacheSettingsSection()
         }
         .confirmationDialog(
             "Clear Watch History?",
@@ -495,6 +497,75 @@ public struct GeneralSettingsTab: View {
         }
         .buttonStyle(SettingsPillButtonStyle())
         .pointingHand()
+    }
+}
+
+// MARK: - Library Cache Section
+
+private struct LibraryCacheSettingsSection: View {
+    private let settings = SettingsManager.shared
+    @State private var showClearThumbnailConfirm = false
+    @State private var thumbnailCacheClearedNotice = false
+    @Environment(\.settingsCompact) private var isCompact
+
+    var body: some View {
+        SettingsSectionCard("Library") {
+            if isCompact {
+                VStack(alignment: .leading, spacing: 8) {
+                    descriptionText
+                    clearButton
+                }
+            } else {
+                HStack(alignment: .center, spacing: 16) {
+                    descriptionText
+                    Spacer(minLength: 16)
+                    clearButton
+                }
+            }
+        }
+        .confirmationDialog(
+            "Clear Thumbnail Cache?",
+            isPresented: $showClearThumbnailConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Clear Thumbnail Cache", role: .destructive) {
+                settings.clearThumbnailCache()
+                thumbnailCacheClearedNotice = true
+                Task {
+                    try? await Task.sleep(nanoseconds: 2_000_000_000)
+                    thumbnailCacheClearedNotice = false
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(
+                "Cached thumbnails and titles are deleted and rebuilt from your media files. "
+                    + "Your actual media files will not be touched."
+            )
+        }
+    }
+
+    private var descriptionText: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("Clear Thumbnail Cache")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(ShadcnTheme.foreground)
+            Text("Thumbnails and titles are cached on disk. Clearing regenerates them.")
+                .font(.system(size: 11))
+                .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var clearButton: some View {
+        ShadcnButton(
+            thumbnailCacheClearedNotice ? "Cleared" : "Clear thumbnail cache",
+            icon: thumbnailCacheClearedNotice ? "checkmark" : "trash",
+            variant: .outline,
+            size: .sm
+        ) {
+            showClearThumbnailConfirm = true
+        }
     }
 }
 

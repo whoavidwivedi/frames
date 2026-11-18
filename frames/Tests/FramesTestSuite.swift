@@ -217,7 +217,10 @@ public enum FramesTestSuite {
 
         // MARK: - 10. Library & Dashboard Manager Tests
         logs.append("\n[10] Testing Library & Dashboard Manager...")
-        let lib = LibraryManager()
+        var libConfig = LibraryConfiguration()
+        libConfig.cache = LibraryCache(directory: FileManager.default.temporaryDirectory
+            .appendingPathComponent("frames-test-cache-\(UUID().uuidString)", isDirectory: true))
+        let lib = LibraryManager(configuration: libConfig)
         let testURL1 = URL(fileURLWithPath: "/tmp/sample_interstellar_4k.mp4")
         let testURL2 = URL(fileURLWithPath: "/tmp/sample_cyberpunk_teaser.mov")
 
@@ -352,10 +355,6 @@ public enum FramesTestSuite {
         let testSingleURL = URL(fileURLWithPath: "/tmp/sample_movie_test.mp4")
         lib.addSingleVideoFile(url: testSingleURL)
         assertTest("Single Video Ingestion", condition: lib.videos.contains(where: { $0.url == testSingleURL }))
-
-        // Uniform Movie-Type Thumbnail Verification (uniform across all media formats)
-        let sampleItem = lib.videos.first(where: { $0.url == testSingleURL })
-        assertTest("Movie-Type Thumbnail Uniformity (Nil Image Triggers Movie Art)", condition: sampleItem?.thumbnail == nil)
 
         // Resume Prompt Data Model
         let resumePrompt = ResumePromptData(
@@ -4580,6 +4579,11 @@ public enum FramesTestSuite {
         dedupeTestMenu.addItem(NSMenuItem(title: "View", action: nil, keyEquivalent: ""))
         let removedCount = AppDelegate.deduplicateMenus(in: dedupeTestMenu)
         assertTest("AppDelegate Menu Deduplication Removes Duplicate View Menu", condition: removedCount == 1 && dedupeTestMenu.items.count == 2)
+
+        logs.append("\n[Library] Testing embedded metadata, thumbnails and cache...")
+        LibraryMetadataTests.run { name, condition, message in
+            assertTest(name, condition: condition, message)
+        }
 
         // Summary
         logs.append("\n==========================================")

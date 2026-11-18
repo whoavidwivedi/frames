@@ -105,6 +105,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             exit(result.failed == 0 ? 0 : 1)
         }
 
+        if let benchIndex = CommandLine.arguments.firstIndex(of: "--benchmark-import") {
+            LibraryImportBenchmark.runFromCommandLine(Array(CommandLine.arguments[(benchIndex + 1)...]))
+        }
+
         if let smokeIndex = CommandLine.arguments.firstIndex(of: "--smoke-test") {
             var mediaURL: URL? = nil
             if smokeIndex + 1 < CommandLine.arguments.count {

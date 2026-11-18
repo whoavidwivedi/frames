@@ -61,6 +61,10 @@ Install Frames directly on your Mac with a single command — automatically hand
 
 ### 2. Media Dashboard & Library Sidebar
 * **Folder Management**: Connect any folder on your Mac; subdirectories are recursively indexed asynchronously without blocking the UI.
+* **Embedded Titles & Artists**: Cards show the title and artist stored in the file (MP4/MOV metadata, Matroska/WebM `Info` and `Tags`), falling back to the filename.
+* **Real Thumbnails**: Embedded cover art when present (MP4 artwork, Matroska cover attachments), otherwise a decoded frame 10% into the video (capped at 60 s) that steps past near-black frames; downscaled to a 384 px JPEG.
+* **On-Disk Library Cache**: Metadata and thumbnails are cached in `~/Library/Caches/whoavidwivedi.frames/library`, keyed by file path and invalidated when a file's size or modification time changes, so relaunches load instantly.
+* **Per-Core Import**: Metadata extraction runs one file per CPU core, a limit chosen by the benchmark in [`docs/benchmarks/library-import-concurrency.md`](docs/benchmarks/library-import-concurrency.md).
 * **Smart Organization**: Instant navigation across *All Videos*, *Recent*, *Favorites*, or custom pinned directories with live item counts.
 * **Sub-Millisecond Search & Sort**: Filter thousands of titles instantly by name, date added, duration, or file size with keyboard focus management.
 * **Adaptive View Modes**: Switch seamlessly between a 16:9 cinematic card grid and a compact list table.
@@ -174,6 +178,12 @@ build/DerivedData/Build/Products/Debug/frames.app/Contents/MacOS/frames --run-te
 ==========================================
 RESULTS: 458 PASSED, 0 FAILED
 ==========================================
+```
+
+Benchmark library import concurrency against a folder of your own videos:
+
+```bash
+build/DerivedData/Build/Products/Debug/frames.app/Contents/MacOS/frames --benchmark-import ~/Movies --repeats 3 --output /tmp/import-benchmark.md
 ```
 
 ---

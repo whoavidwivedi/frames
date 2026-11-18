@@ -3,12 +3,12 @@ import SwiftUI
 import AVFoundation
 import AppKit
 
-private actor MetadataLoadGate {
+actor MetadataLoadGate {
     private var availableSlots: Int
     private var waiters: [CheckedContinuation<Void, Never>] = []
 
     init(maxConcurrentLoads: Int) {
-        self.availableSlots = maxConcurrentLoads
+        self.availableSlots = max(1, maxConcurrentLoads)
     }
 
     func acquire() async {
@@ -26,6 +26,17 @@ private actor MetadataLoadGate {
         } else {
             availableSlots += 1
         }
+    }
+}
+
+struct LibraryConfiguration {
+    var defaults: UserDefaults = .standard
+    var cache = LibraryCache()
+    var metadataConcurrency = LibraryManager.defaultMetadataConcurrency
+    var includeThumbnails = true
+    var observesFileSystem = true
+    var extractor: @Sendable (URL, Bool) async -> ExtractedMetadata = { url, includeThumbnail in
+        await MediaMetadataExtractor.extract(url: url, includeThumbnail: includeThumbnail)
     }
 }
 
@@ -124,6 +135,7 @@ public enum ViewMode: String, CaseIterable, Identifiable {
 public enum SortOption: String, CaseIterable, Identifiable {
     case dateAdded = "Date Added"
     case title = "Title"
+    case artist = "Artist"
     case duration = "Duration"
     case fileSize = "Size"
 
@@ -212,7 +224,10 @@ public final class LibraryManager {
     private let progressKey = "frames_saved_progress_v1"
     private let favoritesKey = "frames_saved_favorites_v1"
     private let individualVideosKey = "frames_saved_individual_videos_v1"
-    private static let metadataLoadGate = MetadataLoadGate(maxConcurrentLoads: 2)
+    nonisolated static let defaultMetadataConcurrency = ProcessInfo.processInfo.activeProcessorCount
+    @ObservationIgnored private let configuration: LibraryConfiguration
+    @ObservationIgnored private let metadataLoadGate: MetadataLoadGate
+    @ObservationIgnored public private(set) var pendingMetadataLoads = 0
     private var persistedFavoritePaths: Set<String> = []
     private var persistedIndividualVideoPaths: Set<String> = []
     private var persistedProgress: [String: [String: Double]] = [:]
@@ -221,7 +236,21 @@ public final class LibraryManager {
     private var notificationObservers: [NSObjectProtocol] = []
     private var syncTimer: Timer?
 
-    public init() {
+    var cache: LibraryCache { configuration.cache }
+
+    private var defaults: UserDefaults { configuration.defaults }
+
+    private var observesFileSystem: Bool {
+        configuration.observesFileSystem && !CommandLine.arguments.contains("--run-tests")
+    }
+
+    public convenience init() {
+        self.init(configuration: LibraryConfiguration())
+    }
+
+    init(configuration: LibraryConfiguration) {
+        self.configuration = configuration
+        self.metadataLoadGate = MetadataLoadGate(maxConcurrentLoads: configuration.metadataConcurrency)
         self.viewMode = SettingsManager.shared.defaultViewMode
         self.directoryWatcher = LibraryDirectoryWatcher { [weak self] in
             Task { @MainActor [weak self] in
@@ -231,6 +260,21 @@ public final class LibraryManager {
         loadPersistedState()
         setupLifecycleObservers()
         setupPeriodicSync()
+    }
+
+    static func artistOrder(_ lhs: VideoItem, _ rhs: VideoItem) -> Bool {
+        switch (lhs.artist, rhs.artist) {
+        case let (leftArtist?, rightArtist?):
+            let order = leftArtist.localizedCaseInsensitiveCompare(rightArtist)
+            if order != .orderedSame { return order == .orderedAscending }
+            return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+        case (.some, .none):
+            return true
+        case (.none, .some):
+            return false
+        case (.none, .none):
+            return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+        }
     }
 
     // MARK: - Filtered & Sorted Videos
@@ -256,9 +300,12 @@ public final class LibraryManager {
 
         // Search query filter
         if !searchQuery.trimmingCharacters(in: .whitespaces).isEmpty {
-            let q = searchQuery.lowercased()
+            let query = searchQuery
             result = result.filter {
-                $0.title.lowercased().contains(q) || $0.folderName.lowercased().contains(q)
+                $0.title.localizedCaseInsensitiveContains(query) ||
+                ($0.artist?.localizedCaseInsensitiveContains(query) ?? false) ||
+                $0.fileTitle.localizedCaseInsensitiveContains(query) ||
+                $0.folderName.localizedCaseInsensitiveContains(query)
             }
         }
 
@@ -269,6 +316,8 @@ public final class LibraryManager {
                 result.sort { $0.dateAdded > $1.dateAdded }
             case .title:
                 result.sort { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+            case .artist:
+                result.sort { Self.artistOrder($0, $1) }
             case .duration:
                 result.sort { $0.duration > $1.duration }
             case .fileSize:
@@ -384,6 +433,7 @@ public final class LibraryManager {
         if selectedCategory == .folder(id: id) {
             selectedCategory = .allVideos
         }
+        evictCache(pathPrefix: folderPath)
         savePersistedState()
         updateDirectoryWatcher()
     }
@@ -395,6 +445,7 @@ public final class LibraryManager {
         persistedIndividualVideoPaths.remove(path)
         persistedFavoritePaths.remove(path)
         persistedProgress.removeValue(forKey: path)
+        evictCache(path: path)
         for i in 0..<folders.count {
             let f = folders[i]
             folders[i].videoCount = videos.filter { $0.url.path.hasPrefix(f.path) }.count
@@ -486,7 +537,7 @@ public final class LibraryManager {
             videos[i].progress = 0.0
         }
         persistedProgress.removeAll()
-        UserDefaults.standard.removeObject(forKey: progressKey)
+        defaults.removeObject(forKey: progressKey)
         if selectedCategory == .recent {
             selectedCategory = .allVideos
         }
@@ -578,7 +629,10 @@ public final class LibraryManager {
                 self.videos.removeAll { video in
                     if video.url.path.hasPrefix(folderPath) {
                         let missing = !foundSet.contains(video.url)
-                        if missing { removedAny = true }
+                        if missing {
+                            removedAny = true
+                            self.evictCache(path: video.url.path)
+                        }
                         return missing
                     }
                     return false
@@ -628,32 +682,75 @@ public final class LibraryManager {
         return foundURLs
     }
 
-    private struct ExtractedMetadata: Sendable {
-        let duration: Double
-        let resolution: String
-        let isHDR: Bool
-        let fileSize: Int64
-        let thumbnail: NSImage?
-    }
-
     private func loadMetadataAsync(for item: VideoItem) {
         let url = item.url
         let videoId = item.id
+        let cache = configuration.cache
+        let gate = metadataLoadGate
+        let extractor = configuration.extractor
+        let includeThumbnails = configuration.includeThumbnails
+        pendingMetadataLoads += 1
 
-        Task.detached(priority: .utility) {
-            await Self.metadataLoadGate.acquire()
-            let meta = await Self.extractMetadata(for: url)
-            await Self.metadataLoadGate.release()
-            guard !Task.isCancelled else { return }
+        Task.detached(priority: .utility) { [weak self] in
+            let meta: ExtractedMetadata
+            if let hit = await cache.lookup(url: url), hit.entry.thumbnailRequested || !includeThumbnails {
+                meta = hit.metadata
+            } else {
+                await gate.acquire()
+                let extracted = await extractor(url, includeThumbnails)
+                await gate.release()
+                await cache.store(url: url, metadata: extracted, thumbnailRequested: includeThumbnails)
+                meta = extracted
+            }
+            let thumbnail = meta.thumbnailJPEG.flatMap { NSImage(data: $0) }
             await MainActor.run { [weak self] in
-                guard let self = self, let idx = self.videos.firstIndex(where: { $0.id == videoId }) else { return }
-                self.videos[idx].duration = meta.duration
-                self.videos[idx].resolution = meta.resolution
-                self.videos[idx].isHDR = meta.isHDR
-                self.videos[idx].fileSize = meta.fileSize
-                if let thumb = meta.thumbnail {
-                    self.videos[idx].thumbnail = thumb
-                }
+                self?.applyMetadata(meta, thumbnail: thumbnail, url: url, videoId: videoId)
+            }
+        }
+    }
+
+    private func applyMetadata(_ meta: ExtractedMetadata, thumbnail: NSImage?, url: URL, videoId: UUID) {
+        pendingMetadataLoads = max(0, pendingMetadataLoads - 1)
+        guard let idx = videos.firstIndex(where: { $0.id == videoId }) else {
+            if !videos.contains(where: { $0.url == url }) {
+                evictCache(path: url.path)
+            }
+            return
+        }
+        if meta.duration > 0 || videos[idx].duration == 0 {
+            videos[idx].duration = meta.duration
+        }
+        videos[idx].resolution = meta.resolution
+        videos[idx].isHDR = meta.isHDR
+        videos[idx].fileSize = meta.fileSize
+        videos[idx].title = meta.title ?? videos[idx].fileTitle
+        videos[idx].artist = meta.artist
+        if let thumbnail {
+            videos[idx].thumbnail = thumbnail
+        }
+    }
+
+    private func evictCache(path: String) {
+        let cache = configuration.cache
+        Task { await cache.remove(path: path) }
+    }
+
+    private func evictCache(pathPrefix: String) {
+        let cache = configuration.cache
+        Task { await cache.remove(pathPrefix: pathPrefix) }
+    }
+
+    @discardableResult
+    public func clearThumbnailCache() -> Task<Void, Never> {
+        for index in videos.indices {
+            videos[index].thumbnail = nil
+        }
+        let cache = configuration.cache
+        return Task { [weak self] in
+            await cache.removeAll()
+            guard let self else { return }
+            for item in self.videos {
+                self.loadMetadataAsync(for: item)
             }
         }
     }
@@ -674,54 +771,13 @@ public final class LibraryManager {
         return restored
     }
 
-    private nonisolated static func extractMetadata(for url: URL) async -> ExtractedMetadata {
-        let asset = AVURLAsset(url: url)
-        var dur: Double = 0.0
-        var res = "HD"
-        let isHDR = false
-        var fileSize: Int64 = 0
-
-        if let values = try? url.resourceValues(forKeys: [.fileSizeKey]), let size = values.fileSize {
-            fileSize = Int64(size)
-        }
-
-        if let durationCM = try? await asset.load(.duration) {
-            dur = durationCM.seconds.isFinite ? durationCM.seconds : 0.0
-        }
-
-        if let tracks = try? await asset.loadTracks(withMediaType: .video), let track = tracks.first {
-            if let size = try? await track.load(.naturalSize) {
-                let maxDim = max(size.width, size.height)
-                if maxDim >= 3800 {
-                    res = "4K"
-                } else if maxDim >= 2500 {
-                    res = "2K"
-                } else if maxDim >= 1800 {
-                    res = "1080p"
-                } else if maxDim >= 1200 {
-                    res = "720p"
-                } else {
-                    res = "SD"
-                }
-            }
-        }
-
-        return ExtractedMetadata(
-            duration: dur,
-            resolution: res,
-            isHDR: isHDR,
-            fileSize: fileSize,
-            thumbnail: nil
-        )
-    }
-
     // MARK: - Persistence
     private func savePersistedState() {
         if let encoded = try? JSONEncoder().encode(folders) {
-            UserDefaults.standard.set(encoded, forKey: foldersKey)
+            defaults.set(encoded, forKey: foldersKey)
         }
 
-        UserDefaults.standard.set(Array(persistedIndividualVideoPaths), forKey: individualVideosKey)
+        defaults.set(Array(persistedIndividualVideoPaths), forKey: individualVideosKey)
 
         // Save favorites: sync with in-memory videos while preserving existing paths
         for v in videos {
@@ -732,7 +788,7 @@ public final class LibraryManager {
                 persistedFavoritePaths.remove(path)
             }
         }
-        UserDefaults.standard.set(Array(persistedFavoritePaths), forKey: favoritesKey)
+        defaults.set(Array(persistedFavoritePaths), forKey: favoritesKey)
 
         // Save progress & recent timestamps: merge into persistedProgress
         for v in videos where v.progress > 0 || v.lastPlayedDate != nil {
@@ -742,13 +798,13 @@ public final class LibraryManager {
                 "duration": v.duration
             ]
         }
-        UserDefaults.standard.set(persistedProgress, forKey: progressKey)
+        defaults.set(persistedProgress, forKey: progressKey)
     }
 
     private func loadPersistedState() {
-        persistedFavoritePaths = Set(UserDefaults.standard.stringArray(forKey: favoritesKey) ?? [])
-        persistedIndividualVideoPaths = Set(UserDefaults.standard.stringArray(forKey: individualVideosKey) ?? [])
-        persistedProgress = UserDefaults.standard.dictionary(forKey: progressKey) as? [String: [String: Double]] ?? [:]
+        persistedFavoritePaths = Set(defaults.stringArray(forKey: favoritesKey) ?? [])
+        persistedIndividualVideoPaths = Set(defaults.stringArray(forKey: individualVideosKey) ?? [])
+        persistedProgress = defaults.dictionary(forKey: progressKey) as? [String: [String: Double]] ?? [:]
 
         // Restore individually added videos, pruning any missing paths
         var validIndividualPaths = Set<String>()
@@ -765,7 +821,7 @@ public final class LibraryManager {
         }
         persistedIndividualVideoPaths = validIndividualPaths
 
-        if let data = UserDefaults.standard.data(forKey: foldersKey),
+        if let data = defaults.data(forKey: foldersKey),
            let savedFolders = try? JSONDecoder().decode([FolderItem].self, from: data) {
             var validFolders: [FolderItem] = []
             for f in savedFolders {
@@ -806,6 +862,7 @@ public final class LibraryManager {
                 let folderPath = folder.path
                 folders.removeAll { $0.id == folderId }
                 videos.removeAll { $0.url.path.hasPrefix(folderPath) }
+                evictCache(pathPrefix: folderPath)
                 if selectedCategory == .folder(id: folderId) {
                     selectedCategory = .allVideos
                 }
@@ -816,7 +873,9 @@ public final class LibraryManager {
         // 2. Verify existence of each video in `videos`
         let videosBefore = videos.count
         videos.removeAll { video in
-            !FileManager.default.fileExists(atPath: video.url.path)
+            guard !FileManager.default.fileExists(atPath: video.url.path) else { return false }
+            evictCache(path: video.url.path)
+            return true
         }
         if videos.count != videosBefore {
             stateChanged = true
@@ -864,7 +923,7 @@ public final class LibraryManager {
     }
 
     public func updateDirectoryWatcher() {
-        guard !CommandLine.arguments.contains("--run-tests") else { return }
+        guard observesFileSystem else { return }
 
         var dirsToWatch = Set<String>()
         for folder in folders {
@@ -890,7 +949,7 @@ public final class LibraryManager {
     }
 
     private func setupLifecycleObservers() {
-        guard !CommandLine.arguments.contains("--run-tests") else { return }
+        guard observesFileSystem else { return }
 
         let center = NotificationCenter.default
         let activeObs = center.addObserver(
@@ -915,7 +974,7 @@ public final class LibraryManager {
     }
 
     private func setupPeriodicSync() {
-        guard !CommandLine.arguments.contains("--run-tests") else { return }
+        guard observesFileSystem else { return }
         // Fallback sweep for unmounted volumes; live changes already arrive via the
         // directory watcher and app-activation checks. A 2.5s sweep re-stat'd every
         // library file on the main thread during playback.

@@ -22,7 +22,8 @@ public struct FolderItem: Identifiable, Hashable, Codable, Sendable {
 public struct VideoItem: Identifiable, Hashable, Sendable {
     public let id: UUID
     public let url: URL
-    public let title: String
+    public var title: String
+    public var artist: String?
     public let folderName: String
     public var duration: Double
     public var fileSize: Int64
@@ -47,7 +48,8 @@ public struct VideoItem: Identifiable, Hashable, Sendable {
         lastPlayedDate: Date? = nil,
         progress: Double = 0.0,
         isFavorite: Bool = false,
-        thumbnail: NSImage? = nil
+        thumbnail: NSImage? = nil,
+        artist: String? = nil
     ) {
         self.id = id
         self.url = url
@@ -62,6 +64,11 @@ public struct VideoItem: Identifiable, Hashable, Sendable {
         self.progress = progress
         self.isFavorite = isFavorite
         self.thumbnail = thumbnail
+        self.artist = artist
+    }
+
+    public var fileTitle: String {
+        url.deletingPathExtension().lastPathComponent
     }
 
     public var formattedDuration: String {
@@ -83,6 +90,7 @@ public struct VideoItem: Identifiable, Hashable, Sendable {
         hasher.combine(progress)
         hasher.combine(duration)
         hasher.combine(title)
+        hasher.combine(artist)
     }
 
     public static func == (lhs: VideoItem, rhs: VideoItem) -> Bool {
@@ -95,6 +103,7 @@ public struct VideoItem: Identifiable, Hashable, Sendable {
         lhs.resolution == rhs.resolution &&
         lhs.isHDR == rhs.isHDR &&
         lhs.title == rhs.title &&
+        lhs.artist == rhs.artist &&
         lhs.folderName == rhs.folderName &&
         lhs.dateAdded == rhs.dateAdded &&
         lhs.lastPlayedDate == rhs.lastPlayedDate &&

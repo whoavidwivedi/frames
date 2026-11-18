@@ -956,6 +956,17 @@ public struct FramesCommandPalette: View {
             library.sortOption = .fileSize
         })
 
+        items.append(PaletteCommand(
+            "Sort by Artist",
+            id: "sort-artist",
+            subtitle: library.sortOption == .artist ? "Current sort" : nil,
+            icon: "arrow.up.arrow.down",
+            keywords: ["sort", "artist", "creator", "channel", "order"],
+            group: settingsGroup
+        ) {
+            library.sortOption = .artist
+        })
+
         // MARK: - 6. Window Controls Context
         let windowGroup = "Window"
         items.append(PaletteCommand(

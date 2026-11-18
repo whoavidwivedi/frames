@@ -50,6 +50,15 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
     }
 
     private var segmentDataOffset: UInt64 = 0
+    private var infoTitle: String?
+    private var tagTitle: String?
+    private var tagArtist: String?
+    private var tagsLoaded = false
+    private var attachmentsLoaded = false
+    private var tagsSeekOffset: UInt64?
+    private var attachmentsSeekOffset: UInt64?
+    private var coverOffset: UInt64?
+    private var coverLength: Int = 0
     private var firstClusterOffset: UInt64? = nil
     private var currentClusterTimestamp: Int64 = 0
     private var currentOffset: UInt64 = 0
@@ -229,7 +238,7 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
         }
     }
 
-    public init(url: URL) throws {
+    public init(url: URL, indexClusters: Bool = true) throws {
         self.fileURL = url
         let fd = url.withUnsafeFileSystemRepresentation { pathPtr -> Int32 in
             guard let pathPtr = pathPtr else { return -1 }
@@ -252,7 +261,7 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
         }
 
         do {
-            try parseMetadata()
+            try parseMetadata(indexClusters: indexClusters)
         } catch {
             self.mappedRegion = nil
             Darwin.close(fd)
@@ -280,7 +289,7 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
     }
 
     // MARK: - Metadata Ingestion
-    private func parseMetadata() throws {
+    private func parseMetadata(indexClusters: Bool) throws {
         guard let ebmlElement = readElement(at: 0), ebmlElement.id == .ebml else {
             throw DemuxerError.invalidEBMLHeader
         }
@@ -299,45 +308,68 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
         self.currentOffset = segmentDataOffset
 
         // Scan primary master elements under Segment (SeekHead, Info, Tracks, Cues)
+        scanTopLevelElements()
+        finalizeMetadataScan(indexClusters: indexClusters)
+    }
+
+    private func scanTopLevelElements() {
         var offset = segmentDataOffset
         self.firstClusterOffset = nil
         let scanLimit = min(fileSize, segmentDataOffset + (50 * 1024 * 1024)) // Read first 50MB for headers
 
         while offset < scanLimit {
             guard let elem = readElement(at: offset) else { break }
-
-            switch elem.id {
-            case .seekHead:
-                if let payload = try? readBytes(offset: elem.payloadOffset, length: Int(elem.payloadSize)) {
-                    parseSeekHead(data: payload)
-                }
-            case .info:
-                if let payload = try? readBytes(offset: elem.payloadOffset, length: Int(elem.payloadSize)) {
-                    parseInfo(data: payload)
-                }
-            case .tracks:
-                if let payload = try? readBytes(offset: elem.payloadOffset, length: Int(elem.payloadSize)) {
-                    parseTracks(data: payload)
-                }
-            case .cues:
-                if let payload = try? readBytes(offset: elem.payloadOffset, length: Int(elem.payloadSize)) {
-                    parseCues(data: payload)
-                }
-            case .cluster:
-                if firstClusterOffset == nil {
-                    firstClusterOffset = offset
-                }
-                // Once we find tracks, info, and first cluster, we can stop sequential header scanning
-                if !tracks.isEmpty && duration > 0 {
-                    offset = scanLimit // Break out of top-level scan
-                    continue
-                }
-            default:
-                break
-            }
-
+            if scanTopLevelElement(elem, at: offset) { break }
             offset = elem.payloadOffset + elem.payloadSize
         }
+    }
+
+    /// Returns `true` once header scanning can stop.
+    private func scanTopLevelElement(_ elem: ElementHeader, at offset: UInt64) -> Bool {
+        switch elem.id {
+        case .cluster:
+            if firstClusterOffset == nil {
+                firstClusterOffset = offset
+            }
+            // Once we find tracks, info, and first cluster, we can stop sequential header scanning
+            if !tracks.isEmpty && duration > 0 {
+                return true
+            }
+        case .seekHead, .info, .tracks, .cues, .tags, .attachments:
+            parseHeaderElement(elem)
+        default:
+            break
+        }
+        return false
+    }
+
+    private func parseHeaderElement(_ elem: ElementHeader) {
+        switch elem.id {
+        case .seekHead:
+            parseElementPayload(elem, using: parseSeekHead(data:))
+        case .info:
+            parseElementPayload(elem, using: parseInfo(data:))
+        case .tracks:
+            parseElementPayload(elem, using: parseTracks(data:))
+        case .cues:
+            parseElementPayload(elem, using: parseCues(data:))
+        case .tags:
+            if !tagsLoaded { loadTags(at: elem) }
+        case .attachments:
+            if !attachmentsLoaded { loadAttachments(at: elem) }
+        default:
+            break
+        }
+    }
+
+    private func parseElementPayload(_ elem: ElementHeader, using parse: (Data) -> Void) {
+        if let payload = try? readBytes(offset: elem.payloadOffset, length: Int(elem.payloadSize)) {
+            parse(payload)
+        }
+    }
+
+    private func finalizeMetadataScan(indexClusters: Bool) {
+        loadDeferredMetadata()
 
         // If cues haven't been discovered yet, scan file tail (where muxers place Cues)
         if cuePoints.isEmpty {
@@ -355,7 +387,7 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
         if let firstClust = firstClusterOffset {
             recordCluster(timeSeconds: 0.0, offset: firstClust)
         }
-        if cuePoints.isEmpty {
+        if indexClusters && cuePoints.isEmpty {
             startIndexingUnindexedClusters()
         }
     }
@@ -423,6 +455,8 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
                 switch idVint.value {
                 case EBMLID.timestampScale.rawValue:
                     self.timestampScale = EBMLVint.parseUInt(from: raw, offset: cursor, length: elemLen) ?? 1_000_000
+                case EBMLID.title.rawValue:
+                    self.infoTitle = EBMLVint.parseString(from: raw, offset: cursor, length: elemLen)
                 case EBMLID.duration.rawValue:
                     if let d = EBMLVint.parseFloat(from: raw, offset: cursor, length: elemLen) {
                         // Duration in EBML is in timestampScale units
@@ -475,6 +509,12 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
             cursor += elemLen
         }
 
+        if seekID == EBMLID.tags.rawValue {
+            tagsSeekOffset = segmentDataOffset + seekPos
+        } else if seekID == EBMLID.attachments.rawValue {
+            attachmentsSeekOffset = segmentDataOffset + seekPos
+        }
+
         // 1. Secondary SeekHead (e.g. pointing to Cues at the end of the file)
         if seekID == EBMLID.seekHead.rawValue {
             let shOffset = segmentDataOffset + seekPos
@@ -502,6 +542,237 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
                 }
             }
         }
+    }
+
+    // MARK: - Embedded Tags & Attachments
+    private func loadTags(at header: ElementHeader) {
+        tagsLoaded = true
+        guard header.payloadSize > 0, header.payloadSize <= 16 * 1024 * 1024,
+              let payload = try? readBytes(offset: header.payloadOffset, length: Int(header.payloadSize))
+        else { return }
+        parseTags(data: payload)
+    }
+
+    private func parseTags(data: Data) {
+        data.withUnsafeBytes { raw in
+            var cursor = 0
+            while cursor < raw.count {
+                guard let idVint = EBMLVint.parseElementID(from: raw, offset: cursor) else { break }
+                cursor += idVint.length
+                guard let sizeVint = EBMLVint.parseDataSize(from: raw, offset: cursor) else { break }
+                cursor += sizeVint.length
+                let elemLen = Int(sizeVint.value)
+                guard elemLen >= 0, cursor + elemLen <= raw.count else { break }
+                if idVint.value == EBMLID.tag.rawValue {
+                    parseTag(raw: raw, offset: cursor, length: elemLen)
+                }
+                cursor += elemLen
+            }
+        }
+    }
+
+    private func parseTag(raw: UnsafeRawBufferPointer, offset: Int, length: Int) {
+        var cursor = offset
+        let limit = offset + length
+        var segmentLevel = true
+        var pairs: [(name: String, value: String)] = []
+
+        while cursor < limit {
+            guard let idVint = EBMLVint.parseElementID(from: raw, offset: cursor) else { break }
+            cursor += idVint.length
+            guard let sizeVint = EBMLVint.parseDataSize(from: raw, offset: cursor) else { break }
+            cursor += sizeVint.length
+            let elemLen = Int(sizeVint.value)
+            guard elemLen >= 0, cursor + elemLen <= limit else { break }
+
+            if idVint.value == EBMLID.targets.rawValue {
+                if !isSegmentLevelTarget(raw: raw, offset: cursor, length: elemLen) { segmentLevel = false }
+            } else if idVint.value == EBMLID.simpleTag.rawValue,
+                      let pair = parseSimpleTag(raw: raw, offset: cursor, length: elemLen) {
+                pairs.append(pair)
+            }
+            cursor += elemLen
+        }
+
+        guard segmentLevel else { return }
+        applyTagPairs(pairs)
+    }
+
+    private func applyTagPairs(_ pairs: [(name: String, value: String)]) {
+        for pair in pairs {
+            switch pair.name.uppercased() {
+            case "TITLE":
+                if tagTitle == nil { tagTitle = Self.trimmedOrNil(pair.value) }
+            case "ARTIST":
+                if tagArtist == nil { tagArtist = Self.trimmedOrNil(pair.value) }
+            default:
+                break
+            }
+        }
+    }
+
+    private func isSegmentLevelTarget(raw: UnsafeRawBufferPointer, offset: Int, length: Int) -> Bool {
+        var cursor = offset
+        let limit = offset + length
+        var segmentLevel = true
+        while cursor < limit {
+            guard let idVint = EBMLVint.parseElementID(from: raw, offset: cursor) else { break }
+            cursor += idVint.length
+            guard let sizeVint = EBMLVint.parseDataSize(from: raw, offset: cursor) else { break }
+            cursor += sizeVint.length
+            let elemLen = Int(sizeVint.value)
+            guard elemLen >= 0, cursor + elemLen <= limit else { break }
+            switch idVint.value {
+            case EBMLID.targetTypeValue.rawValue:
+                let value = EBMLVint.parseUInt(from: raw, offset: cursor, length: elemLen) ?? 50
+                if value != 50 { segmentLevel = false }
+            case EBMLID.tagTrackUID.rawValue, EBMLID.tagEditionUID.rawValue,
+                 EBMLID.tagChapterUID.rawValue, EBMLID.tagAttachmentUID.rawValue:
+                if (EBMLVint.parseUInt(from: raw, offset: cursor, length: elemLen) ?? 0) != 0 {
+                    segmentLevel = false
+                }
+            default:
+                break
+            }
+            cursor += elemLen
+        }
+        return segmentLevel
+    }
+
+    private func parseSimpleTag(
+        raw: UnsafeRawBufferPointer,
+        offset: Int,
+        length: Int
+    ) -> (name: String, value: String)? {
+        var cursor = offset
+        let limit = offset + length
+        var name: String?
+        var value: String?
+        while cursor < limit {
+            guard let idVint = EBMLVint.parseElementID(from: raw, offset: cursor) else { break }
+            cursor += idVint.length
+            guard let sizeVint = EBMLVint.parseDataSize(from: raw, offset: cursor) else { break }
+            cursor += sizeVint.length
+            let elemLen = Int(sizeVint.value)
+            guard elemLen >= 0, cursor + elemLen <= limit else { break }
+            if idVint.value == EBMLID.tagName.rawValue {
+                name = EBMLVint.parseString(from: raw, offset: cursor, length: elemLen)
+            } else if idVint.value == EBMLID.tagString.rawValue {
+                value = EBMLVint.parseString(from: raw, offset: cursor, length: elemLen)
+            }
+            cursor += elemLen
+        }
+        guard let name, let value else { return nil }
+        return (name, value)
+    }
+
+    private static func trimmedOrNil(_ string: String) -> String? {
+        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: "\0")))
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private struct AttachmentCandidate {
+        let rank: Int
+        let offset: UInt64
+        let length: Int
+    }
+
+    private func loadAttachments(at header: ElementHeader) {
+        attachmentsLoaded = true
+        let end = header.payloadOffset + header.payloadSize
+        var best: AttachmentCandidate?
+        var cursor = header.payloadOffset
+        while cursor < end {
+            guard let file = readElement(at: cursor) else { break }
+            let next = file.payloadOffset + file.payloadSize
+            if file.id == .attachedFile, let candidate = scanAttachedFile(file),
+               best.map({ candidate.rank < $0.rank }) ?? true {
+                best = candidate
+            }
+            guard next > cursor else { break }
+            cursor = next
+        }
+        if let best {
+            coverOffset = best.offset
+            coverLength = best.length
+        }
+    }
+
+    private func scanAttachedFile(_ file: ElementHeader) -> AttachmentCandidate? {
+        let end = file.payloadOffset + file.payloadSize
+        var cursor = file.payloadOffset
+        var name = ""
+        var mime = ""
+        var dataOffset: UInt64?
+        var dataLength = 0
+        while cursor < end {
+            guard let child = readElement(at: cursor) else { break }
+            switch child.id {
+            case .fileName, .fileMimeType:
+                if child.payloadSize <= 4096,
+                   let bytes = try? readBytes(offset: child.payloadOffset, length: Int(child.payloadSize)) {
+                    let text = (String(bytes: bytes, encoding: .utf8) ?? "")
+                        .trimmingCharacters(in: CharacterSet(charactersIn: "\0"))
+                    if child.id == .fileName { name = text } else { mime = text }
+                }
+            case .fileData:
+                if child.payloadSize > 0, child.payloadSize <= UInt64(Int32.max) {
+                    dataOffset = child.payloadOffset
+                    dataLength = Int(child.payloadSize)
+                }
+            default:
+                break
+            }
+            let next = child.payloadOffset + child.payloadSize
+            guard next > cursor else { break }
+            cursor = next
+        }
+        guard let dataOffset, Self.isImage(name: name, mime: mime) else { return nil }
+        return AttachmentCandidate(rank: Self.coverRank(name: name), offset: dataOffset, length: dataLength)
+    }
+
+    private static func isImage(name: String, mime: String) -> Bool {
+        if mime.lowercased().hasPrefix("image/") { return true }
+        let ext = (name as NSString).pathExtension.lowercased()
+        return ["jpg", "jpeg", "png", "webp", "gif", "bmp", "heic"].contains(ext)
+    }
+
+    /// Lower is better: cover > cover_land > other cover* > other images > small_*.
+    private static func coverRank(name: String) -> Int {
+        let base = ((name as NSString).deletingPathExtension).lowercased()
+        switch base {
+        case "cover": return 0
+        case "cover_land": return 1
+        default: break
+        }
+        if base.hasPrefix("small_") { return 4 }
+        if base.hasPrefix("cover") { return 2 }
+        return 3
+    }
+
+    private func loadDeferredMetadata() {
+        if !tagsLoaded, let off = tagsSeekOffset,
+           let header = readElement(at: off), header.id == .tags {
+            loadTags(at: header)
+        }
+        if !attachmentsLoaded, let off = attachmentsSeekOffset,
+           let header = readElement(at: off), header.id == .attachments {
+            loadAttachments(at: header)
+        }
+    }
+
+    public var embeddedTitle: String? {
+        Self.trimmedOrNil(infoTitle ?? "") ?? tagTitle
+    }
+
+    public var embeddedArtist: String? {
+        tagArtist
+    }
+
+    public var coverAttachment: Data? {
+        guard let offset = coverOffset, coverLength > 0 else { return nil }
+        guard let data = try? readBytes(offset: offset, length: coverLength), !data.isEmpty else { return nil }
+        return Data(data)
     }
 
     // MARK: - Tracks Parser

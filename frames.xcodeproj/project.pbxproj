@@ -48,6 +48,9 @@
 		477EE164ADE4D88AE7A9FC87 /* SubtitleOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2BA08ADE586640372E30C0B /* SubtitleOverlayView.swift */; };
 		0253F35A8F191A66C1CF87BE /* SubtitleParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFF91D6621B8D32DCFD5E316 /* SubtitleParser.swift */; };
 		2064E5E7EE7465464852E040 /* FramesTestSuite.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49CDD2212CF07B838E59513F /* FramesTestSuite.swift */; };
+		A1B2C3D4E5F6071829304C01 /* LibraryMetadataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6071829304C02 /* LibraryMetadataTests.swift */; };
+		A1B2C3D4E5F6071829304C03 /* LibraryImportBenchmark.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6071829304C04 /* LibraryImportBenchmark.swift */; };
+		A1B2C3D4E5F6071829304C05 /* LibraryMetadataIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6071829304C06 /* LibraryMetadataIntegrationTests.swift */; };
 		BC266A94EE9602B301AAD35F /* CustomScrubber.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7F0F376E3171E5B82B3D681 /* CustomScrubber.swift */; };
 		C120853CAC1FCD904D32CCA8 /* LiquidGlassStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59E9E301B1965D9ED550466E /* LiquidGlassStyle.swift */; };
 		F46963707DBB1A5F906A39B2 /* PointerCursor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9981A90A8E4365A9AD362F1 /* PointerCursor.swift */; };
@@ -60,6 +63,12 @@
 		C5A487A958D8338CF540EED8 /* TitleBarArea.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD01CBEACDB0C50D1155859A /* TitleBarArea.swift */; };
 		F607699E6E4774725F55BB1B /* UpdateNoticeToast.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFE7B84DA3AE2DC041FD957E /* UpdateNoticeToast.swift */; };
 		2AD3EA9A7FC78E73FD5A9426 /* DashboardContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86455C1C02FD2961CEDCCAC0 /* DashboardContentView.swift */; };
+		A1B2C3D4E5F6071829304A01 /* VideoGridCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6071829304A02 /* VideoGridCard.swift */; };
+		A1B2C3D4E5F6071829304A03 /* VideoListRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6071829304A04 /* VideoListRowView.swift */; };
+		A1B2C3D4E5F6071829304B01 /* ThumbnailImaging.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6071829304B02 /* ThumbnailImaging.swift */; };
+		A1B2C3D4E5F6071829304B03 /* MatroskaFrameGrabber.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6071829304B04 /* MatroskaFrameGrabber.swift */; };
+		A1B2C3D4E5F6071829304B05 /* MediaMetadataExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6071829304B06 /* MediaMetadataExtractor.swift */; };
+		A1B2C3D4E5F6071829304B07 /* LibraryCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6071829304B08 /* LibraryCache.swift */; };
 		681C7006FC2895FF5D8155F2 /* DashboardSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95AD5838482A66BC0522BEC4 /* DashboardSidebarView.swift */; };
 		5AA3642B64D6042B0F03D1CB /* DashboardTopBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F8809FC1EBA6C2E00C58C3C /* DashboardTopBarView.swift */; };
 		90B58E6AB563E5E5FF57C3B9 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2FCE2D946CE30E9B02E6D87 /* DashboardView.swift */; };
@@ -137,6 +146,9 @@
 		A2BA08ADE586640372E30C0B /* SubtitleOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SubtitleOverlayView.swift"; sourceTree = "<group>"; };
 		EFF91D6621B8D32DCFD5E316 /* SubtitleParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SubtitleParser.swift"; sourceTree = "<group>"; };
 		49CDD2212CF07B838E59513F /* FramesTestSuite.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FramesTestSuite.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6071829304C02 /* LibraryMetadataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryMetadataTests.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6071829304C04 /* LibraryImportBenchmark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryImportBenchmark.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6071829304C06 /* LibraryMetadataIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryMetadataIntegrationTests.swift"; sourceTree = "<group>"; };
 		D7F0F376E3171E5B82B3D681 /* CustomScrubber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CustomScrubber.swift"; sourceTree = "<group>"; };
 		59E9E301B1965D9ED550466E /* LiquidGlassStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LiquidGlassStyle.swift"; sourceTree = "<group>"; };
 		B9981A90A8E4365A9AD362F1 /* PointerCursor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PointerCursor.swift"; sourceTree = "<group>"; };
@@ -151,6 +163,12 @@
 		AD01CBEACDB0C50D1155859A /* TitleBarArea.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TitleBarArea.swift"; sourceTree = "<group>"; };
 		EFE7B84DA3AE2DC041FD957E /* UpdateNoticeToast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UpdateNoticeToast.swift"; sourceTree = "<group>"; };
 		86455C1C02FD2961CEDCCAC0 /* DashboardContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DashboardContentView.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6071829304A02 /* VideoGridCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VideoGridCard.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6071829304A04 /* VideoListRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VideoListRowView.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6071829304B02 /* ThumbnailImaging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ThumbnailImaging.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6071829304B04 /* MatroskaFrameGrabber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MatroskaFrameGrabber.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6071829304B06 /* MediaMetadataExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MediaMetadataExtractor.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6071829304B08 /* LibraryCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryCache.swift"; sourceTree = "<group>"; };
 		95AD5838482A66BC0522BEC4 /* DashboardSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DashboardSidebarView.swift"; sourceTree = "<group>"; };
 		7F8809FC1EBA6C2E00C58C3C /* DashboardTopBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DashboardTopBarView.swift"; sourceTree = "<group>"; };
 		F2FCE2D946CE30E9B02E6D87 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DashboardView.swift"; sourceTree = "<group>"; };
@@ -244,6 +262,7 @@
 				112ED0EC1B6762D78ED90CF5 /* Demuxer */,
 				649D60181F3E87527A23FB93 /* Encoder */,
 				C512032DA5E3A32B58036A23 /* KeyboardHandler.swift */,
+				A1B2C3D4E5F6071829304B10 /* Library */,
 				B809D143C17488282B447C8B /* LibraryManager.swift */,
 				E8E6B47EA7C188C3959FD3DA /* Playback */,
 				AA9CA51175B5CC60F14FF2F2 /* PlaybackPipeline.swift */,
@@ -255,6 +274,17 @@
 				208AD723EA644CF38AED1734 /* frames_native.h */,
 			);
 			path = "Engine";
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F6071829304B10 /* Library */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F6071829304B08 /* LibraryCache.swift */,
+				A1B2C3D4E5F6071829304B04 /* MatroskaFrameGrabber.swift */,
+				A1B2C3D4E5F6071829304B06 /* MediaMetadataExtractor.swift */,
+				A1B2C3D4E5F6071829304B02 /* ThumbnailImaging.swift */,
+			);
+			path = "Library";
 			sourceTree = "<group>";
 		};
 		077C7A83A28E48B01DDBE0E1 /* Audio */ = {
@@ -344,6 +374,9 @@
 			isa = PBXGroup;
 			children = (
 				49CDD2212CF07B838E59513F /* FramesTestSuite.swift */,
+				A1B2C3D4E5F6071829304C04 /* LibraryImportBenchmark.swift */,
+				A1B2C3D4E5F6071829304C02 /* LibraryMetadataTests.swift */,
+				A1B2C3D4E5F6071829304C06 /* LibraryMetadataIntegrationTests.swift */,
 			);
 			path = "Tests";
 			sourceTree = "<group>";
@@ -383,6 +416,8 @@
 			isa = PBXGroup;
 			children = (
 				86455C1C02FD2961CEDCCAC0 /* DashboardContentView.swift */,
+				A1B2C3D4E5F6071829304A02 /* VideoGridCard.swift */,
+				A1B2C3D4E5F6071829304A04 /* VideoListRowView.swift */,
 				95AD5838482A66BC0522BEC4 /* DashboardSidebarView.swift */,
 				7F8809FC1EBA6C2E00C58C3C /* DashboardTopBarView.swift */,
 				F2FCE2D946CE30E9B02E6D87 /* DashboardView.swift */,
@@ -557,6 +592,9 @@
 				477EE164ADE4D88AE7A9FC87 /* SubtitleOverlayView.swift in Sources */,
 				0253F35A8F191A66C1CF87BE /* SubtitleParser.swift in Sources */,
 				2064E5E7EE7465464852E040 /* FramesTestSuite.swift in Sources */,
+				A1B2C3D4E5F6071829304C01 /* LibraryMetadataTests.swift in Sources */,
+				A1B2C3D4E5F6071829304C03 /* LibraryImportBenchmark.swift in Sources */,
+				A1B2C3D4E5F6071829304C05 /* LibraryMetadataIntegrationTests.swift in Sources */,
 				BC266A94EE9602B301AAD35F /* CustomScrubber.swift in Sources */,
 				C120853CAC1FCD904D32CCA8 /* LiquidGlassStyle.swift in Sources */,
 				F46963707DBB1A5F906A39B2 /* PointerCursor.swift in Sources */,
@@ -569,6 +607,12 @@
 				C5A487A958D8338CF540EED8 /* TitleBarArea.swift in Sources */,
 				F607699E6E4774725F55BB1B /* UpdateNoticeToast.swift in Sources */,
 				2AD3EA9A7FC78E73FD5A9426 /* DashboardContentView.swift in Sources */,
+				A1B2C3D4E5F6071829304A01 /* VideoGridCard.swift in Sources */,
+				A1B2C3D4E5F6071829304A03 /* VideoListRowView.swift in Sources */,
+				A1B2C3D4E5F6071829304B01 /* ThumbnailImaging.swift in Sources */,
+				A1B2C3D4E5F6071829304B03 /* MatroskaFrameGrabber.swift in Sources */,
+				A1B2C3D4E5F6071829304B05 /* MediaMetadataExtractor.swift in Sources */,
+				A1B2C3D4E5F6071829304B07 /* LibraryCache.swift in Sources */,
 				681C7006FC2895FF5D8155F2 /* DashboardSidebarView.swift in Sources */,
 				5AA3642B64D6042B0F03D1CB /* DashboardTopBarView.swift in Sources */,
 				90B58E6AB563E5E5FF57C3B9 /* DashboardView.swift in Sources */,

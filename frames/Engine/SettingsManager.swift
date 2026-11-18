@@ -545,6 +545,10 @@ public final class SettingsManager {
         NSDocumentController.shared.clearRecentDocuments(nil)
     }
 
+    public func clearThumbnailCache() {
+        LibraryManager.shared.clearThumbnailCache()
+    }
+
     public func resetToDefaults() {
         defaultViewMode = .grid
         LibraryManager.shared.viewMode = .grid

@@ -100,12 +100,33 @@ nonisolated public enum EBMLID: UInt64, Sendable {
     case blockDuration = 0x9B
     case referenceBlock = 0xFB
 
+    // MARK: - Tags
+    case tags = 0x1254C367
+    case tag = 0x7373
+    case targets = 0x63C0
+    case targetTypeValue = 0x68CA
+    case tagTrackUID = 0x63C5
+    case tagEditionUID = 0x63C9
+    case tagChapterUID = 0x63C4
+    case tagAttachmentUID = 0x63C6
+    case simpleTag = 0x67C8
+    case tagName = 0x45A3
+    case tagString = 0x4487
+
+    // MARK: - Attachments
+    case attachments = 0x1941A469
+    case attachedFile = 0x61A7
+    case fileName = 0x466E
+    case fileMimeType = 0x4660
+    case fileData = 0x465C
+
     /// Identifies whether this element ID is a Master Element containing child elements.
     public var isMasterElement: Bool {
         switch self {
         case .ebml, .segment, .seekHead, .seek, .info, .tracks, .trackEntry,
              .video, .audio, .colour, .masteringMetadata, .cues, .cuePoint,
-             .cueTrackPositions, .cluster, .blockGroup:
+             .cueTrackPositions, .cluster, .blockGroup,
+             .tags, .tag, .targets, .simpleTag, .attachments, .attachedFile:
             return true
         default:
             return false
