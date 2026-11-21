@@ -643,11 +643,8 @@ public enum FramesTestSuite {
             let stdState = wm.computeLayoutState(window: stdWin)
             assertTest("Standard Window Layout Detected", condition: stdState == .standard)
         } else {
-            assertTest("Quarter-Screen Tiling Detected", condition: true)
-            assertTest("Split-Screen Vertical Tiling Detected", condition: true)
-            assertTest("Split-Screen Horizontal Tiling Detected", condition: true)
-            assertTest("Windowed Full Zoom State Detected", condition: true)
-            assertTest("Standard Window Layout Detected", condition: true)
+            // No visible frame is available in this environment; the tiling
+            // assertions above are skipped rather than passed vacuously.
         }
 
         // Native Full Screen Detection
@@ -784,16 +781,16 @@ public enum FramesTestSuite {
         )
 
         // ProMotion 120Hz Fluid Physics Animation Curve Tokens
-        _ = FramesAnimation.fluidSpring
-        _ = FramesAnimation.smooth
-        _ = FramesAnimation.quick
-        _ = FramesAnimation.overlay
-        _ = FramesAnimation.windowTransition
-        assertTest("Fluid Spring Curve Initialized", condition: true)
-        assertTest("Smooth Curve Initialized", condition: true)
-        assertTest("Quick Curve Initialized", condition: true)
-        assertTest("Overlay Curve Initialized", condition: true)
-        assertTest("Window Transition Curve Initialized", condition: true)
+        let springCurve = String(describing: FramesAnimation.fluidSpring)
+        let smoothCurve = String(describing: FramesAnimation.smooth)
+        let quickCurve = String(describing: FramesAnimation.quick)
+        let overlayCurve = String(describing: FramesAnimation.overlay)
+        let windowCurve = String(describing: FramesAnimation.windowTransition)
+        assertTest("Fluid Spring Curve Initialized", condition: springCurve.contains("spring"))
+        assertTest("Smooth Curve Initialized", condition: smoothCurve.contains("smooth"))
+        assertTest("Quick Curve Initialized", condition: quickCurve.contains("spring"))
+        assertTest("Overlay Curve Initialized", condition: overlayCurve.contains("spring"))
+        assertTest("Window Transition Curve Initialized", condition: windowCurve.contains("spring"))
 
         // MARK: - 12. Pure Native EBML & Matroska VINT Parser Tests
         logs.append("\n[12] Testing EBML VINT & Matroska Parser...")

@@ -205,12 +205,10 @@ public final class KeyboardHandler {
                 return nil
             }
 
-            // macOS Default Close Window: Command + W (⌘W)
+            // macOS Default Close Window: Command + W (⌘W). Let AppKit and the
+            // app menu handle this so the correct key window always closes.
             if isCommand && !isControl && !isOption && keyCode == 13 {
-                Task { @MainActor in
-                    NSApp.keyWindow?.performClose(nil)
-                }
-                return nil
+                return event
             }
 
             // macOS Default Navigation Back: Command + [ (⌘[)
