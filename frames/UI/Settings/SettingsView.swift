@@ -104,7 +104,7 @@ public struct SettingsPillButtonStyle: ButtonStyle {
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1.0)
-            .animation(.fluidQuick, value: configuration.isPressed)
+            .animation(reduceMotion ? nil : Animation.fluidQuick, value: configuration.isPressed)
     }
 }
 
@@ -114,13 +114,37 @@ public struct SettingsSlider: View {
     @Binding var value: Double
     let range: ClosedRange<Double>
     let step: Double
+    let accessibilityTitle: String
     @State private var isHovered = false
     @State private var isDragging = false
 
-    public init(value: Binding<Double>, in range: ClosedRange<Double>, step: Double = 1.0) {
+    public init(
+        value: Binding<Double>,
+        in range: ClosedRange<Double>,
+        step: Double = 1.0,
+        accessibilityTitle: String = "Value"
+    ) {
         self._value = value
         self.range = range
         self.step = step
+        self.accessibilityTitle = accessibilityTitle
+    }
+
+    private var sliderAnimation: Animation? {
+        reduceMotion ? nil : Animation.fluidQuick
+    }
+
+    private var effectiveStep: Double {
+        max(abs(step), 0.0001)
+    }
+
+    private var formattedValue: String {
+        effectiveStep >= 1 ? "\(Int(value.rounded()))" : String(format: "%.2f", value)
+    }
+
+    private func clamped(_ rawValue: Double) -> Double {
+        let stepped = (rawValue / effectiveStep).rounded() * effectiveStep
+        return max(range.lowerBound, min(range.upperBound, stepped))
     }
 
     public var body: some View {
@@ -155,8 +179,8 @@ public struct SettingsSlider: View {
                     )
                     .shadow(color: Color.black.opacity(isHovered ? 0.30 : 0.12), radius: isHovered ? 4 : 2, x: 0, y: 1)
                     .offset(x: xOffset)
-                    .animation(.fluidQuick, value: isHovered)
-                    .animation(.fluidQuick, value: isDragging)
+                    .animation(sliderAnimation, value: isHovered)
+                    .animation(sliderAnimation, value: isDragging)
             }
             .frame(maxHeight: .infinity)
             .contentShape(Rectangle())
@@ -167,10 +191,8 @@ public struct SettingsSlider: View {
                         isDragging = true
                         let pct = max(0.0, min(1.0, gesture.location.x / width))
                         let rawValue = range.lowerBound + pct * (range.upperBound - range.lowerBound)
-                        let stepped = (rawValue / step).rounded() * step
-                        let clamped = max(range.lowerBound, min(range.upperBound, stepped))
-                        withAnimation(.fluidQuick) {
-                            value = clamped
+                        withAnimation(sliderAnimation) {
+                            value = clamped(rawValue)
                         }
                     }
                     .onEnded { _ in
@@ -178,12 +200,21 @@ public struct SettingsSlider: View {
                     }
             )
             .onHover { h in
-                withAnimation(.fluidQuick) {
+                withAnimation(sliderAnimation) {
                     isHovered = h
                 }
             }
         }
         .frame(height: 22)
+        .accessibilityElement()
+        .accessibilityLabel(accessibilityTitle)
+        .accessibilityValue(formattedValue)
+        .accessibilityAdjustableAction { direction in
+            let delta = direction == .increment ? effectiveStep : -effectiveStep
+            withAnimation(sliderAnimation) {
+                value = clamped(value + delta)
+            }
+        }
     }
 }
 

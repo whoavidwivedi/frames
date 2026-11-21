@@ -252,6 +252,8 @@ public final class SettingsManager {
     public var proMotionSyncEnabled: Bool {
         didSet {
             UserDefaults.standard.set(proMotionSyncEnabled, forKey: Self.proMotionSyncKey)
+            // The Metal canvas recomputes display-link cadence from this notification.
+            NotificationCenter.default.post(name: Self.presentationEngineDidChangeNotification, object: nil)
         }
     }
 
@@ -338,6 +340,8 @@ public final class SettingsManager {
     public var batterySaverGuardEnabled: Bool {
         didSet {
             UserDefaults.standard.set(batterySaverGuardEnabled, forKey: Self.batterySaverGuardKey)
+            // Battery guard also changes the preferred display-link cadence.
+            NotificationCenter.default.post(name: Self.presentationEngineDidChangeNotification, object: nil)
         }
     }
 

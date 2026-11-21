@@ -465,6 +465,29 @@ nonisolated public final class ScrubCacheGate: @unchecked Sendable {
     }
 }
 
+/// Serializes decoder frame delivery with the frame stores it feeds. Closing the
+/// gate waits for any callback already writing to the queue/cache, so clearing
+/// those stores cannot be followed by a stale frame from the previous decoder.
+nonisolated public final class DecoderFrameHandlerGate: @unchecked Sendable {
+    private var isOpen = true
+    private let lock = NSLock()
+
+    public init() {}
+
+    public func performIfOpen(_ work: () -> Void) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard isOpen else { return }
+        work()
+    }
+
+    public func close() {
+        lock.lock()
+        isOpen = false
+        lock.unlock()
+    }
+}
+
 // MARK: - Dedicated E-Core Feeder Thread Controller
 
 nonisolated public final class FeederTaskController: @unchecked Sendable {
@@ -531,6 +554,7 @@ public final class PlaybackPipeline: ObservableObject {
     public var matroskaDemuxer: MatroskaDemuxer? { demuxer as? MatroskaDemuxer }
     public var mp4Demuxer: MP4Demuxer? { demuxer as? MP4Demuxer }
     private var videoDecoder: VideoToolboxDecoder?
+    private var decoderFrameHandlerGate: DecoderFrameHandlerGate?
     private var audioEngine: AudioEngineBridge?
     public let renderer: MetalVideoRenderer?
 
@@ -818,6 +842,12 @@ public final class PlaybackPipeline: ObservableObject {
         let demuxer = prepared.demuxer
         let videoTrack = demuxer.videoTracks.first
 
+        // Defensive: callers normally stop first, but never let a previous
+        // decoder write into the stores that are about to be cleared.
+        decoderFrameHandlerGate?.close()
+        let decoderGate = DecoderFrameHandlerGate()
+        decoderFrameHandlerGate = decoderGate
+
         // A file load must not inherit decoded frames or seek indexes from the
         // previous file. `updateCapacity` / `setCapacity` early-return when the
         // new file has the same dimensions, so they cannot be relied on to reset
@@ -876,15 +906,17 @@ public final class PlaybackPipeline: ObservableObject {
         let cache = self.scrubCache
         let cacheGate = self.scrubCacheGate
         prepared.decoder.setFrameHandler { frame in
-            let w = CVPixelBufferGetWidth(frame.pixelBuffer)
-            let h = CVPixelBufferGetHeight(frame.pixelBuffer)
-            if w > 0 && h > 0 {
-                cache.updateCapacity(forWidth: w, height: h)
+            decoderGate.performIfOpen {
+                let w = CVPixelBufferGetWidth(frame.pixelBuffer)
+                let h = CVPixelBufferGetHeight(frame.pixelBuffer)
+                if w > 0 && h > 0 {
+                    cache.updateCapacity(forWidth: w, height: h)
+                }
+                if cacheGate.isEnabled {
+                    cache.insert(buffer: frame.pixelBuffer, pts: frame.pts)
+                }
+                q.enqueue(frame)
             }
-            if cacheGate.isEnabled {
-                cache.insert(buffer: frame.pixelBuffer, pts: frame.pts)
-            }
-            q.enqueue(frame)
         }
 
         self.audioEngine = prepared.audioEngine
@@ -902,6 +934,15 @@ public final class PlaybackPipeline: ObservableObject {
         return true
     }
     
+    /// Stops a superseded audio engine without blocking the caller. Used when a
+    /// track switch is canceled before the replacement can be installed.
+    private nonisolated static func discardAudioEngine(_ engine: AudioEngineBridge?) {
+        guard let engine else { return }
+        Task.detached(priority: .utility) {
+            engine.stop()
+        }
+    }
+
     // MARK: - Track Switching
     public func selectAudioTrack(trackNumber: UInt64) {
         guard let d = demuxer, let track = d.audioTracks.first(where: { $0.trackNumber == trackNumber }) else { return }
@@ -926,16 +967,16 @@ public final class PlaybackPipeline: ObservableObject {
             let currentRate = await MainActor.run { [weak self] in self?.playbackRate ?? 1.0 }
             let newEngine = AudioEngineBridge(track: track, initialRate: currentRate)
             guard !Task.isCancelled else {
-                newEngine?.stop()
+                Self.discardAudioEngine(newEngine)
                 return
             }
             await MainActor.run { [weak self] in
                 guard let self else {
-                    newEngine?.stop()
+                    Self.discardAudioEngine(newEngine)
                     return
                 }
                 guard self.pendingAudioTrackNumber == trackNumber else {
-                    newEngine?.stop()
+                    Self.discardAudioEngine(newEngine)
                     return
                 }
                 self.pendingAudioTrackNumber = nil
@@ -1102,6 +1143,11 @@ public final class PlaybackPipeline: ObservableObject {
         audioEngine = nil
         videoDecoder = nil
         demuxer = nil
+
+        // Block until any in-flight frame callback has finished writing before
+        // the shared stores are emptied for a new load.
+        decoderFrameHandlerGate?.close()
+        decoderFrameHandlerGate = nil
 
         frameQueue.removeAll()
         scrubCache.clear()

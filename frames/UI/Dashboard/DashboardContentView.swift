@@ -11,7 +11,7 @@ public struct TactileCardPressButtonStyle: ButtonStyle {
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed && !reduceMotion ? 0.98 : 1.0)
-            .animation(.fluidQuick, value: configuration.isPressed)
+            .animation(reduceMotion ? nil : Animation.fluidQuick, value: configuration.isPressed)
     }
 }
 
@@ -31,6 +31,14 @@ public struct DashboardContentView: View {
 
     public static let addListThumbnailWidth: CGFloat = VideoListRowView.thumbnailWidth
     public static let addListThumbnailHeight: CGFloat = VideoListRowView.thumbnailHeight
+
+    private var containerAnimation: Animation? {
+        reduceMotion ? nil : Animation.fluidQuick
+    }
+
+    private var containerTransition: AnyTransition {
+        reduceMotion ? AnyTransition.opacity : AnyTransition.opacity.combined(with: .scale(scale: 0.98))
+    }
 
     public static func computeGridItemWidth(containerWidth: CGFloat, contentPadding: CGFloat, isNarrow: Bool) -> CGFloat {
         let gridSpacing: CGFloat = isNarrow ? 10 : 14
@@ -58,7 +66,7 @@ public struct DashboardContentView: View {
                         .transition(.opacity)
                 } else if library.filteredVideos.isEmpty {
                     emptyStateView(isNarrow: isNarrow)
-                        .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                        .transition(containerTransition)
                 } else {
                     if library.viewMode == .grid {
                         ScrollView(.vertical, showsIndicators: true) {
@@ -84,7 +92,7 @@ public struct DashboardContentView: View {
                             }
                             .padding(contentPadding)
                         }
-                        .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                        .transition(containerTransition)
                     } else {
                         ScrollView(.vertical, showsIndicators: true) {
                             LazyVStack(spacing: 8) {
@@ -110,15 +118,15 @@ public struct DashboardContentView: View {
                             }
                             .padding(contentPadding)
                         }
-                        .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                        .transition(containerTransition)
                     }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(ShadcnTheme.background)
             .clipped()
-            .animation(.fluidQuick, value: library.viewMode)
-            .animation(.fluidQuick, value: library.selectedCategory)
+            .animation(containerAnimation, value: library.viewMode)
+            .animation(containerAnimation, value: library.selectedCategory)
         }
     }
 

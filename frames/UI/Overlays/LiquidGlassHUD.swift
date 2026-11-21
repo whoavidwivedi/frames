@@ -719,7 +719,9 @@ public struct TimeReadout: View {
     }
 
     public var body: some View {
-        Text("\(Self.fmt(engine.currentTime)) / \(Self.fmt(engine.duration))")
+        // Read the observable clock store: engine.currentTime is backed by an
+        // @ObservationIgnored field and does not invalidate this view while playing.
+        Text("\(Self.fmt(engine.clockStore.currentTime)) / \(Self.fmt(engine.clockStore.duration))")
             .font(.system(size: 28, weight: .heavy, design: .rounded))
             .foregroundStyle(.white)
             .shadow(color: .black.opacity(0.6), radius: 8, y: 4)
