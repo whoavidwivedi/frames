@@ -1158,8 +1158,10 @@ public final class PlaybackPipeline: ObservableObject {
             return
         }
 
-        // Discrete timeline click or explicit seek
-        scrubCacheGate.setEnabled(true)
+        // Discrete timeline click or explicit seek. Cache population is only useful
+        // for the paused single-frame preroll; enabling it for a live seek would make
+        // the continuous feeder retain every decoded frame in the scrub cache.
+        scrubCacheGate.setEnabled(!isPlaying)
         isScrubbingActive = false
         scrubResiduePending = false
         pendingScrubTarget = nil
@@ -1629,14 +1631,16 @@ public final class PlaybackPipeline: ObservableObject {
                     consecutiveTransientErrors += 1
                     if consecutiveTransientErrors <= maxTransientRetries {
                         controller.waitForHeadroom(timeoutMs: transientRetryDelayMs)
-                    } else {
-                        // Persistent failure: give up rather than spin forever.
-                        self.isDemuxerEOF = true
-                        shouldSleepAfterEOF = true
+                        continue
                     }
-                    continue
+                    // Persistent failure: stop retrying the failing read. Fall through
+                    // to the EOF drain path so in-flight frames are flushed and
+                    // playback ends cleanly instead of spinning on the same error.
+                    self.isDemuxerEOF = true
+                    shouldSleepAfterEOF = true
+                } else {
+                    consecutiveTransientErrors = 0
                 }
-                consecutiveTransientErrors = 0
 
                 if shouldSleepAfterEOF {
                     // VideoToolbox decoding is asynchronous. Drain in-flight frames
