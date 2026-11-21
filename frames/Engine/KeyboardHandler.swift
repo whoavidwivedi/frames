@@ -1,4 +1,5 @@
 import AppKit
+import Foundation
 import SwiftUI
 
 @MainActor
@@ -272,8 +273,9 @@ public final class KeyboardHandler {
                                 object: metadata
                             )
                         } catch {
+                            NSLog("Frames: failed to capture snapshot: %@", error.localizedDescription)
                             NotificationCenter.default.post(
-                                name: Notification.Name("FramesSnapshotFailedNotification"),
+                                name: .snapshotFailedNotification,
                                 object: error.localizedDescription
                             )
                         }

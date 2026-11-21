@@ -19,6 +19,8 @@ extension Notification.Name {
     public static let toggleCommandPaletteNotification = Notification.Name("FramesToggleCommandPaletteNotification")
     public static let requestOpenFilePickerNotification = Notification.Name("FramesRequestOpenFilePickerNotification")
     public static let triggerSnapshotNotification = Notification.Name("FramesTriggerSnapshotNotification")
+    public static let playbackEndedNotification = Notification.Name("FramesPlaybackEndedNotification")
+    public static let snapshotFailedNotification = Notification.Name("FramesSnapshotFailedNotification")
 }
 
 @main
