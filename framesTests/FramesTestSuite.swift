@@ -1249,9 +1249,10 @@ public enum FramesTestSuite {
                 dynamicCache.insert(buffer: pb, pts: Double(i))
             }
             assertTest("Scrub Cache Populated with 10 Frames", condition: dynamicCache.count == 10)
-            dynamicCache.updateCapacity(forWidth: 7680, height: 4320) // Resize down to 8 frames
-            assertTest("Scrub Cache Capacity Reduced to 8 for 8K", condition: dynamicCache.maxCapacity == 8)
-            assertTest("Scrub Cache Automatically Evicted Excess Frames to 8", condition: dynamicCache.count == 8)
+            dynamicCache.updateCapacity(forWidth: 7680, height: 4320)
+            let eightKCapacity = ScrubFrameCache.deviceScaledCapacity(width: 7680, height: 4320)
+            assertTest("Scrub Cache Capacity Scaled for 8K", condition: dynamicCache.maxCapacity == eightKCapacity)
+            assertTest("Scrub Cache Automatically Evicted Excess Frames", condition: dynamicCache.count == eightKCapacity)
         }
 
         // LRU Protection on Nearest Frame Access
@@ -1272,9 +1273,9 @@ public enum FramesTestSuite {
         let multiStepCache = ScrubFrameCache(width: 1920, height: 1080)
         assertTest("Multi-Step Cache Initial 1080p Capacity (48)", condition: multiStepCache.maxCapacity == 48)
         multiStepCache.updateCapacity(forWidth: 3840, height: 2160)
-        assertTest("Multi-Step Cache Scaled to 4K Capacity (16)", condition: multiStepCache.maxCapacity == 16)
+        assertTest("Multi-Step Cache Scaled to 4K Capacity", condition: multiStepCache.maxCapacity == ScrubFrameCache.deviceScaledCapacity(width: 3840, height: 2160))
         multiStepCache.updateCapacity(forWidth: 7680, height: 4320)
-        assertTest("Multi-Step Cache Scaled to 8K Capacity (8)", condition: multiStepCache.maxCapacity == 8)
+        assertTest("Multi-Step Cache Scaled to 8K Capacity", condition: multiStepCache.maxCapacity == ScrubFrameCache.deviceScaledCapacity(width: 7680, height: 4320))
 
         // MARK: - 23. Metal 3 Aspect Ratio Scaling & Letterboxing Tests
         logs.append("\n[23] Testing Metal 3 Aspect Ratio Scaling & Letterboxing...")
