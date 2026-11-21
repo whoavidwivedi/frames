@@ -2,6 +2,17 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// Centralized detection for the app's test modes. `xcodebuild test` injects the
+/// XCTest host process without passing `--run-tests`, so both paths must be
+/// recognized by production code that relaxes file-existence checks for tests.
+public enum TestEnvironment {
+    public static var isRunningTests: Bool {
+        if CommandLine.arguments.contains("--run-tests") { return true }
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil { return true }
+        return NSClassFromString("XCTestCase") != nil
+    }
+}
+
 extension Notification.Name {
     public static let openVideoNotification = Notification.Name("FramesOpenVideoNotification")
     public static let returnToDashboardNotification = Notification.Name("FramesReturnToDashboardNotification")

@@ -690,7 +690,7 @@ public struct VideoGridCardView: View {
                 isPressed = pressing
             }
         }, perform: {
-            if FileManager.default.fileExists(atPath: video.url.path) || CommandLine.arguments.contains("--run-tests") {
+            if FileManager.default.fileExists(atPath: video.url.path) || TestEnvironment.isRunningTests {
                 onPlayURL(video.url)
             } else {
                 library.verifyAndPruneMissingFiles()
@@ -702,7 +702,7 @@ public struct VideoGridCardView: View {
         }
         .contextMenu {
             Button("Play in Frames") {
-                if FileManager.default.fileExists(atPath: video.url.path) || CommandLine.arguments.contains("--run-tests") {
+                if FileManager.default.fileExists(atPath: video.url.path) || TestEnvironment.isRunningTests {
                     onPlayURL(video.url)
                 } else {
                     library.verifyAndPruneMissingFiles()
@@ -931,7 +931,7 @@ public struct VideoListRowView: View {
                 isPressed = pressing
             }
         }, perform: {
-            if FileManager.default.fileExists(atPath: video.url.path) || CommandLine.arguments.contains("--run-tests") {
+            if FileManager.default.fileExists(atPath: video.url.path) || TestEnvironment.isRunningTests {
                 onPlayURL(video.url)
             } else {
                 library.verifyAndPruneMissingFiles()
@@ -950,7 +950,7 @@ public struct VideoListRowView: View {
         }
         .contextMenu {
             Button("Play in Frames") {
-                if FileManager.default.fileExists(atPath: video.url.path) || CommandLine.arguments.contains("--run-tests") {
+                if FileManager.default.fileExists(atPath: video.url.path) || TestEnvironment.isRunningTests {
                     onPlayURL(video.url)
                 } else {
                     library.verifyAndPruneMissingFiles()

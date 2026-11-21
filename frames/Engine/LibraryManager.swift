@@ -524,7 +524,7 @@ public final class LibraryManager {
 
     public func recordPlayback(url: URL, duration: Double, progress: Double) {
         // Guard against recording or resurrecting deleted files
-        guard FileManager.default.fileExists(atPath: url.path) || CommandLine.arguments.contains("--run-tests") else {
+        guard FileManager.default.fileExists(atPath: url.path) || TestEnvironment.isRunningTests else {
             verifyAndPruneMissingFiles()
             return
         }
@@ -561,7 +561,7 @@ public final class LibraryManager {
 
     public func addSingleVideoFile(url: URL) {
         let cleanURL = url.standardizedFileURL
-        if !CommandLine.arguments.contains("--run-tests") && !FileManager.default.fileExists(atPath: cleanURL.path) {
+        if !TestEnvironment.isRunningTests && !FileManager.default.fileExists(atPath: cleanURL.path) {
             return
         }
 
@@ -935,7 +935,7 @@ public final class LibraryManager {
     }
 
     public func updateDirectoryWatcher() {
-        guard !CommandLine.arguments.contains("--run-tests") else { return }
+        guard !TestEnvironment.isRunningTests else { return }
 
         var dirsToWatch = Set<String>()
         for folder in folders {
@@ -961,7 +961,7 @@ public final class LibraryManager {
     }
 
     private func setupLifecycleObservers() {
-        guard !CommandLine.arguments.contains("--run-tests") else { return }
+        guard !TestEnvironment.isRunningTests else { return }
 
         let center = NotificationCenter.default
         let activeObs = center.addObserver(
@@ -986,7 +986,7 @@ public final class LibraryManager {
     }
 
     private func setupPeriodicSync() {
-        guard !CommandLine.arguments.contains("--run-tests") else { return }
+        guard !TestEnvironment.isRunningTests else { return }
         // Fallback sweep for unmounted volumes; live changes already arrive via the
         // directory watcher and app-activation checks. A 2.5s sweep re-stat'd every
         // library file on the main thread during playback.

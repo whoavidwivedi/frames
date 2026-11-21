@@ -497,7 +497,7 @@ struct ContentView: View {
     }
 
     private func requestPlayVideo(url: URL) {
-        guard FileManager.default.fileExists(atPath: url.path) || CommandLine.arguments.contains("--run-tests") else {
+        guard FileManager.default.fileExists(atPath: url.path) || TestEnvironment.isRunningTests else {
             library.verifyAndPruneMissingFiles()
             return
         }

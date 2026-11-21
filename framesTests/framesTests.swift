@@ -173,26 +173,16 @@ final class FramesTests: XCTestCase {
         print("[SmokeTest] Step 1: Loading media...")
         engine.loadMedia(from: mediaURL)
         XCTAssertEqual(engine.currentURL, mediaURL, "Current URL must match loaded media URL")
-        XCTAssertNotNil(engine.player.currentItem, "AVPlayer must have an active player item")
 
+        // The native demuxer pipeline is asynchronous and does not populate
+        // AVPlayer, so wait on the engine's public load state instead.
         let start = Date()
-        while Date().timeIntervalSince(start) < 3.0 {
-            if let item = engine.player.currentItem {
-                if item.status == .failed {
-                    break
-                }
-                if item.status == .readyToPlay && engine.duration > 0 {
-                    break
-                }
-            }
+        while Date().timeIntervalSince(start) < 5.0,
+              engine.duration <= 0,
+              engine.playbackError == nil {
             try await Task.sleep(nanoseconds: 50_000_000)
         }
 
-        XCTAssertEqual(
-            engine.player.currentItem?.status,
-            .readyToPlay,
-            "AVPlayerItem must reach .readyToPlay status (currentItem error: \(String(describing: engine.player.currentItem?.error)))"
-        )
         XCTAssertNil(engine.playbackError, "Playback error must be nil, got: \(engine.playbackError ?? "")")
         XCTAssertGreaterThan(engine.duration, 0.0, "Media duration must be positive after loading")
         XCTAssertEqual(engine.clockStore.duration, engine.duration, "Clock store duration must synchronize with engine duration")
@@ -290,7 +280,7 @@ final class FramesTests: XCTestCase {
         engine.unloadMedia()
         XCTAssertNil(engine.currentURL, "currentURL must be nil after unloadMedia()")
         XCTAssertFalse(engine.isPlaying, "isPlaying must be false after unloadMedia()")
-        XCTAssertNil(engine.player.currentItem, "player currentItem must be nil after unloadMedia()")
+        XCTAssertFalse(engine.isNativePipelineActive, "Native pipeline must be inactive after unloadMedia()")
         XCTAssertEqual(engine.currentTime, 0.0, "currentTime must reset to 0.0 after unloadMedia()")
 
         // Verify RunLoop drain does not resurrect seek position
