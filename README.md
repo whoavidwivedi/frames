@@ -44,7 +44,7 @@ Install Frames directly on your Mac with a single command — automatically hand
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/whoavidwivedi/frames/main/scripts/install.sh)"
 ```
 
-> **What this does**: Automatically fetches the latest release, installs `Frames.app` into `/Applications`, clears macOS quarantine attributes (`xattr -dr com.apple.quarantine`), self-signs the local bundle, and launches Frames.
+> **What this does**: Fetches the latest release and its published `SHA256SUMS.txt`, verifies the archive checksum and the Developer ID code signature, installs `Frames.app` into `/Applications`, and launches Frames. Installation is aborted if either check fails.
 
 ---
 
@@ -78,7 +78,7 @@ Install Frames directly on your Mac with a single command — automatically hand
 * **Non-Intrusive Update Discovery**: Asynchronous background query against GitHub Releases API with SemVer 2.0.0 parsing. Never forces disruptive silent updates.
 * **Liquid Glass Update Modal**: Sleek adaptive modal displaying version diff (`v1.2.0 → v1.3.0`), release notes highlights, download size, and real-time download progress.
 * **Granular User Control**: "Update & Restart", "Later", and "Skip this version" options, plus manual check affordance in App Menu (`Frames -> Check for Updates...`) and Command Palette.
-* **Atomic Bundle Swap & Clean Restart**: Validates package signature and bundle integrity, atomically replaces the application bundle, cleans quarantine flags, and smoothly restarts.
+* **Verified Bundle Swap & Clean Restart**: Verifies the published SHA-256 checksum and the Developer ID code signature before extraction, validates bundle structure, swaps the bundle atomically, and smoothly restarts.
 
 ### 6. Command Palette (`⌘K`) & High-Res Frame Capture (`⌘S`)
 * **Instant Keyboard Access**: Press `⌘K` from anywhere in the app to search and execute any command, switch themes, navigate folders, adjust audio/video playback, or check for updates.

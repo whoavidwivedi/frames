@@ -1611,6 +1611,25 @@ public enum FramesTestSuite {
         assertTest("Zip Asset Identified", condition: zipAsset != nil && zipAsset?.name == "Frames-v2.0.0-macOS.zip")
         assertTest("Asset Size Formatted Non-Empty", condition: zipAsset?.formattedSize.isEmpty == false)
 
+        // Checksum manifest parsing (update verification)
+        let sampleManifest = """
+        abc123  Frames-v2.0.0-macOS.zip
+        \(String(repeating: "a", count: 64))  Frames-v2.0.0-macOS.zip
+        \(String(repeating: "b", count: 64))  OtherAsset.zip
+        """
+        assertTest(
+            "Checksum Entry Matches Archive",
+            condition: UpdateManager.expectedChecksum(from: sampleManifest, for: "Frames-v2.0.0-macOS.zip") == String(repeating: "a", count: 64)
+        )
+        assertTest(
+            "Checksum Entry Rejects Wrong Archive",
+            condition: UpdateManager.expectedChecksum(from: sampleManifest, for: "Missing.zip") == nil
+        )
+        assertTest(
+            "Checksum Entry Rejects Malformed Digest",
+            condition: UpdateManager.expectedChecksum(from: "abc123  Frames-v2.0.0-macOS.zip\n", for: "Frames-v2.0.0-macOS.zip") == nil
+        )
+
         // 4. UpdateManager Release Processing
         let updater = UpdateManager.shared
         assertTest("UpdateManager Endpoint Valid", condition: updater.apiEndpoint.absoluteString.contains("whoavidwivedi/frames"))

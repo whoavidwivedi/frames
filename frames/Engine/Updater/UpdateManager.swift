@@ -1,6 +1,8 @@
 import Foundation
 import SwiftUI
 import AppKit
+import CryptoKit
+import Security
 
 /// Production-grade OTA Update Manager for Frames on macOS Apple Silicon.
 /// Provides non-intrusive background checking, manual updates, downloading with progress,
@@ -90,6 +92,7 @@ public final class UpdateManager: NSObject {
 
     private override init() {
         super.init()
+        Self.cleanupStaleUpdateDirectories()
     }
 
     // MARK: - Update Checking
@@ -230,6 +233,7 @@ public final class UpdateManager: NSObject {
             }
 
             let releasePageURL = release.htmlUrl != nil ? URL(string: release.htmlUrl!) : nil
+            let checksumAsset = release.assets.first(where: { $0.isChecksumManifest })
 
             let update = AppUpdateInfo(
                 tagName: release.tagName,
@@ -239,6 +243,7 @@ public final class UpdateManager: NSObject {
                 releasePageURL: releasePageURL,
                 publishedDate: publishedDate,
                 asset: matchedAsset,
+                checksumManifestAsset: checksumAsset,
                 isPrerelease: release.prerelease ?? false
             )
 
@@ -311,8 +316,13 @@ public final class UpdateManager: NSObject {
 
     /// Initiates downloading, verification, bundle replacement, and relaunch.
     public func startUpdateAndRestart() {
-        guard let update = availableUpdate, let assetDownloadURL = URL(string: update.asset.browserDownloadUrl) else {
-            status = .error(message: "Download URL is invalid.")
+        guard let update = availableUpdate,
+              let assetDownloadURL = URL(string: update.asset.browserDownloadUrl),
+              let manifestAsset = update.checksumManifestAsset,
+              let manifestURL = URL(string: manifestAsset.browserDownloadUrl),
+              Self.isSecureHTTPS(assetDownloadURL),
+              Self.isSecureHTTPS(manifestURL) else {
+            status = .error(message: "The update package is missing a verifiable HTTPS download URL or SHA-256 manifest. Refusing to install.")
             return
         }
 
@@ -335,22 +345,23 @@ public final class UpdateManager: NSObject {
                     }
                 }
 
-                let downloadedZipURL = try await downloader.download(from: assetDownloadURL)
+                let downloadedArchiveURL = try await downloader.download(from: assetDownloadURL)
 
                 try Task.checkCancellation()
 
-                // Extraction phase
+                // Authenticate the archive before it is opened by any extractor.
                 self.status = .extracting
+                try await Self.verifyArchive(downloadedArchiveURL, against: update.asset.name, manifestURL: manifestURL)
+
+                try Task.checkCancellation()
 
                 let extractDir = FileManager.default.temporaryDirectory
                     .appendingPathComponent("FramesUpdate_\(UUID().uuidString)")
                 try FileManager.default.createDirectory(at: extractDir, withIntermediateDirectories: true)
 
                 // Native extraction via /usr/bin/ditto (preserves macOS bundle metadata & permissions)
-                try await Self.extractArchive(at: downloadedZipURL, to: extractDir)
-
-                // Clean up zip archive
-                try? FileManager.default.removeItem(at: downloadedZipURL)
+                try await Self.extractArchive(at: downloadedArchiveURL, to: extractDir)
+                try? FileManager.default.removeItem(at: downloadedArchiveURL)
 
                 // Locate application bundle in extracted directory
                 guard let newAppBundleURL = Self.findAppBundle(in: extractDir) else {
@@ -361,15 +372,16 @@ public final class UpdateManager: NSObject {
                     )
                 }
 
-                // Verify integrity & executable
+                // Structural integrity plus a valid Developer ID signature are both required.
                 try Self.verifyAppBundle(at: newAppBundleURL)
+                try Self.verifyDeveloperIDSignature(at: newAppBundleURL)
 
                 self.status = .readyToRestart
 
                 // Determine target app destination
                 let targetAppURL = Self.resolveTargetAppURL()
 
-                // Execute relaunch helper script and terminate
+                // Swap the bundle and launch the new instance without generating shell code.
                 try Self.executeRelaunchHelper(
                     newAppURL: newAppBundleURL,
                     targetAppURL: targetAppURL,
@@ -409,21 +421,26 @@ public final class UpdateManager: NSObject {
     public static func findAppBundle(in directory: URL) -> URL? {
         let fileManager = FileManager.default
 
-        // Check directly inside directory
-        if let directApp = try? fileManager.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
-            .first(where: { $0.pathExtension.lowercased() == "app" }) {
-            return directApp
+        // Only the expected bundle name is accepted. Archive-derived names are
+        // untrusted and must never influence a path used for installation.
+        func expectedApp(in dir: URL) -> URL? {
+            guard let contents = try? fileManager.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else {
+                return nil
+            }
+            return contents.first { candidate in
+                candidate.pathExtension.lowercased() == "app"
+                    && candidate.deletingPathExtension().lastPathComponent.lowercased() == "frames"
+            }
         }
 
-        // Check one level deeper if nested
+        if let direct = expectedApp(in: directory) { return direct }
+
         if let subdirs = try? fileManager.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) {
             for sub in subdirs {
                 var isDir: ObjCBool = false
-                if fileManager.fileExists(atPath: sub.path, isDirectory: &isDir), isDir.boolValue {
-                    if let nested = try? fileManager.contentsOfDirectory(at: sub, includingPropertiesForKeys: nil)
-                        .first(where: { $0.pathExtension.lowercased() == "app" }) {
-                        return nested
-                    }
+                if fileManager.fileExists(atPath: sub.path, isDirectory: &isDir), isDir.boolValue,
+                   let nested = expectedApp(in: sub) {
+                    return nested
                 }
             }
         }
@@ -451,65 +468,184 @@ public final class UpdateManager: NSObject {
 
     public static func resolveTargetAppURL() -> URL {
         let currentBundle = Bundle.main.bundleURL
+        let standardized = currentBundle.standardizedFileURL.path
+        let applicationsRoot = "/Applications/"
+        let userApplicationsRoot = NSHomeDirectory() + "/Applications/"
 
-        // If running from standard /Applications or user Applications, replace current bundle
-        if currentBundle.path.hasPrefix("/Applications") || currentBundle.path.hasPrefix(NSHomeDirectory() + "/Applications") {
+        if standardized.hasPrefix(applicationsRoot) || standardized.hasPrefix(userApplicationsRoot) {
             return currentBundle
         }
 
-        // If running from Xcode / DerivedData or temporary build directory during development,
-        // and /Applications/frames.app exists, prioritize updating /Applications/frames.app
-        let standardAppURL = URL(fileURLWithPath: "/Applications/frames.app")
-        if FileManager.default.fileExists(atPath: standardAppURL.path) {
-            return standardAppURL
-        }
-
+        // Development builds update themselves. They must never implicitly
+        // replace an application in /Applications.
         return currentBundle
     }
 
+    /// Replaces the installed bundle and relaunches it without constructing a
+    /// shell script from external input. All paths are validated and FileManager
+    /// APIs are used, so archive-derived names cannot become shell commands.
     public static func executeRelaunchHelper(newAppURL: URL, targetAppURL: URL, currentPID: Int32) throws {
-        let scriptContent = """
-        #!/bin/bash
-        set -e
-        PID="\(currentPID)"
-        NEW_APP="\(newAppURL.path)"
-        DEST_APP="\(targetAppURL.path)"
+        let fileManager = FileManager.default
 
-        # Wait for old instance to exit cleanly
-        for i in {1..150}; do
-            if ! kill -0 "$PID" 2>/dev/null; then
-                break
-            fi
-            sleep 0.1
-        done
+        guard newAppURL.pathExtension.lowercased() == "app",
+              targetAppURL.pathExtension.lowercased() == "app",
+              newAppURL.lastPathComponent.lowercased() == "frames.app",
+              targetAppURL.lastPathComponent.lowercased() == "frames.app" else {
+            throw updateError(code: -6, message: "Update paths failed validation.")
+        }
 
-        # Atomic swap
-        rm -rf "$DEST_APP"
-        cp -R "$NEW_APP" "$DEST_APP"
-        xattr -cr "$DEST_APP" 2>/dev/null || true
+        let targetPath = targetAppURL.standardizedFileURL.path
+        let currentPath = Bundle.main.bundleURL.standardizedFileURL.path
+        let isInstalledLocation = targetPath.hasPrefix("/Applications/")
+            || targetPath.hasPrefix(NSHomeDirectory() + "/Applications/")
+        guard isInstalledLocation || targetPath == currentPath else {
+            throw updateError(code: -7, message: "Update target is outside the allowed application directories.")
+        }
 
-        # Clean staging directory
-        STAGING_DIR="$(dirname "$NEW_APP")"
-        rm -rf "$STAGING_DIR" 2>/dev/null || true
+        guard fileManager.fileExists(atPath: newAppURL.path) else {
+            throw updateError(code: -8, message: "Staged update bundle is missing.")
+        }
 
-        # Relaunch updated application
-        open -n "$DEST_APP"
-        """
+        let backupURL = fileManager.temporaryDirectory
+            .appendingPathComponent("FramesUpdateBackup_\(UUID().uuidString).app")
 
-        let scriptURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("frames_updater_\(UUID().uuidString).sh")
+        if fileManager.fileExists(atPath: targetPath) {
+            try fileManager.moveItem(atPath: targetPath, toPath: backupURL.path)
+        }
 
-        try scriptContent.write(to: scriptURL, atomically: true, encoding: .utf8)
+        do {
+            try fileManager.copyItem(at: newAppURL, to: targetAppURL)
+        } catch {
+            // Restore the previous installation if the new bundle could not be copied.
+            if fileManager.fileExists(atPath: backupURL.path) && !fileManager.fileExists(atPath: targetPath) {
+                try? fileManager.moveItem(atPath: backupURL.path, toPath: targetPath)
+            }
+            throw error
+        }
 
-        // Make executable
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptURL.path)
-
-        // Spawn detached process
+        // Launch the replacement via an explicit argv array; no shell is involved.
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/bash")
-        process.arguments = [scriptURL.path]
-
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        process.arguments = ["-n", targetAppURL.path]
         try process.run()
+
+        // The staging and backup directories are removed on the next launch by
+        // `cleanupStaleUpdateDirectories()` so the old bundle can finish exiting.
+    }
+
+    /// Removes update staging directories left by a previous relaunch.
+    public static func cleanupStaleUpdateDirectories() {
+        let fileManager = FileManager.default
+        let temp = fileManager.temporaryDirectory
+        guard let contents = try? fileManager.contentsOfDirectory(at: temp, includingPropertiesForKeys: nil) else {
+            return
+        }
+        for item in contents where item.lastPathComponent.hasPrefix("FramesUpdate_")
+            || item.lastPathComponent.hasPrefix("FramesUpdateBackup_") {
+            try? fileManager.removeItem(at: item)
+        }
+    }
+
+    // MARK: - Update Verification
+
+    private static func updateError(code: Int, message: String) -> NSError {
+        NSError(domain: "FramesUpdate", code: code, userInfo: [NSLocalizedDescriptionKey: message])
+    }
+
+    private static func isSecureHTTPS(_ url: URL) -> Bool {
+        url.scheme?.lowercased() == "https"
+    }
+
+    /// Fetches the published SHA-256 manifest and verifies the downloaded archive
+    /// before any extraction occurs.
+    public static func verifyArchive(_ archiveURL: URL, against assetName: String, manifestURL: URL) async throws {
+        guard isSecureHTTPS(manifestURL) else {
+            throw updateError(code: -9, message: "Checksum manifest URL is not HTTPS.")
+        }
+
+        var request = URLRequest(url: manifestURL)
+        request.timeoutInterval = 15
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw updateError(code: -10, message: "Unable to fetch the release checksum manifest.")
+        }
+        guard let manifest = String(data: data, encoding: .utf8) else {
+            throw updateError(code: -11, message: "Checksum manifest is not valid UTF-8.")
+        }
+        guard let expected = expectedChecksum(from: manifest, for: assetName) else {
+            throw updateError(code: -12, message: "No SHA-256 entry found for the selected update asset.")
+        }
+
+        let actual = try sha256Hex(of: archiveURL)
+        guard actual == expected else {
+            throw updateError(
+                code: -13,
+                message: "Update checksum mismatch. Expected \(expected), got \(actual). The package was not installed."
+            )
+        }
+    }
+
+    /// Parses a `shasum` compatible manifest. Only the file name and a 64-character
+    /// hex digest are consumed; no path from the manifest is used for file access.
+    public static func expectedChecksum(from manifest: String, for fileName: String) -> String? {
+        let target = (fileName as NSString).lastPathComponent
+        for line in manifest.split(whereSeparator: \.isNewline) {
+            let fields = line.split(whereSeparator: \.isWhitespace)
+            guard fields.count >= 2 else { continue }
+            let digest = String(fields[0]).lowercased()
+            let name = (String(fields[1]) as NSString).lastPathComponent
+            guard name == target,
+                  digest.count == 64,
+                  digest.allSatisfy({ $0.isHexDigit }) else { continue }
+            return digest
+        }
+        return nil
+    }
+
+    /// Streams the file through SHA-256 so large archives are not loaded into memory.
+    public static func sha256Hex(of fileURL: URL) throws -> String {
+        let handle = try FileHandle(forReadingFrom: fileURL)
+        defer { try? handle.close() }
+        var hasher = SHA256()
+        while true {
+            let chunk = try handle.read(upToCount: 1 << 20) ?? Data()
+            if chunk.isEmpty { break }
+            hasher.update(data: chunk)
+        }
+        return Data(hasher.finalize()).map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// Requires a valid Developer ID Application signature with all nested code
+    /// and all architectures validated. Ad-hoc and unsigned bundles are rejected.
+    public static func verifyDeveloperIDSignature(at bundleURL: URL) throws {
+        var staticCode: SecStaticCode?
+        let createStatus = SecStaticCodeCreateWithPath(bundleURL as CFURL, SecCSFlags(rawValue: 0), &staticCode)
+        guard createStatus == errSecSuccess, let code = staticCode else {
+            throw updateError(code: -14, message: "Unable to read the update bundle's code signature.")
+        }
+
+        // 1.2.840.113635.100.6.1.9 is the Developer ID Application certificate OID.
+        let requirementText = "anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.9] exists"
+        var requirement: SecRequirement?
+        let requirementStatus = SecRequirementCreateWithString(
+            requirementText as CFString,
+            SecCSFlags(rawValue: 0),
+            &requirement
+        )
+        guard requirementStatus == errSecSuccess, let req = requirement else {
+            throw updateError(code: -15, message: "Unable to construct the code signing requirement.")
+        }
+
+        var verificationError: Unmanaged<CFError>?
+        let flags = SecCSFlags(rawValue: kSecCSCheckAllArchitectures | kSecCSCheckNestedCode)
+        let validity = SecStaticCodeCheckValidityWithErrors(code, flags, req, &verificationError)
+        guard validity == errSecSuccess else {
+            var detail = "unknown signing error"
+            if let cfError = verificationError, let description = CFErrorCopyDescription(cfError.takeUnretainedValue()) {
+                detail = description as String
+            }
+            throw updateError(code: -16, message: "Update bundle signature is invalid: \(detail)")
+        }
     }
 }
 
