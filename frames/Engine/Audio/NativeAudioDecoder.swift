@@ -34,13 +34,39 @@ nonisolated public final class NativeAudioDecoder: @unchecked Sendable {
         var channels: UInt32 = 2
         let packetDescPtr: UnsafeMutablePointer<AudioStreamPacketDescription>
         var hasSupplied = false
-        
+
+        /// Stable storage for the current packet. CoreAudio keeps the pointer
+        /// supplied by the input callback until the conversion completes, so a
+        /// pointer into `Data.withUnsafeBytes` would dangle after that closure.
+        private var inputBuffer: UnsafeMutableRawPointer?
+        private var inputCapacity: Int = 0
+
         init() {
             self.packetDescPtr = UnsafeMutablePointer<AudioStreamPacketDescription>.allocate(capacity: 1)
         }
-        
+
+        func ensureInputBuffer(_ byteCount: Int) {
+            guard byteCount > 0 else { return }
+            if inputCapacity < byteCount {
+                inputBuffer?.deallocate()
+                inputBuffer = UnsafeMutableRawPointer.allocate(byteCount: byteCount, alignment: 16)
+                inputCapacity = byteCount
+            }
+        }
+
+        func copyInputBytes(from data: Data) {
+            ensureInputBuffer(data.count)
+            data.withUnsafeBytes { raw in
+                guard let source = raw.baseAddress, let destination = inputBuffer else { return }
+                memcpy(destination, source, data.count)
+            }
+        }
+
+        var inputBytes: UnsafeMutableRawPointer? { inputBuffer }
+
         deinit {
             packetDescPtr.deallocate()
+            inputBuffer?.deallocate()
         }
     }
     private let feeder = FeederContext()
@@ -177,7 +203,7 @@ nonisolated public final class NativeAudioDecoder: @unchecked Sendable {
     
     /// Translates an elementary demuxed audio packet into an uncompressed 32-bit Float AVAudioPCMBuffer.
     public func decode(packet: DemuxedPacket) -> AVAudioPCMBuffer? {
-        return autoreleasepool {
+        return autoreleasepool { () -> AVAudioPCMBuffer? in
             if isPCM {
                 return decodePCM(data: packet.data)
             }
@@ -187,14 +213,16 @@ nonisolated public final class NativeAudioDecoder: @unchecked Sendable {
             
             guard let conv = converter else { return nil }
             
-            let framesExpected: UInt32 = 1536
-            guard let pcmBuffer = AVAudioPCMBuffer(pcmFormat: outputFormat, frameCapacity: framesExpected * 2) else {
+            // ALAC/FLAC packets can hold 4096 frames; 3072 was too small and truncated output.
+            let outputFrameCapacity: UInt32 = 4096
+            guard let pcmBuffer = AVAudioPCMBuffer(pcmFormat: outputFormat, frameCapacity: outputFrameCapacity) else {
                 return nil
             }
             // Pre-set frameLength so that mutableAudioBufferList initializes valid mDataByteSize
-            pcmBuffer.frameLength = framesExpected * 2
+            pcmBuffer.frameLength = outputFrameCapacity
             
             feeder.data = packet.data
+            feeder.copyInputBytes(from: packet.data)
             feeder.channels = UInt32(self.channels)
             feeder.packetDescPtr.pointee = AudioStreamPacketDescription(
                 mStartOffset: 0,
@@ -227,13 +255,10 @@ nonisolated public final class NativeAudioDecoder: @unchecked Sendable {
                 ioNumberDataPackets.pointee = 1
                 let numBytes = UInt32(feederCtx.data.count)
                 
-                feederCtx.data.withUnsafeBytes { raw in
-                    let ptr = UnsafeMutableRawPointer(mutating: raw.baseAddress!)
-                    ioData.pointee.mNumberBuffers = 1
-                    ioData.pointee.mBuffers.mNumberChannels = feederCtx.channels
-                    ioData.pointee.mBuffers.mDataByteSize = numBytes
-                    ioData.pointee.mBuffers.mData = ptr
-                }
+                ioData.pointee.mNumberBuffers = 1
+                ioData.pointee.mBuffers.mNumberChannels = feederCtx.channels
+                ioData.pointee.mBuffers.mDataByteSize = numBytes
+                ioData.pointee.mBuffers.mData = feederCtx.inputBytes
                 
                 if let outDesc = outDataPacketDescription {
                     outDesc.pointee = feederCtx.packetDescPtr
@@ -242,7 +267,7 @@ nonisolated public final class NativeAudioDecoder: @unchecked Sendable {
                 return noErr
             }
             
-            var ioOutputFrames: UInt32 = framesExpected * 2
+            var ioOutputFrames: UInt32 = outputFrameCapacity
             let feederPtr = Unmanaged.passUnretained(feeder).toOpaque()
             let abl = pcmBuffer.mutableAudioBufferList
             
@@ -252,7 +277,7 @@ nonisolated public final class NativeAudioDecoder: @unchecked Sendable {
                 feederPtr,
                 &ioOutputFrames,
                 abl,
-                nil
+                feeder.packetDescPtr
             )
             
             guard (status == noErr || status == kAudioDecoderEndOfBatchStatus), ioOutputFrames > 0 else {
@@ -292,6 +317,16 @@ nonisolated public final class NativeAudioDecoder: @unchecked Sendable {
                     for ch in 0..<outChannels {
                         let srcCh = min(ch, channels - 1)
                         channelData[ch][f] = floatPtr[f * channels + srcCh]
+                    }
+                }
+            } else if bytesPerSample == 4 {
+                // 32-bit Signed Integer PCM (A_PCM/INT/LIT, IN32)
+                let int32Ptr = base.bindMemory(to: Int32.self, capacity: Int(frameCount) * channels)
+                let scale: Float = 1.0 / 2147483648.0
+                for f in 0..<Int(frameCount) {
+                    for ch in 0..<outChannels {
+                        let srcCh = min(ch, channels - 1)
+                        channelData[ch][f] = Float(int32Ptr[f * channels + srcCh]) * scale
                     }
                 }
             } else if bytesPerSample == 2 {

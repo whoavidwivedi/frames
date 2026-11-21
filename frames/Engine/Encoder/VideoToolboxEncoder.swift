@@ -211,7 +211,10 @@ nonisolated public final class VideoToolboxEncoder: @unchecked Sendable {
         duration: CMTime = .invalid,
         forceKeyframe: Bool = false
     ) -> Bool {
-        guard let session = session else { return false }
+        os_unfair_lock_lock(&lock)
+        let capturedSession = self.session
+        os_unfair_lock_unlock(&lock)
+        guard let session = capturedSession else { return false }
         
         var frameProperties: [CFString: Any] = [:]
         if forceKeyframe {
@@ -235,7 +238,10 @@ nonisolated public final class VideoToolboxEncoder: @unchecked Sendable {
     
     /// Flushes any buffered frames from the hardware encoder pipeline.
     public func completeFrames() {
-        guard let s = session else { return }
+        os_unfair_lock_lock(&lock)
+        let capturedSession = self.session
+        os_unfair_lock_unlock(&lock)
+        guard let s = capturedSession else { return }
         VTCompressionSessionCompleteFrames(s, untilPresentationTimeStamp: .invalid)
     }
     
@@ -243,7 +249,10 @@ nonisolated public final class VideoToolboxEncoder: @unchecked Sendable {
     
     /// Creates a pixel buffer from the session's hardware-optimized pool.
     public func makePixelBuffer() -> CVPixelBuffer? {
-        guard let s = session, let pool = VTCompressionSessionGetPixelBufferPool(s) else {
+        os_unfair_lock_lock(&lock)
+        let capturedSession = self.session
+        os_unfair_lock_unlock(&lock)
+        guard let s = capturedSession, let pool = VTCompressionSessionGetPixelBufferPool(s) else {
             return nil
         }
         var pixelBuffer: CVPixelBuffer?
