@@ -203,7 +203,7 @@ nonisolated public final class NativeAudioDecoder: @unchecked Sendable {
     
     /// Translates an elementary demuxed audio packet into an uncompressed 32-bit Float AVAudioPCMBuffer.
     public func decode(packet: DemuxedPacket) -> AVAudioPCMBuffer? {
-        return autoreleasepool {
+        return autoreleasepool { () -> AVAudioPCMBuffer? in
             if isPCM {
                 return decodePCM(data: packet.data)
             }
