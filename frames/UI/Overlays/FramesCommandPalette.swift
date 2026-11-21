@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import Foundation
 
 // MARK: - Emil Kowalski Command Palette Model
 
@@ -681,8 +682,9 @@ public struct FramesCommandPalette: View {
                             object: metadata
                         )
                     } catch {
+                        NSLog("Frames: failed to capture snapshot: %@", error.localizedDescription)
                         NotificationCenter.default.post(
-                            name: Notification.Name("FramesSnapshotFailedNotification"),
+                            name: .snapshotFailedNotification,
                             object: error.localizedDescription
                         )
                     }

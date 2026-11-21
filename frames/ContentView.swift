@@ -17,6 +17,7 @@ struct ContentView: View {
     @State private var pendingResumePrompt: ResumePromptData? = nil
     @State private var updateManager = UpdateManager.shared
     @State private var settings = SettingsManager.shared
+    @State private var snapshotFailureMessage: String?
 
     @MainActor
     init(engine: VideoPlayerEngine) {
@@ -448,10 +449,12 @@ struct ContentView: View {
         }
         .onAppear {
             keyboardHandler = KeyboardHandler(engine: engine)
-            engine.onPlaybackEnded = { [weak hostWindow] in
+            // The engine is shared by every window, so this closure must not capture a
+            // particular view's window. Broadcast instead and let the active window
+            // handle the transition via the receiver below.
+            engine.onPlaybackEnded = {
                 Task { @MainActor in
-                    if let hostWindow, hostWindow !== NSApp.keyWindow && hostWindow !== NSApp.mainWindow { return }
-                    returnToDashboard()
+                    NotificationCenter.default.post(name: .playbackEndedNotification, object: nil)
                 }
             }
             resetControlsTimer()
@@ -463,6 +466,14 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .returnToDashboardNotification)) { _ in
             guard isActiveWindow else { return }
             returnToDashboard()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .playbackEndedNotification)) { _ in
+            guard isActiveWindow else { return }
+            returnToDashboard()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .snapshotFailedNotification)) { notification in
+            guard isActiveWindow else { return }
+            snapshotFailureMessage = notification.object as? String ?? "Unknown error."
         }
         .onReceive(NotificationCenter.default.publisher(for: .toggleCommandPaletteNotification)) { _ in
             guard isActiveWindow else { return }
@@ -493,6 +504,20 @@ struct ContentView: View {
         .preferredColorScheme(themeManager.mode.colorScheme)
         .onChange(of: engine.currentURL) { _, newURL in
             windowManager.isPlayerActive = (newURL != nil && !(newURL?.path.isEmpty ?? true))
+        }
+        .alert(
+            "Couldn’t Save Snapshot",
+            isPresented: Binding(
+                get: { snapshotFailureMessage != nil },
+                set: { presented in
+                    if !presented { snapshotFailureMessage = nil }
+                }
+            ),
+            presenting: snapshotFailureMessage
+        ) { _ in
+            Button("OK", role: .cancel) { snapshotFailureMessage = nil }
+        } message: { message in
+            Text(message)
         }
     }
 
