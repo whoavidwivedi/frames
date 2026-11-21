@@ -125,8 +125,9 @@ jobs:
           because no Apple Developer credentials are configured for this repository.
 
           - The in-app OTA updater and scripts/install.sh will refuse this build.
-          - To install manually: unzip Frames-v*-macOS.zip, move Frames.app to
-            /Applications, then remove the quarantine attribute:
+          - To install manually: unzip Frames-v*-macOS.zip, move the extracted
+            frames.app to /Applications/Frames.app, then remove the quarantine
+            attribute:
               xattr -dr com.apple.quarantine /Applications/Frames.app
           - The SHA256SUMS.txt manifest still verifies download integrity only;
             it is not a code-signing guarantee.
