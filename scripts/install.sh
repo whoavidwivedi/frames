@@ -5,8 +5,8 @@ set -euo pipefail
 # Frames macOS Automated Terminal Installer
 # https://github.com/whoavidwivedi/frames
 # ==============================================================================
-# Installs Frames directly to /Applications, strips Gatekeeper quarantine flags,
-# ad-hoc codesigns the local bundle, and launches the app immediately.
+# Installs Frames directly to /Applications after verifying the published
+# SHA-256 checksum and the Developer ID code signature, then launches the app.
 # ==============================================================================
 
 # Colors & Formatting
@@ -94,15 +94,13 @@ if [[ -z "${TAG_NAME}" ]]; then
     exit 1
 fi
 
-# Locate .zip or .dmg asset URL
+# Locate the macOS ZIP asset and its SHA-256 manifest. Both are required;
+# an asset without a published checksum is never installed.
 DOWNLOAD_URL=$(echo "${LATEST_JSON}" | grep -o 'https://[^"]*Frames-[^"]*-macOS\.zip' | head -n 1 || true)
-if [[ -z "${DOWNLOAD_URL}" ]]; then
-    # Fallback to any .zip or .dmg release asset
-    DOWNLOAD_URL=$(echo "${LATEST_JSON}" | grep -o 'https://[^"]*\.\(zip\|dmg\)' | head -n 1 || true)
-fi
+CHECKSUM_URL=$(echo "${LATEST_JSON}" | grep -o 'https://[^"]*SHA256SUMS\.txt' | head -n 1 || true)
 
-if [[ -z "${DOWNLOAD_URL}" ]]; then
-    log_error "No distribution asset found for release ${TAG_NAME}."
+if [[ -z "${DOWNLOAD_URL}" || -z "${CHECKSUM_URL}" ]]; then
+    log_error "Release ${TAG_NAME} does not publish a macOS ZIP and SHA256SUMS.txt. Refusing to install unverified software."
     exit 1
 fi
 
@@ -112,15 +110,22 @@ log_success "Found latest version: ${BOLD}${TAG_NAME}${RESET}"
 TMP_DIR=$(mktemp -d -t frames_install_XXXXXX)
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
-ARCHIVE_FILE="${TMP_DIR}/Frames_bundle"
-if [[ "${DOWNLOAD_URL}" == *.dmg ]]; then
-    ARCHIVE_FILE="${ARCHIVE_FILE}.dmg"
-else
-    ARCHIVE_FILE="${ARCHIVE_FILE}.zip"
-fi
+ARCHIVE_NAME=$(basename "${DOWNLOAD_URL}")
+ARCHIVE_FILE="${TMP_DIR}/${ARCHIVE_NAME}"
+MANIFEST_FILE="${TMP_DIR}/SHA256SUMS.txt"
 
 log_info "Downloading ${TAG_NAME} package..."
 curl -fL --progress-bar "${DOWNLOAD_URL}" -o "${ARCHIVE_FILE}"
+
+log_info "Downloading release checksum manifest..."
+curl -fsSL "${CHECKSUM_URL}" -o "${MANIFEST_FILE}"
+
+log_info "Verifying SHA-256 checksum..."
+if ! (cd "${TMP_DIR}" && shasum -a 256 -c "${MANIFEST_FILE}"); then
+    log_error "Checksum verification failed. The package was not installed."
+    exit 1
+fi
+log_success "Checksum verified."
 
 # 4. Extract Application Bundle
 EXTRACT_DIR="${TMP_DIR}/extracted"
@@ -153,15 +158,20 @@ else
 fi
 
 if [[ -z "${APP_BUNDLE}" || ! -d "${APP_BUNDLE}" ]]; then
-    # Search recursively in extraction directory
-    FOUND=$(find "${EXTRACT_DIR}" -name "*.app" -maxdepth 2 | head -n 1)
-    if [[ -n "${FOUND}" ]]; then
-        APP_BUNDLE="${FOUND}"
-    else
-        log_error "Application bundle (.app) not found inside downloaded package."
-        exit 1
-    fi
+    log_error "Expected Frames.app bundle not found inside downloaded package."
+    exit 1
 fi
+
+log_info "Verifying Developer ID code signature..."
+if ! codesign --verify --deep --strict --verbose=2 "${APP_BUNDLE}" >/dev/null 2>&1; then
+    log_error "Downloaded application has an invalid code signature. Installation aborted."
+    exit 1
+fi
+if ! codesign -dvvv "${APP_BUNDLE}" 2>&1 | grep -q 'Authority=Developer ID Application:'; then
+    log_error "Downloaded application is not Developer ID signed. Installation aborted."
+    exit 1
+fi
+log_success "Developer ID signature verified."
 
 # 5. Install to /Applications
 DEST_APP="/Applications/Frames.app"
@@ -179,24 +189,15 @@ fi
 if [[ -d "${DEST_APP}" ]]; then
     rm -rf "${DEST_APP}"
 fi
-# Also clean lower-case variant if present
-if [[ -d "/Applications/frames.app" ]]; then
-    rm -rf "/Applications/frames.app"
-fi
-
 cp -R "${APP_BUNDLE}" "${DEST_APP}"
 
-# 6. Bypass Gatekeeper Quarantine & Self-Sign Local Binary
-log_info "Configuring macOS security permissions (stripping Gatekeeper quarantine)..."
-
-# Strip all quarantine and security attributes recursively
-xattr -cr "${DEST_APP}" 2>/dev/null || true
-xattr -dr com.apple.quarantine "${DEST_APP}" 2>/dev/null || true
-
-# Apply local ad-hoc code signature so macOS kernel trusts the bundle
-codesign --force --deep --sign - "${DEST_APP}" 2>/dev/null || true
-
-log_success "Security permissions cleared. Frames is verified and trusted."
+# 6. Post-install verification
+log_info "Verifying installed application..."
+if ! codesign --verify --deep --strict --verbose=2 "${DEST_APP}" >/dev/null 2>&1; then
+    log_error "Installed application failed signature verification."
+    exit 1
+fi
+log_success "Installation verified: package checksum and Developer ID signature both valid."
 
 # 7. Launch Application
 echo ""

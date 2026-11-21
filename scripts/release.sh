@@ -218,9 +218,23 @@ if [[ ! -d "${RELEASE_APP}" ]]; then
     exit 1
 fi
 
-echo "Signing application bundle..."
-codesign --force --deep --sign - "${RELEASE_APP}"
-codesign --verify --verbose=1 "${RELEASE_APP}"
+echo "Signing application bundle with Developer ID..."
+SIGNING_IDENTITY="${MACOS_SIGNING_IDENTITY:-}"
+if [[ -z "${SIGNING_IDENTITY}" ]]; then
+    if [[ "${DRY_RUN}" == "true" ]]; then
+        echo "⚠️  Warning: MACOS_SIGNING_IDENTITY is not set; dry run will not produce a verifiable artifact."
+    else
+        echo "❌ Error: MACOS_SIGNING_IDENTITY is required. Unsigned releases are not published."
+        exit 1
+    fi
+else
+    codesign --force --deep --options runtime --timestamp --sign "${SIGNING_IDENTITY}" "${RELEASE_APP}"
+    codesign --verify --deep --strict --verbose=2 "${RELEASE_APP}"
+    if ! codesign -dvvv "${RELEASE_APP}" 2>&1 | grep -q 'Authority=Developer ID Application:'; then
+        echo "❌ Error: Signing identity is not a Developer ID Application certificate."
+        exit 1
+    fi
+fi
 
 # ------------------------------------------------------------------------------
 # 5. Packaging Artifacts (macOS ZIP)
