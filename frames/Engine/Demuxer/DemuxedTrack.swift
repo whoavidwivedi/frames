@@ -38,6 +38,10 @@ nonisolated public struct DemuxedTrack: Sendable, Identifiable {
     public let sampleRate: Double
     public let channels: Int
     public let bitDepth: Int
+    /// QuickTime v2 `lpcm` format-specific flags: bit 0 = float, bit 1 = big-endian.
+    public let pcmFormatFlags: UInt32
+    /// Byte order declared by an `enda` extension box (`true` = big-endian).
+    public let pcmBigEndian: Bool?
 
     // Metadata
     public let name: String?
@@ -63,6 +67,8 @@ nonisolated public struct DemuxedTrack: Sendable, Identifiable {
         sampleRate: Double = 0,
         channels: Int = 0,
         bitDepth: Int = 16,
+        pcmFormatFlags: UInt32 = 0,
+        pcmBigEndian: Bool? = nil,
         name: String? = nil,
         language: String? = nil,
         isDefault: Bool = false,
@@ -85,6 +91,8 @@ nonisolated public struct DemuxedTrack: Sendable, Identifiable {
         self.sampleRate = sampleRate
         self.channels = channels
         self.bitDepth = bitDepth
+        self.pcmFormatFlags = pcmFormatFlags
+        self.pcmBigEndian = pcmBigEndian
         self.name = name
         self.language = language
         self.isDefault = isDefault

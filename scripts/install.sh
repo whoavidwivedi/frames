@@ -7,8 +7,9 @@ set -euo pipefail
 # ==============================================================================
 # Installs Frames directly to /Applications after verifying the published
 # SHA-256 checksum and the Developer ID code signature, then launches the app.
-# Set FRAMES_EXPECTED_TEAM_ID to the expected Developer ID team identifier to
-# pin the signer identity (required; the installer fails closed without it).
+# Set FRAMES_EXPECTED_TEAM_ID to additionally pin the exact Developer ID team
+# that signs Frames. The one-line install works without it; setting it provides
+# stricter identity verification once a Developer ID is configured.
 # ==============================================================================
 
 # Colors & Formatting
@@ -184,15 +185,16 @@ fi
 # app renamed Frames.app must not be accepted as an update. Set the team ID here
 # (or via FRAMES_EXPECTED_TEAM_ID) when Apple Developer signing is configured.
 EXPECTED_TEAM_ID="${FRAMES_EXPECTED_TEAM_ID:-}"
-if [[ -z "${EXPECTED_TEAM_ID}" ]]; then
-    log_error "Expected Developer ID team is not configured. Installation aborted."
-    exit 1
+if [[ -n "${EXPECTED_TEAM_ID}" ]]; then
+    if ! codesign -dvvv "${APP_BUNDLE}" 2>&1 | grep -q "Authority=Developer ID Application:.*(${EXPECTED_TEAM_ID})"; then
+        log_error "Downloaded application is not signed by the expected Developer ID team. Installation aborted."
+        exit 1
+    fi
+    log_success "Developer ID signature and team identity verified."
+else
+    log_warn "FRAMES_EXPECTED_TEAM_ID is not set; the signing team is not pinned. Set it to the publisher's team ID for stricter verification."
+    log_success "Developer ID signature and bundle identity verified."
 fi
-if ! codesign -dvvv "${APP_BUNDLE}" 2>&1 | grep -q "Authority=Developer ID Application:.*(${EXPECTED_TEAM_ID})"; then
-    log_error "Downloaded application is not signed by the expected Developer ID team. Installation aborted."
-    exit 1
-fi
-log_success "Developer ID signature and team identity verified."
 
 # 5. Install to /Applications
 DEST_APP="/Applications/Frames.app"

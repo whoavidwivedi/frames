@@ -207,6 +207,7 @@ xcodebuild \
     SWIFT_PARALLEL_WHOLE_MODULE_OPTIMIZATION=YES \
     COMPILER_INDEX_STORE_ENABLE=NO \
     -derivedDataPath "${PROJECT_ROOT}/build/DerivedData" \
+    FRAMES_DEVELOPER_TEAM_ID="${FRAMES_DEVELOPER_TEAM_ID:-${APPLE_TEAM_ID:-}}" \
     build
 
 RELEASE_APP="${PROJECT_ROOT}/build/DerivedData/Build/Products/Release/frames.app"

@@ -44,7 +44,7 @@ Install Frames directly on your Mac with a single command — automatically hand
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/whoavidwivedi/frames/main/scripts/install.sh)"
 ```
 
-> **What this does**: Fetches the latest release and its published `SHA256SUMS.txt`, verifies the archive checksum and the Developer ID code signature, installs `Frames.app` into `/Applications`, and launches Frames. Installation is aborted if either check fails.
+> **What this does**: Fetches the latest release and its published `SHA256SUMS.txt`, verifies the archive checksum, the Developer ID code signature and the Frames bundle identifier, installs `Frames.app` into `/Applications`, and launches Frames. Installation is aborted if any check fails. Set `FRAMES_EXPECTED_TEAM_ID=<team-id>` to additionally pin the exact signing team, e.g. `FRAMES_EXPECTED_TEAM_ID=ABCDE12345 /bin/bash -c "$(curl -fsSL .../install.sh)"`.
 
 ---
 
