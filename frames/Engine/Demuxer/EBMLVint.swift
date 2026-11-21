@@ -12,6 +12,7 @@ nonisolated public struct EBMLVint: Sendable, Equatable {
     public let rawValue: UInt64
 
     public init(value: UInt64, length: Int, rawValue: UInt64) {
+        precondition((1...8).contains(length), "EBML VINT length must be 1...8")
         self.value = value
         self.length = length
         self.rawValue = rawValue
@@ -21,13 +22,13 @@ nonisolated public struct EBMLVint: Sendable, Equatable {
     /// In Element IDs, the length descriptor bit is preserved as part of the ID.
     @inline(__always)
     public static func parseElementID(from buffer: UnsafeRawBufferPointer, offset: Int) -> EBMLVint? {
-        guard offset < buffer.count else { return nil }
+        guard offset >= 0, offset < buffer.count else { return nil }
         let firstByte = buffer[offset]
         guard firstByte != 0 else { return nil }
 
         let leadingZeros = firstByte.leadingZeroBitCount
         let length = leadingZeros + 1
-        guard length <= 8, offset + length <= buffer.count else { return nil }
+        guard length >= 1, length <= 8, offset <= buffer.count, length <= buffer.count - offset else { return nil }
 
         var raw: UInt64 = 0
         for i in 0..<length {
@@ -41,13 +42,13 @@ nonisolated public struct EBMLVint: Sendable, Equatable {
     /// In Data Sizes, the length descriptor bit is masked out.
     @inline(__always)
     public static func parseDataSize(from buffer: UnsafeRawBufferPointer, offset: Int) -> EBMLVint? {
-        guard offset < buffer.count else { return nil }
+        guard offset >= 0, offset < buffer.count else { return nil }
         let firstByte = buffer[offset]
         guard firstByte != 0 else { return nil }
 
         let leadingZeros = firstByte.leadingZeroBitCount
         let length = leadingZeros + 1
-        guard length <= 8, offset + length <= buffer.count else { return nil }
+        guard length >= 1, length <= 8, offset <= buffer.count, length <= buffer.count - offset else { return nil }
 
         // Mask out the length descriptor bit
         let mask: UInt8 = (1 << (7 - leadingZeros)) - 1
@@ -66,7 +67,7 @@ nonisolated public struct EBMLVint: Sendable, Equatable {
     /// Parses an unsigned big-endian integer of specific byte length (1 to 8 bytes).
     @inline(__always)
     public static func parseUInt(from buffer: UnsafeRawBufferPointer, offset: Int, length: Int) -> UInt64? {
-        guard length >= 0, length <= 8, offset + length <= buffer.count else { return nil }
+        guard length >= 0, length <= 8, offset >= 0, offset <= buffer.count, length <= buffer.count - offset else { return nil }
         if length == 0 { return 0 }
 
         var result: UInt64 = 0
@@ -99,7 +100,7 @@ nonisolated public struct EBMLVint: Sendable, Equatable {
     /// Parses an IEEE 754 floating point number (4-byte float or 8-byte double).
     @inline(__always)
     public static func parseFloat(from buffer: UnsafeRawBufferPointer, offset: Int, length: Int) -> Double? {
-        guard offset + length <= buffer.count else { return nil }
+        guard offset >= 0, length >= 0, offset <= buffer.count, length <= buffer.count - offset else { return nil }
         if length == 4 {
             guard let u = parseUInt(from: buffer, offset: offset, length: 4) else { return nil }
             let f = Float(bitPattern: UInt32(u))
@@ -114,7 +115,7 @@ nonisolated public struct EBMLVint: Sendable, Equatable {
     /// Parses a UTF-8 string of specific length.
     @inline(__always)
     public static func parseString(from buffer: UnsafeRawBufferPointer, offset: Int, length: Int) -> String? {
-        guard offset + length <= buffer.count else { return nil }
+        guard offset >= 0, length >= 0, offset <= buffer.count, length <= buffer.count - offset else { return nil }
         if length == 0 { return "" }
         let slice = buffer.baseAddress!.advanced(by: offset)
         // Trim null terminators if present
@@ -127,6 +128,7 @@ nonisolated public struct EBMLVint: Sendable, Equatable {
 
     /// Indicates if a data size indicates "unknown / stream" length (all bits 1).
     public var isUnknownSize: Bool {
+        guard (1...8).contains(length) else { return false }
         let maxVal = (UInt64(1) << (length * 7)) - 1
         return value == maxVal
     }

@@ -1,6 +1,29 @@
 import Foundation
 import Darwin
 
+@inline(__always)
+private func mkvClampedDiff(_ total: UInt64, _ offset: UInt64) -> UInt64 {
+    let (result, overflow) = total.subtractingReportingOverflow(offset)
+    return overflow ? 0 : result
+}
+
+@inline(__always)
+private func mkvCheckedAdd(_ a: UInt64, _ b: UInt64) -> UInt64? {
+    let (result, overflow) = a.addingReportingOverflow(b)
+    return overflow ? nil : result
+}
+
+@inline(__always)
+private func mkvSafeInt(_ value: UInt64) -> Int? {
+    value <= UInt64(Int.max) ? Int(value) : nil
+}
+
+@inline(__always)
+private func mkvLength(_ value: UInt64, available: Int) -> Int? {
+    guard available >= 0, value <= UInt64(available) else { return nil }
+    return Int(value)
+}
+
 /// Pure Swift 6 zero-dependency streaming Matroska (.mkv) and WebM (.webm) demuxer.
 nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxer {
     public let fileURL: URL
@@ -141,12 +164,14 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
                       let childSz = EBMLVint.parseDataSize(from: raw, offset: innerOff + childId.length) else { break }
                 let childPayloadOff = innerOff + childId.length + childSz.length
                 if EBMLID(rawValue: childId.value) == .timestamp {
-                    if let tsInt = EBMLVint.parseInt(from: raw, offset: childPayloadOff, length: Int(childSz.value)) {
+                    if let childLen = mkvSafeInt(childSz.value),
+                       childLen <= chRead - childPayloadOff,
+                       let tsInt = EBMLVint.parseInt(from: raw, offset: childPayloadOff, length: childLen) {
                         return Double(tsInt) * scale
                     }
                     break
                 }
-                innerOff = childPayloadOff + Int(childSz.value)
+                innerOff = childPayloadOff + (mkvSafeInt(childSz.value) ?? 1)
             }
             return nil
         }
@@ -186,7 +211,7 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
 
                 if elemID == .cluster {
                     let clusterStart = offset
-                    let payloadOffset = offset + UInt64(totalHeaderLen)
+                    let payloadOffset = mkvCheckedAdd(offset, UInt64(totalHeaderLen)) ?? fileSize
                     var clusterHead = Data(count: 64)
                     let chRead = clusterHead.withUnsafeMutableBytes { ptr -> Int in
                         guard let base = ptr.baseAddress else { return 0 }
@@ -201,25 +226,32 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
                                       let childSz = EBMLVint.parseDataSize(from: raw, offset: innerOff + childId.length) else { break }
                                 let childPayloadOff = innerOff + childId.length + childSz.length
                                 if EBMLID(rawValue: childId.value) == .timestamp {
-                                    if let tsInt = EBMLVint.parseInt(from: raw, offset: childPayloadOff, length: Int(childSz.value)) {
+                                    if let childLen = mkvSafeInt(childSz.value),
+                                       childLen <= chRead - childPayloadOff,
+                                       let tsInt = EBMLVint.parseInt(from: raw, offset: childPayloadOff, length: childLen) {
                                         clusterTimeSecs = Double(tsInt) * scale
                                     }
                                     break
                                 }
-                                innerOff = childPayloadOff + Int(childSz.value)
+                                innerOff = childPayloadOff + (mkvSafeInt(childSz.value) ?? 1)
                             }
                         }
                     }
                     self?.recordCluster(timeSeconds: clusterTimeSecs, offset: clusterStart)
                     
-                    if payloadSize > 0 && payloadSize < (size - payloadOffset) {
-                        offset = payloadOffset + payloadSize
+                    if payloadSize > 0,
+                       let next = mkvCheckedAdd(payloadOffset, payloadSize),
+                       next < size {
+                        offset = next
                     } else {
-                        offset = payloadOffset + 1
+                        offset = mkvCheckedAdd(payloadOffset, 1) ?? size
                     }
-                } else if payloadSize > 0 && payloadSize < (size - offset - UInt64(totalHeaderLen)) {
+                } else if payloadSize > 0,
+                  let headerEnd = mkvCheckedAdd(offset, UInt64(totalHeaderLen)),
+                  let next = mkvCheckedAdd(headerEnd, payloadSize),
+                  next <= size {
                     // Safely jump over standard top-level master elements (Info, Tracks, Tags, Void, etc.)
-                    offset += UInt64(totalHeaderLen) + payloadSize
+                    offset = next
                 } else {
                     offset += 1
                 }
@@ -301,7 +333,7 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
         // Scan primary master elements under Segment (SeekHead, Info, Tracks, Cues)
         var offset = segmentDataOffset
         self.firstClusterOffset = nil
-        let scanLimit = min(fileSize, segmentDataOffset + (50 * 1024 * 1024)) // Read first 50MB for headers
+        let scanLimit = min(fileSize, mkvCheckedAdd(segmentDataOffset, 50 * 1024 * 1024) ?? fileSize) // Read first 50MB for headers
 
         while offset < scanLimit {
             guard let elem = readElement(at: offset) else { break }
@@ -378,14 +410,14 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
             guard let sizeVint = EBMLVint.parseDataSize(from: rawPtr, offset: idVint.length) else { return nil }
 
             let totalHeaderLen = idVint.length + sizeVint.length
-            let payloadOffset = offset + UInt64(totalHeaderLen)
+            let payloadOffset = mkvCheckedAdd(offset, UInt64(totalHeaderLen)) ?? fileSize
             let ebmlID = EBMLID(rawValue: idVint.value) ?? .void
 
             return ElementHeader(
                 id: ebmlID,
                 rawID: idVint.value,
                 payloadOffset: payloadOffset,
-                payloadSize: sizeVint.isUnknownSize ? (fileSize - payloadOffset) : sizeVint.value,
+                payloadSize: sizeVint.isUnknownSize ? mkvClampedDiff(fileSize, payloadOffset) : sizeVint.value,
                 totalHeaderSize: totalHeaderLen
             )
         }
@@ -400,7 +432,7 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
                 cursor += idVint.length
                 guard let sizeVint = EBMLVint.parseDataSize(from: raw, offset: cursor) else { break }
                 cursor += sizeVint.length
-                let elemLen = Int(sizeVint.value)
+                guard let elemLen = mkvLength(sizeVint.value, available: raw.count - cursor) else { break }
 
                 if idVint.value == EBMLID.docType.rawValue {
                     self.docType = EBMLVint.parseString(from: raw, offset: cursor, length: elemLen) ?? ""
@@ -418,7 +450,7 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
                 cursor += idVint.length
                 guard let sizeVint = EBMLVint.parseDataSize(from: raw, offset: cursor) else { break }
                 cursor += sizeVint.length
-                let elemLen = Int(sizeVint.value)
+                guard let elemLen = mkvLength(sizeVint.value, available: raw.count - cursor) else { break }
 
                 switch idVint.value {
                 case EBMLID.timestampScale.rawValue:
@@ -444,7 +476,7 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
                 cursor += idVint.length
                 guard let sizeVint = EBMLVint.parseDataSize(from: raw, offset: cursor) else { break }
                 cursor += sizeVint.length
-                let elemLen = Int(sizeVint.value)
+                guard let elemLen = mkvLength(sizeVint.value, available: raw.count - cursor) else { break }
 
                 if idVint.value == EBMLID.seek.rawValue {
                     parseSingleSeek(raw: raw, offset: cursor, length: elemLen)
@@ -465,7 +497,7 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
             cursor += idVint.length
             guard let sizeVint = EBMLVint.parseDataSize(from: raw, offset: cursor) else { break }
             cursor += sizeVint.length
-            let elemLen = Int(sizeVint.value)
+            guard let elemLen = mkvLength(sizeVint.value, available: raw.count - cursor) else { break }
 
             if idVint.value == EBMLID.seekID.rawValue {
                 seekID = EBMLVint.parseUInt(from: raw, offset: cursor, length: elemLen) ?? 0
@@ -513,7 +545,7 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
                 cursor += idVint.length
                 guard let sizeVint = EBMLVint.parseDataSize(from: raw, offset: cursor) else { break }
                 cursor += sizeVint.length
-                let elemLen = Int(sizeVint.value)
+                guard let elemLen = mkvLength(sizeVint.value, available: raw.count - cursor) else { break }
 
                 if idVint.value == EBMLID.trackEntry.rawValue {
                     if let track = parseTrackEntry(raw: raw, offset: cursor, length: elemLen) {
@@ -558,7 +590,7 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
             cursor += idVint.length
             guard let sizeVint = EBMLVint.parseDataSize(from: raw, offset: cursor) else { break }
             cursor += sizeVint.length
-            let elemLen = Int(sizeVint.value)
+            guard let elemLen = mkvLength(sizeVint.value, available: raw.count - cursor) else { break }
 
             switch idVint.value {
             case EBMLID.trackNumber.rawValue:
@@ -653,7 +685,7 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
             cursor += idVint.length
             guard let sizeVint = EBMLVint.parseDataSize(from: raw, offset: cursor) else { break }
             cursor += sizeVint.length
-            let elemLen = Int(sizeVint.value)
+            guard let elemLen = mkvLength(sizeVint.value, available: raw.count - cursor) else { break }
 
             switch idVint.value {
             case EBMLID.pixelWidth.rawValue:
@@ -685,7 +717,7 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
             cursor += idVint.length
             guard let sizeVint = EBMLVint.parseDataSize(from: raw, offset: cursor) else { break }
             cursor += sizeVint.length
-            let elemLen = Int(sizeVint.value)
+            guard let elemLen = mkvLength(sizeVint.value, available: raw.count - cursor) else { break }
 
             switch idVint.value {
             case EBMLID.primaries.rawValue:
@@ -710,7 +742,7 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
             cursor += idVint.length
             guard let sizeVint = EBMLVint.parseDataSize(from: raw, offset: cursor) else { break }
             cursor += sizeVint.length
-            let elemLen = Int(sizeVint.value)
+            guard let elemLen = mkvLength(sizeVint.value, available: raw.count - cursor) else { break }
 
             switch idVint.value {
             case EBMLID.samplingFrequency.rawValue, EBMLID.outputSamplingFrequency.rawValue:
@@ -735,7 +767,7 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
                 cursor += idVint.length
                 guard let sizeVint = EBMLVint.parseDataSize(from: raw, offset: cursor) else { break }
                 cursor += sizeVint.length
-                let elemLen = Int(sizeVint.value)
+                guard let elemLen = mkvLength(sizeVint.value, available: raw.count - cursor) else { break }
 
                 if idVint.value == EBMLID.cuePoint.rawValue {
                     let entries = parseCuePoints(raw: raw, offset: cursor, length: elemLen)
@@ -757,7 +789,7 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
             cursor += idVint.length
             guard let sizeVint = EBMLVint.parseDataSize(from: raw, offset: cursor) else { break }
             cursor += sizeVint.length
-            let elemLen = Int(sizeVint.value)
+            guard let elemLen = mkvLength(sizeVint.value, available: raw.count - cursor) else { break }
 
             if idVint.value == EBMLID.cueTime.rawValue {
                 cueTime = EBMLVint.parseUInt(from: raw, offset: cursor, length: elemLen) ?? 0
@@ -797,14 +829,14 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
     /// Scans the tail of the file for the Cues element (standard in MKV files muxed on the fly).
     private func scanForCuesAtTail() {
         guard cuePoints.isEmpty, fileSize > segmentDataOffset else { return }
-        let tailSpan: UInt64 = min(fileSize - segmentDataOffset, 48 * 1024 * 1024)
+        let tailSpan: UInt64 = min(mkvClampedDiff(fileSize, segmentDataOffset), 48 * 1024 * 1024)
         let tailStart = fileSize - tailSpan
 
         var searchOffset = tailStart
         let chunkSize = 512 * 1024
 
         while searchOffset < fileSize {
-            let toRead = min(chunkSize, Int(fileSize - searchOffset))
+            let toRead = min(chunkSize, Int(mkvClampedDiff(fileSize, searchOffset)))
             guard let data = try? readBytes(offset: searchOffset, length: toRead), data.count >= 4 else { break }
 
             let match = data.withUnsafeBytes { raw -> Int? in
@@ -945,7 +977,7 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
                 cursor += idVint.length
                 guard let sizeVint = EBMLVint.parseDataSize(from: raw, offset: cursor) else { break }
                 cursor += sizeVint.length
-                let elemLen = Int(sizeVint.value)
+                guard let elemLen = mkvLength(sizeVint.value, available: raw.count - cursor) else { break }
 
                 if idVint.value == EBMLID.block.rawValue {
                     blockData = Data(bytes: raw.baseAddress!.advanced(by: cursor), count: elemLen)
@@ -1014,7 +1046,7 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
 
             if lacing == 0 {
                 // No lacing: single frame
-                frameSizes.append(raw.count - cursor)
+                frameSizes.append(mkvClampedDiff(UInt64(raw.count), UInt64(cursor)) > 0 ? raw.count - cursor : 0)
             } else {
                 guard cursor < raw.count else { return [] }
                 let numFrames = Int(base[cursor]) + 1
@@ -1034,8 +1066,8 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
                         frameSizes.append(size)
                         sum += size
                     }
-                    let last = (raw.count - cursor) - sum
-                    if last > 0 { frameSizes.append(last) }
+                    let last = mkvClampedDiff(UInt64(raw.count - cursor), UInt64(sum))
+                    if last > 0 { frameSizes.append(Int(min(last, UInt64(Int.max)))) }
                 } else if lacing == 2 {
                     // Fixed-size lacing
                     let remaining = raw.count - cursor
@@ -1044,31 +1076,35 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
                         frameSizes.append(size)
                     }
                 } else if lacing == 3 {
-                    // EBML lacing
-                    var sum = 0
-                    var prevSize = 0
+                    // EBML lacing: first size is a data-size VINT, subsequent
+                    // values are signed differences encoded as data-size VINTs
+                    // with a 2^(7n-1)-1 bias around the previous frame size.
+                    var sum: Int64 = 0
+                    var prevSize: Int64 = 0
                     for i in 0..<(numFrames - 1) {
+                        guard let vint = EBMLVint.parseDataSize(from: raw, offset: cursor),
+                              !vint.isUnknownSize,
+                              let v = mkvSafeInt(vint.value) else { break }
+                        cursor += vint.length
+                        let newSize: Int64
                         if i == 0 {
-                            if let vint = EBMLVint.parseDataSize(from: raw, offset: cursor) {
-                                cursor += vint.length
-                                prevSize = Int(vint.value)
-                                frameSizes.append(prevSize)
-                                sum += prevSize
-                            }
+                            newSize = Int64(v)
                         } else {
-                            if let vint = EBMLVint.parseElementID(from: raw, offset: cursor) {
-                                cursor += vint.length
-                                let mask = UInt64(1) << (vint.length * 7 - 1)
-                                let bias = Int(mask - 1)
-                                let diff = Int(vint.value & ~mask) - bias
-                                prevSize += diff
-                                frameSizes.append(prevSize)
-                                sum += prevSize
-                            }
+                            guard vint.length <= 8 else { break }
+                            let bias = (Int64(1) << (7 * vint.length - 1)) - 1
+                            let (result, overflow) = prevSize.addingReportingOverflow(Int64(v) - bias)
+                            guard !overflow else { break }
+                            newSize = result
                         }
+                        guard newSize >= 0, newSize <= Int64(raw.count) else { break }
+                        prevSize = newSize
+                        frameSizes.append(Int(newSize))
+                        let (newSum, sumOverflow) = sum.addingReportingOverflow(newSize)
+                        guard !sumOverflow else { break }
+                        sum = newSum
                     }
-                    let last = (raw.count - cursor) - sum
-                    if last > 0 { frameSizes.append(last) }
+                    let last = mkvClampedDiff(UInt64(raw.count - cursor), UInt64(max(0, sum)))
+                    if last > 0 { frameSizes.append(Int(min(last, UInt64(Int.max)))) }
                 }
             }
 
@@ -1137,7 +1173,7 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
             }
 
             let cue = relevantCues[bestIndex]
-            let offsetA = segmentDataOffset + cue.clusterPosition
+            let offsetA = mkvCheckedAdd(segmentDataOffset, cue.clusterPosition) ?? fileSize
             let offsetB = cue.clusterPosition
             if let elem = readElement(at: offsetA), elem.id == .cluster {
                 self.currentOffset = offsetA
@@ -1157,7 +1193,7 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
             } else {
                 // If seeking beyond indexed range, estimate cluster position via ratio and resynchronize
                 let ratio = duration > 0 ? (clampedTarget / duration) : 0.0
-                let estimatedOffset = segmentDataOffset + UInt64(Double(fileSize - segmentDataOffset) * ratio)
+                let estimatedOffset = mkvCheckedAdd(segmentDataOffset, UInt64(Double(mkvClampedDiff(fileSize, segmentDataOffset)) * ratio)) ?? segmentDataOffset
                 if let resynced = resyncToCluster(from: estimatedOffset, maxScanBytes: 64 * 1024 * 1024) {
                     self.currentOffset = resynced
                     let parsedTS: Double
@@ -1186,7 +1222,7 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
 
     /// Scans forward from an offset to locate the 4-byte Matroska cluster element signature (0x1F43B675).
     public func resyncToCluster(from startOffset: UInt64, maxScanBytes: Int = 64 * 1024 * 1024) -> UInt64? {
-        let scanLimit = min(fileSize, startOffset + UInt64(maxScanBytes))
+        let scanLimit = min(fileSize, mkvCheckedAdd(startOffset, UInt64(maxScanBytes)) ?? fileSize)
         var searchOffset = startOffset
         let chunkSize = 64 * 1024
 
@@ -1249,7 +1285,7 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
     // MARK: - Buffered I/O Engine
     private func readBytes(offset: UInt64, length: Int) throws -> Data {
         return autoreleasepool {
-            guard length > 0, offset + UInt64(length) <= fileSize else { return Data() }
+            guard length > 0, let end = mkvCheckedAdd(offset, UInt64(length)), end <= fileSize else { return Data() }
 
             if length >= Self.burstChunkSize {
                 adviseBurstPrefetch(offset: offset, length: length)
@@ -1268,14 +1304,17 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
             }
 
             // If requested region is inside current buffer, slice directly without disk I/O
-            if offset >= bufferFileOffset && (offset + UInt64(length)) <= (bufferFileOffset + UInt64(buffer.count)) {
+            if offset >= bufferFileOffset,
+                let end = mkvCheckedAdd(offset, UInt64(length)),
+                let bufferEnd = mkvCheckedAdd(bufferFileOffset, UInt64(buffer.count)),
+                end <= bufferEnd {
                 let localOffset = Int(offset - bufferFileOffset)
                 return buffer.subdata(in: localOffset..<(localOffset + length))
             }
 
             if length <= readBufferCapacity {
                 let chunkToRead = max(length, readBufferCapacity)
-                let actualToRead = min(chunkToRead, Int(fileSize - offset))
+                let actualToRead = min(chunkToRead, Int(mkvClampedDiff(fileSize, offset)))
                 let newChunk = readPOSIX(fd: fileDescriptor, offset: offset, length: actualToRead)
                 self.buffer = newChunk
                 self.bufferFileOffset = offset
@@ -1309,8 +1348,11 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
         let bufferChunkSize = 128 * 1024 // 128 KB chunk buffer
 
         func readBuffered(offset: UInt64, length: Int) -> Data? {
-            guard length > 0, offset + UInt64(length) <= limit else { return nil }
-            if offset >= readBufferOffset && (offset + UInt64(length)) <= (readBufferOffset + UInt64(readBuffer.count)) {
+            guard length > 0, let end = mkvCheckedAdd(offset, UInt64(length)), end <= limit else { return nil }
+            if offset >= readBufferOffset,
+               let end = mkvCheckedAdd(offset, UInt64(length)),
+               let bufferEnd = mkvCheckedAdd(readBufferOffset, UInt64(readBuffer.count)),
+               end <= bufferEnd {
                 let start = Int(offset - readBufferOffset)
                 return readBuffer.subdata(in: start..<(start + length))
             }
@@ -1375,7 +1417,7 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
                                     guard let trackVint = EBMLVint.parseDataSize(from: raw, offset: cursor) else { break }
                                     return targetTrackNumbers.contains(trackVint.value)
                                 }
-                                cursor += Int(sizeVint.value)
+                                cursor += mkvSafeInt(sizeVint.value) ?? 1
                             }
                             return false
                         }
@@ -1425,7 +1467,7 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
                 id: ebmlID,
                 rawID: idVint.value,
                 payloadOffset: payloadOffset,
-                payloadSize: sizeVint.isUnknownSize ? (fileSize - payloadOffset) : sizeVint.value,
+                payloadSize: sizeVint.isUnknownSize ? mkvClampedDiff(fileSize, payloadOffset) : sizeVint.value,
                 totalHeaderSize: totalHeaderLen
             )
         }

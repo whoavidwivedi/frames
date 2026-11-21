@@ -890,23 +890,25 @@ nonisolated public final class MP4Demuxer: @unchecked Sendable, MediaDemuxer {
         return entries
     }
 
-    private func parseCtts(box: (type: FourCC, payload: Data)?) -> [(count: UInt32, offset: Int32)] {
+    private func parseCtts(box: (type: FourCC, payload: Data)?) -> [(count: UInt32, offset: Int64)] {
         guard let box = box, box.payload.count >= 8 else { return [] }
         let version = box.payload[0]
         let entryCount = Int(box.payload.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 4, as: UInt32.self).bigEndian })
-        var entries: [(count: UInt32, offset: Int32)] = []
+        var entries: [(count: UInt32, offset: Int64)] = []
         entries.reserveCapacity(min(entryCount, 16384))
 
         var offset = 8
         for _ in 0..<entryCount {
             guard offset + 8 <= box.payload.count else { break }
             let c = box.payload.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: offset, as: UInt32.self).bigEndian }
-            let rawOff: Int32
+            let rawOff: Int64
             if version == 0 {
+                // Version 0 composition offsets are unsigned 32-bit values.
                 let unsignedVal = box.payload.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: offset + 4, as: UInt32.self).bigEndian }
-                rawOff = Int32(bitPattern: unsignedVal)
+                rawOff = Int64(unsignedVal)
             } else {
-                rawOff = box.payload.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: offset + 4, as: Int32.self).bigEndian }
+                let signedVal = box.payload.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: offset + 4, as: Int32.self).bigEndian }
+                rawOff = Int64(signedVal)
             }
             entries.append((count: c, offset: rawOff))
             offset += 8
@@ -935,12 +937,19 @@ nonisolated public final class MP4Demuxer: @unchecked Sendable, MediaDemuxer {
     private func parseStsz(box: (type: FourCC, payload: Data)?) -> (uniformSize: UInt32, sizes: [UInt32]) {
         guard let box = box, box.payload.count >= 12 else { return (0, []) }
         let uniform = box.payload.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 4, as: UInt32.self).bigEndian }
-        let count = Int(box.payload.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 8, as: UInt32.self).bigEndian })
+        let rawCount = UInt64(box.payload.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 8, as: UInt32.self).bigEndian })
+        // A 32-bit sample count cannot be trusted for allocation; bound it by
+        // the box payload, file size and a fixed memory ceiling.
+        let maxSamples: UInt64 = 16 * 1024 * 1024
 
         if uniform > 0 {
-            return (uniform, Array(repeating: uniform, count: count))
+            let maxByFile = fileSize / UInt64(uniform)
+            let capped = min(rawCount, maxByFile, maxSamples)
+            return capped > 0 ? (uniform, Array(repeating: uniform, count: Int(capped))) : (uniform, [])
         }
 
+        let maxByPayload = UInt64(max(0, (box.payload.count - 12) / 4))
+        let count = Int(min(rawCount, maxByPayload, maxSamples))
         var sizes: [UInt32] = []
         sizes.reserveCapacity(min(count, 131072))
         var offset = 12
@@ -1012,7 +1021,7 @@ nonisolated public final class MP4Demuxer: @unchecked Sendable, MediaDemuxer {
         stscEntries: [(firstChunk: UInt32, samplesPerChunk: UInt32, descIndex: UInt32)],
         chunkOffsets: [UInt64],
         sttsEntries: [(count: UInt32, delta: UInt32)],
-        cttsEntries: [(count: UInt32, offset: Int32)],
+        cttsEntries: [(count: UInt32, offset: Int64)],
         syncSamples: Set<Int>?,
         timescale: UInt32
     ) -> [MP4Sample] {
@@ -1072,7 +1081,7 @@ nonisolated public final class MP4Demuxer: @unchecked Sendable, MediaDemuxer {
         }
 
         // 3. Expand composition offsets from ctts
-        var cttsOffsets = [Int32]()
+        var cttsOffsets = [Int64]()
         if !cttsEntries.isEmpty {
             cttsOffsets.reserveCapacity(resolvedSampleCount)
             for entry in cttsEntries {
@@ -1096,7 +1105,7 @@ nonisolated public final class MP4Demuxer: @unchecked Sendable, MediaDemuxer {
             let offset = sampleOffsets[i]
             let sz = i < sampleSizes.count ? sampleSizes[i] : uniformSize
             let dts = dtsArray[i]
-            let cttsOff = i < cttsOffsets.count ? Int64(cttsOffsets[i]) : 0
+            let cttsOff = i < cttsOffsets.count ? cttsOffsets[i] : 0
             let pts = dts + cttsOff
             let dur = durationArray[i]
             let isKeyframe = (syncSamples == nil) ? true : syncSamples!.contains(i)
