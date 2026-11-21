@@ -81,6 +81,13 @@ public struct GitHubReleaseAsset: Codable, Sendable, Identifiable {
         return name.lowercased().hasSuffix(".dmg")
     }
 
+    /// The release pipeline publishes `SHA256SUMS.txt` alongside every archive.
+    /// Updates are rejected unless the downloaded archive matches this manifest.
+    public var isChecksumManifest: Bool {
+        let lowered = name.lowercased()
+        return lowered == "sha256sums.txt" || lowered.hasSuffix("/sha256sums.txt")
+    }
+
     public var formattedSize: String {
         let formatter = ByteCountFormatter()
         formatter.allowedUnits = [.useMB, .useKB, .useGB]
@@ -139,6 +146,8 @@ public struct AppUpdateInfo: Sendable, Identifiable {
     public let releasePageURL: URL?
     public let publishedDate: Date?
     public let asset: GitHubReleaseAsset
+    /// Manifest used to authenticate `asset` before it is extracted or installed.
+    public let checksumManifestAsset: GitHubReleaseAsset?
     public let isPrerelease: Bool
 
     public init(
@@ -149,6 +158,7 @@ public struct AppUpdateInfo: Sendable, Identifiable {
         releasePageURL: URL?,
         publishedDate: Date?,
         asset: GitHubReleaseAsset,
+        checksumManifestAsset: GitHubReleaseAsset? = nil,
         isPrerelease: Bool = false
     ) {
         self.tagName = tagName
@@ -158,6 +168,7 @@ public struct AppUpdateInfo: Sendable, Identifiable {
         self.releasePageURL = releasePageURL
         self.publishedDate = publishedDate
         self.asset = asset
+        self.checksumManifestAsset = checksumManifestAsset
         self.isPrerelease = isPrerelease
     }
 }
