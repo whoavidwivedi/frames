@@ -856,13 +856,19 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
                 }
 
                 guard let elem = readElement(at: currentOffset) else {
-                    // If not at EOF, attempt resynchronization to the nearest cluster
-                    if currentOffset < fileSize, let nextCluster = resyncToCluster(from: currentOffset) {
+                    // A failed read at or past the declared size is genuine EOF.
+                    if currentOffset >= fileSize {
+                        return nil
+                    }
+                    // Before EOF, a short read is a transient I/O failure (common on
+                    // SMB/AFP/NFS volumes). Try to resynchronise to the next cluster;
+                    // if that is not possible, surface a recoverable error instead of
+                    // poisoning `currentOffset` and declaring permanent EOF.
+                    if let nextCluster = resyncToCluster(from: currentOffset) {
                         currentOffset = nextCluster
                         continue
                     }
-                    currentOffset = fileSize
-                    return nil
+                    throw DemuxerError.temporaryReadFailure
                 }
 
                 switch elem.id {
@@ -1430,4 +1436,8 @@ nonisolated public enum DemuxerError: Error {
     case invalidEBMLHeader
     case segmentNotFound
     case elementNotFound
+    /// A read failed before the end of file was reached (e.g. a transient
+    /// network-volume error). Callers should retry rather than treat this as
+    /// a permanent end of stream.
+    case temporaryReadFailure
 }

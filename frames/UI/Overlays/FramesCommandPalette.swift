@@ -687,7 +687,7 @@ public struct FramesCommandPalette: View {
                 keywords: ["beginning", "start", "reset", "0", "seek"],
                 group: playbackGroup
             ) {
-                engine.seek(to: 0.0)
+                engine.seek(to: 0.0, exact: true)
             })
 
             if engine.duration > 0 {
@@ -699,7 +699,7 @@ public struct FramesCommandPalette: View {
                     keywords: ["half", "halfway", "middle", "50%"],
                     group: playbackGroup
                 ) {
-                    engine.seek(to: engine.duration * 0.5)
+                    engine.seek(to: engine.duration * 0.5, exact: true)
                 })
             }
 
