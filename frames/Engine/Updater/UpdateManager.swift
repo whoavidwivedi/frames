@@ -636,12 +636,12 @@ public final class UpdateManager: NSObject {
             throw updateError(code: -15, message: "Unable to construct the code signing requirement.")
         }
 
-        var verificationError: CFError?
+        var verificationError: Unmanaged<CFError>?
         let flags = SecCSFlags(rawValue: kSecCSCheckAllArchitectures | kSecCSCheckNestedCode)
         let validity = SecStaticCodeCheckValidityWithErrors(code, flags, req, &verificationError)
         guard validity == errSecSuccess else {
             var detail = "unknown signing error"
-            if let cfError = verificationError, let description = CFErrorCopyDescription(cfError) {
+            if let cfError = verificationError, let description = CFErrorCopyDescription(cfError.takeUnretainedValue()) {
                 detail = description as String
             }
             throw updateError(code: -16, message: "Update bundle signature is invalid: \(detail)")
