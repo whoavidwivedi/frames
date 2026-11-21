@@ -57,6 +57,7 @@ jobs:
             SWIFT_PARALLEL_WHOLE_MODULE_OPTIMIZATION=YES \
             COMPILER_INDEX_STORE_ENABLE=NO \
             CODE_SIGNING_ALLOWED=NO \
+            FRAMES_DEVELOPER_TEAM_ID=${{ secrets.APPLE_TEAM_ID }} \
             build
 
       - name: Check signing configuration
@@ -145,15 +146,25 @@ jobs:
           shasum -a 256 *.zip > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
+      - name: Prepare release notes body
+        run: |
+          BODY_FILE="$RUNNER_TEMP/frames-release-body.md"
+          if [ "${{ steps.signing.outputs.mode }}" = "unsigned" ]; then
+            cat > "$BODY_FILE" <<'EOF'
+          > [!WARNING]
+          > **Unsigned build.** No Apple Developer ID credentials are configured, so this ZIP is neither Developer ID signed nor notarized. Frames' in-app updater and `scripts/install.sh` will reject it; see `UNSIGNED_BUILD.txt` for manual installation. Signed releases resume automatically once the secrets are configured.
+          EOF
+          else
+            : > "$BODY_FILE"
+          fi
+
       - name: Upload Release Artifacts
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           draft: ${{ inputs.draft || false }}
-          body: |
-            > [!WARNING]
-            > **Unsigned build.** No Apple Developer ID credentials are configured, so this ZIP is neither Developer ID signed nor notarized. Frames' in-app updater and `scripts/install.sh` will reject it; see `UNSIGNED_BUILD.txt` for manual installation. Signed releases resume automatically once the secrets are configured.
+          body_path: ${{ runner.temp }}/frames-release-body.md
           files: |
             dist/*.zip
             dist/SHA256SUMS.txt
