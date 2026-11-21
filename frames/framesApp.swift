@@ -2,6 +2,17 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// Centralized detection for the app's test modes. `xcodebuild test` injects the
+/// XCTest host process without passing `--run-tests`, so both paths must be
+/// recognized by production code that relaxes file-existence checks for tests.
+public enum TestEnvironment {
+    public static var isRunningTests: Bool {
+        if CommandLine.arguments.contains("--run-tests") { return true }
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil { return true }
+        return NSClassFromString("XCTestCase") != nil
+    }
+}
+
 extension Notification.Name {
     public static let openVideoNotification = Notification.Name("FramesOpenVideoNotification")
     public static let returnToDashboardNotification = Notification.Name("FramesReturnToDashboardNotification")
@@ -96,37 +107,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             window.tabbingMode = .disallowed
         }
 
-        if CommandLine.arguments.contains("--run-tests") {
-            let result = FramesTestSuite.runAllTests()
-            for line in result.logs {
-                print(line)
-            }
-            fflush(stdout)
-            exit(result.failed == 0 ? 0 : 1)
-        }
-
-        if let smokeIndex = CommandLine.arguments.firstIndex(of: "--smoke-test") {
-            var mediaURL: URL? = nil
-            if smokeIndex + 1 < CommandLine.arguments.count {
-                let candidate = CommandLine.arguments[smokeIndex + 1]
-                if !candidate.hasPrefix("-") {
-                    let url = URL(fileURLWithPath: candidate)
-                    var isDir: ObjCBool = false
-                    if !FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) || isDir.boolValue {
-                        print("✖ ERROR: Specified smoke test media file not found or is a directory: \(candidate)")
-                        fflush(stdout)
-                        exit(1)
-                    }
-                    mediaURL = url
-                }
-            }
-            let result = FramesTestSuite.runSmokeTest(mediaURL: mediaURL)
-            for line in result.logs {
-                print(line)
-            }
-            fflush(stdout)
-            exit(result.passed ? 0 : 1)
-        }
 
         if let mainMenu = NSApp.mainMenu {
             Self.cleanTabBarMenuItems(from: mainMenu)

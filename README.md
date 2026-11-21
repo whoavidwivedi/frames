@@ -13,9 +13,9 @@
   <a href="https://github.com/whoavidwivedi/frames/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/whoavidwivedi/frames/ci.yml?branch=main&style=flat-square&color=black&label=CI" alt="CI Status"></a>
   <img src="https://img.shields.io/badge/Platform-macOS%2014.0%2B-black?style=flat-square&logo=apple" alt="Platform: macOS 14.0+">
   <img src="https://img.shields.io/badge/Apple%20Silicon-M1%20%7C%20M2%20%7C%20M3%20%7C%20M4%2B-black?style=flat-square&logo=apple" alt="Apple Silicon M1 to Latest">
-  <img src="https://img.shields.io/badge/Language-Swift%206-black?style=flat-square&logo=swift" alt="Swift 6">
+  <img src="https://img.shields.io/badge/Language-Swift%205-black?style=flat-square&logo=swift" alt="Swift 5">
   <img src="https://img.shields.io/badge/Design-shadcn%20base--luma%20%2F%20neutral%20(b1VlK05Q)-black?style=flat-square" alt="shadcn base-luma / neutral">
-  <img src="https://img.shields.io/badge/Tests-717%20Passed%20(0%20warnings)-black?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-XCTest%20CI-black?style=flat-square" alt="Tests: XCTest CI">
   <a href="https://github.com/whoavidwivedi/frames/pulls"><img src="https://img.shields.io/badge/PRs-Welcome-black?style=flat-square" alt="PRs Welcome"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/whoavidwivedi/frames?style=flat-square&color=black" alt="License: MIT"></a>
 </p>
@@ -172,7 +172,7 @@ build/DerivedData/Build/Products/Debug/frames.app/Contents/MacOS/frames --run-te
   ✔ PASS: FrameCaptureEngine File Persistence & Metadata
 
 ==========================================
-RESULTS: 458 PASSED, 0 FAILED
+Test Suite 'All tests' passed
 ==========================================
 ```
 

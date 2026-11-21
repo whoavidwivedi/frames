@@ -8,6 +8,8 @@ import CoreMedia
 import QuartzCore
 import Metal
 import VideoToolbox
+import AppKit
+@testable import frames
 
 @MainActor
 public enum FramesTestSuite {
@@ -105,7 +107,7 @@ public enum FramesTestSuite {
         assertTest("Recommended Buffer Sizing Valid", condition: metrics.recommendedPlaybackBufferCapacity >= 4)
         assertTest("Display Refresh Rate Valid", condition: metrics.displayRefreshRate >= 50, "Display rate: \(metrics.displayRefreshRate) Hz")
         do {
-            let isTestRunner = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil || NSClassFromString("XCTestCase") != nil
+            let isTestRunner = TestEnvironment.isRunningTests
             let memLimit: Double = isTestRunner ? 300.0 : 200.0
             assertTest("Low Memory Footprint (< 200MB)", condition: metrics.memoryFootprintMB > 0 && metrics.memoryFootprintMB < memLimit, "Current RAM: \(metrics.memoryFootprintMB) MB")
         }
@@ -641,11 +643,8 @@ public enum FramesTestSuite {
             let stdState = wm.computeLayoutState(window: stdWin)
             assertTest("Standard Window Layout Detected", condition: stdState == .standard)
         } else {
-            assertTest("Quarter-Screen Tiling Detected", condition: true)
-            assertTest("Split-Screen Vertical Tiling Detected", condition: true)
-            assertTest("Split-Screen Horizontal Tiling Detected", condition: true)
-            assertTest("Windowed Full Zoom State Detected", condition: true)
-            assertTest("Standard Window Layout Detected", condition: true)
+            // No visible frame is available in this environment; the tiling
+            // assertions above are skipped rather than passed vacuously.
         }
 
         // Native Full Screen Detection
@@ -782,16 +781,25 @@ public enum FramesTestSuite {
         )
 
         // ProMotion 120Hz Fluid Physics Animation Curve Tokens
-        _ = FramesAnimation.fluidSpring
-        _ = FramesAnimation.smooth
-        _ = FramesAnimation.quick
-        _ = FramesAnimation.overlay
-        _ = FramesAnimation.windowTransition
-        assertTest("Fluid Spring Curve Initialized", condition: true)
-        assertTest("Smooth Curve Initialized", condition: true)
-        assertTest("Quick Curve Initialized", condition: true)
-        assertTest("Overlay Curve Initialized", condition: true)
-        assertTest("Window Transition Curve Initialized", condition: true)
+        func animationDescription(_ animation: Animation) -> String {
+            let base = Mirror(reflecting: animation).children
+                .first(where: { $0.label == "base" })?.value
+            return [String(describing: animation), base.map { String(describing: $0) }]
+                .compactMap { $0 }.joined(separator: " ")
+        }
+        let springCurve = animationDescription(FramesAnimation.fluidSpring)
+        let smoothCurve = animationDescription(FramesAnimation.smooth)
+        let quickCurve = animationDescription(FramesAnimation.quick)
+        let overlayCurve = animationDescription(FramesAnimation.overlay)
+        let windowCurve = animationDescription(FramesAnimation.windowTransition)
+        logs.append("  Animation curves: fluid=\(springCurve) smooth=\(smoothCurve) quick=\(quickCurve)")
+        assertTest("Fluid Spring Curve Initialized", condition: springCurve.localizedCaseInsensitiveContains("spring") && springCurve.contains("0.24"))
+        // SwiftUI implements .smooth() as a critically damped spring on current macOS versions.
+        assertTest("Smooth Curve Initialized", condition: smoothCurve.contains("0.2") &&
+                   (smoothCurve.localizedCaseInsensitiveContains("smooth") || smoothCurve.contains("dampingFraction: 1.0")))
+        assertTest("Quick Curve Initialized", condition: quickCurve.localizedCaseInsensitiveContains("spring") && quickCurve.contains("0.18"))
+        assertTest("Overlay Curve Initialized", condition: overlayCurve.localizedCaseInsensitiveContains("spring") && overlayCurve.contains("0.24"))
+        assertTest("Window Transition Curve Initialized", condition: windowCurve.localizedCaseInsensitiveContains("spring") && windowCurve.contains("0.26"))
 
         // MARK: - 12. Pure Native EBML & Matroska VINT Parser Tests
         logs.append("\n[12] Testing EBML VINT & Matroska Parser...")
@@ -4923,4 +4931,3 @@ public enum FramesTestSuite {
         assert("Seek on Unloaded Engine Clamped to Zero", engine.currentTime == 0.0)
     }
 }
-

@@ -130,6 +130,33 @@ public enum SortOption: String, CaseIterable, Identifiable {
     public var id: String { rawValue }
 }
 
+private func isPath(_ path: String, containedIn folderPath: String) -> Bool {
+    let child = URL(fileURLWithPath: path).standardizedFileURL.path
+    let folder = URL(fileURLWithPath: folderPath).standardizedFileURL.path
+    if folder == "/" { return child.hasPrefix("/") }
+    return child == folder || child.hasPrefix(folder + "/")
+}
+
+private struct PersistedLibraryState: Sendable {
+    let folders: [FolderItem]
+    let individualPaths: Set<String>
+    let favoritePaths: Set<String>
+    let progress: [String: [String: Double]]
+}
+
+private struct FolderProbe: Sendable {
+    let id: UUID
+    let path: String
+}
+
+private struct FilePruneResult: Sendable {
+    let invalidFolderIDs: [UUID]
+    let missingVideoPaths: Set<String>
+    let missingIndividualPaths: Set<String>
+    let missingFavoritePaths: Set<String>
+    let missingProgressPaths: Set<String>
+}
+
 @Observable
 @MainActor
 public final class LibraryManager {
@@ -220,6 +247,8 @@ public final class LibraryManager {
     private var directoryWatcher: LibraryDirectoryWatcher?
     private var notificationObservers: [NSObjectProtocol] = []
     private var syncTimer: Timer?
+    private let persistenceQueue = DispatchQueue(label: "app.frames.library.persistence", qos: .utility)
+    private var pendingPersistWork: DispatchWorkItem?
 
     public init() {
         self.viewMode = SettingsManager.shared.defaultViewMode
@@ -248,7 +277,7 @@ public final class LibraryManager {
             result = result.filter { $0.isFavorite }
         case .folder(let id):
             if let folder = folders.first(where: { $0.id == id }) {
-                result = result.filter { $0.url.path.hasPrefix(folder.path) }
+                result = result.filter { isPath($0.url.path, containedIn: folder.path) }
             }
         case .settings:
             return []
@@ -380,7 +409,7 @@ public final class LibraryManager {
         guard let folder = folders.first(where: { $0.id == id }) else { return }
         let folderPath = folder.path
         folders.removeAll { $0.id == id }
-        videos.removeAll { $0.url.path.hasPrefix(folderPath) }
+        videos.removeAll { isPath($0.url.path, containedIn: folderPath) }
         if selectedCategory == .folder(id: id) {
             selectedCategory = .allVideos
         }
@@ -397,7 +426,7 @@ public final class LibraryManager {
         persistedProgress.removeValue(forKey: path)
         for i in 0..<folders.count {
             let f = folders[i]
-            folders[i].videoCount = videos.filter { $0.url.path.hasPrefix(f.path) }.count
+            folders[i].videoCount = videos.filter { isPath($0.url.path, containedIn: f.path) }.count
         }
         savePersistedState()
         updateDirectoryWatcher()
@@ -495,7 +524,7 @@ public final class LibraryManager {
 
     public func recordPlayback(url: URL, duration: Double, progress: Double) {
         // Guard against recording or resurrecting deleted files
-        guard FileManager.default.fileExists(atPath: url.path) || CommandLine.arguments.contains("--run-tests") else {
+        guard FileManager.default.fileExists(atPath: url.path) || TestEnvironment.isRunningTests else {
             verifyAndPruneMissingFiles()
             return
         }
@@ -532,7 +561,7 @@ public final class LibraryManager {
 
     public func addSingleVideoFile(url: URL) {
         let cleanURL = url.standardizedFileURL
-        if !CommandLine.arguments.contains("--run-tests") && !FileManager.default.fileExists(atPath: cleanURL.path) {
+        if !TestEnvironment.isRunningTests && !FileManager.default.fileExists(atPath: cleanURL.path) {
             return
         }
 
@@ -576,7 +605,7 @@ public final class LibraryManager {
                 // 1. Remove videos from this folder that no longer exist on disk
                 var removedAny = false
                 self.videos.removeAll { video in
-                    if video.url.path.hasPrefix(folderPath) {
+                    if isPath(video.url.path, containedIn: folderPath) {
                         let missing = !foundSet.contains(video.url)
                         if missing { removedAny = true }
                         return missing
@@ -717,13 +746,9 @@ public final class LibraryManager {
 
     // MARK: - Persistence
     private func savePersistedState() {
-        if let encoded = try? JSONEncoder().encode(folders) {
-            UserDefaults.standard.set(encoded, forKey: foldersKey)
-        }
-
-        UserDefaults.standard.set(Array(persistedIndividualVideoPaths), forKey: individualVideosKey)
-
-        // Save favorites: sync with in-memory videos while preserving existing paths
+        // Favorites/progress are derived from the live model on the main actor;
+        // the JSON encoding and UserDefaults writes run off the main thread and
+        // are coalesced so 5-second progress updates cannot block the UI.
         for v in videos {
             let path = v.url.path
             if v.isFavorite {
@@ -732,9 +757,6 @@ public final class LibraryManager {
                 persistedFavoritePaths.remove(path)
             }
         }
-        UserDefaults.standard.set(Array(persistedFavoritePaths), forKey: favoritesKey)
-
-        // Save progress & recent timestamps: merge into persistedProgress
         for v in videos where v.progress > 0 || v.lastPlayedDate != nil {
             persistedProgress[v.url.path] = [
                 "progress": v.progress,
@@ -742,7 +764,29 @@ public final class LibraryManager {
                 "duration": v.duration
             ]
         }
-        UserDefaults.standard.set(persistedProgress, forKey: progressKey)
+
+        let snapshot = PersistedLibraryState(
+            folders: folders,
+            individualPaths: persistedIndividualVideoPaths,
+            favoritePaths: persistedFavoritePaths,
+            progress: persistedProgress
+        )
+        let foldersKey = self.foldersKey
+        let individualVideosKey = self.individualVideosKey
+        let favoritesKey = self.favoritesKey
+        let progressKey = self.progressKey
+
+        pendingPersistWork?.cancel()
+        let work = DispatchWorkItem {
+            if let encoded = try? JSONEncoder().encode(snapshot.folders) {
+                UserDefaults.standard.set(encoded, forKey: foldersKey)
+            }
+            UserDefaults.standard.set(Array(snapshot.individualPaths), forKey: individualVideosKey)
+            UserDefaults.standard.set(Array(snapshot.favoritePaths), forKey: favoritesKey)
+            UserDefaults.standard.set(snapshot.progress, forKey: progressKey)
+        }
+        pendingPersistWork = work
+        persistenceQueue.asyncAfter(deadline: .now() + 0.25, execute: work)
     }
 
     private func loadPersistedState() {
@@ -788,67 +832,94 @@ public final class LibraryManager {
     }
 
     // MARK: - Dynamic File Verification & Synchronization
+    /// Synchronous variant retained for callers that need an immediate answer.
     @discardableResult
     public func verifyAndPruneMissingFiles() -> Bool {
-        var stateChanged = false
+        applyPruneResult(Self.scanFileState(folders: folders.map { FolderProbe(id: $0.id, path: $0.path) },
+                                        videoPaths: videos.map { $0.url.path },
+                                        individualPaths: Array(persistedIndividualVideoPaths),
+                                        favoritePaths: Array(persistedFavoritePaths),
+                                        progressPaths: Array(persistedProgress.keys)))
+    }
 
-        // 1. Verify existence of all tracked folders
+    /// Performs the file-existence sweep off the main actor and applies only the
+    /// resulting diff to the observable model.
+    @discardableResult
+    func verifyAndPruneMissingFilesAsync() async -> Bool {
+        let probes = folders.map { FolderProbe(id: $0.id, path: $0.path) }
+        let videoPaths = videos.map { $0.url.path }
+        let individualPaths = Array(persistedIndividualVideoPaths)
+        let favoritePaths = Array(persistedFavoritePaths)
+        let progressPaths = Array(persistedProgress.keys)
+
+        let result = await Task.detached(priority: .utility) {
+            Self.scanFileState(folders: probes,
+                          videoPaths: videoPaths,
+                          individualPaths: individualPaths,
+                          favoritePaths: favoritePaths,
+                          progressPaths: progressPaths)
+        }.value
+        return applyPruneResult(result)
+    }
+
+    private nonisolated static func scanFileState(folders: [FolderProbe],
+                               videoPaths: [String],
+                               individualPaths: [String],
+                               favoritePaths: [String],
+                               progressPaths: [String]) -> FilePruneResult {
+        let fileManager = FileManager.default
         var invalidFolderIDs: [UUID] = []
         for folder in folders {
             var isDir: ObjCBool = false
-            let exists = FileManager.default.fileExists(atPath: folder.path, isDirectory: &isDir)
+            let exists = fileManager.fileExists(atPath: folder.path, isDirectory: &isDir)
             if !exists || !isDir.boolValue {
                 invalidFolderIDs.append(folder.id)
             }
         }
-        for folderId in invalidFolderIDs {
-            if let folder = folders.first(where: { $0.id == folderId }) {
-                let folderPath = folder.path
-                folders.removeAll { $0.id == folderId }
-                videos.removeAll { $0.url.path.hasPrefix(folderPath) }
-                if selectedCategory == .folder(id: folderId) {
-                    selectedCategory = .allVideos
-                }
-                stateChanged = true
+        return FilePruneResult(
+            invalidFolderIDs: invalidFolderIDs,
+            missingVideoPaths: Set(videoPaths.filter { !fileManager.fileExists(atPath: $0) }),
+            missingIndividualPaths: Set(individualPaths.filter { !fileManager.fileExists(atPath: $0) }),
+            missingFavoritePaths: Set(favoritePaths.filter { !fileManager.fileExists(atPath: $0) }),
+            missingProgressPaths: Set(progressPaths.filter { !fileManager.fileExists(atPath: $0) })
+        )
+    }
+
+    @discardableResult
+    private func applyPruneResult(_ result: FilePruneResult) -> Bool {
+        var stateChanged = false
+
+        for folderId in result.invalidFolderIDs {
+            guard let folder = folders.first(where: { $0.id == folderId }) else { continue }
+            videos.removeAll { isPath($0.url.path, containedIn: folder.path) }
+            folders.removeAll { $0.id == folderId }
+            if selectedCategory == .folder(id: folderId) {
+                selectedCategory = .allVideos
             }
-        }
-
-        // 2. Verify existence of each video in `videos`
-        let videosBefore = videos.count
-        videos.removeAll { video in
-            !FileManager.default.fileExists(atPath: video.url.path)
-        }
-        if videos.count != videosBefore {
             stateChanged = true
         }
 
-        // 3. Verify individual video paths
-        let missingIndividual = persistedIndividualVideoPaths.filter { !FileManager.default.fileExists(atPath: $0) }
-        if !missingIndividual.isEmpty {
-            persistedIndividualVideoPaths.subtract(missingIndividual)
+        if !result.missingVideoPaths.isEmpty {
+            videos.removeAll { result.missingVideoPaths.contains($0.url.path) }
             stateChanged = true
         }
-
-        // 4. Clean up favorites for missing files
-        let missingFavorites = persistedFavoritePaths.filter { !FileManager.default.fileExists(atPath: $0) }
-        if !missingFavorites.isEmpty {
-            persistedFavoritePaths.subtract(missingFavorites)
+        if !result.missingIndividualPaths.isEmpty {
+            persistedIndividualVideoPaths.subtract(result.missingIndividualPaths)
             stateChanged = true
         }
-
-        // 5. Clean up progress for missing files
-        let missingProgress = persistedProgress.keys.filter { !FileManager.default.fileExists(atPath: $0) }
-        if !missingProgress.isEmpty {
-            for path in missingProgress {
+        if !result.missingFavoritePaths.isEmpty {
+            persistedFavoritePaths.subtract(result.missingFavoritePaths)
+            stateChanged = true
+        }
+        if !result.missingProgressPaths.isEmpty {
+            for path in result.missingProgressPaths {
                 persistedProgress.removeValue(forKey: path)
             }
             stateChanged = true
         }
 
-        // 6. Recalculate folder video counts
         for i in 0..<folders.count {
-            let folder = folders[i]
-            let count = videos.filter { $0.url.path.hasPrefix(folder.path) }.count
+            let count = videos.filter { isPath($0.url.path, containedIn: folders[i].path) }.count
             if folders[i].videoCount != count {
                 folders[i].videoCount = count
                 stateChanged = true
@@ -864,33 +935,33 @@ public final class LibraryManager {
     }
 
     public func updateDirectoryWatcher() {
-        guard !CommandLine.arguments.contains("--run-tests") else { return }
+        guard !TestEnvironment.isRunningTests else { return }
 
         var dirsToWatch = Set<String>()
         for folder in folders {
             dirsToWatch.insert(folder.path)
         }
         for video in videos {
-            let parentDir = video.url.deletingLastPathComponent().path
-            dirsToWatch.insert(parentDir)
+            dirsToWatch.insert(video.url.deletingLastPathComponent().path)
         }
         for path in persistedIndividualVideoPaths {
-            let parentDir = URL(fileURLWithPath: path).deletingLastPathComponent().path
-            dirsToWatch.insert(parentDir)
+            dirsToWatch.insert(URL(fileURLWithPath: path).deletingLastPathComponent().path)
         }
 
         directoryWatcher?.updateWatchedPaths(dirsToWatch)
     }
 
     private func handleFileSystemEvent() {
-        verifyAndPruneMissingFiles()
+        Task { @MainActor [weak self] in
+            _ = await self?.verifyAndPruneMissingFilesAsync()
+        }
         for folder in folders {
             scanFolder(folder: folder)
         }
     }
 
     private func setupLifecycleObservers() {
-        guard !CommandLine.arguments.contains("--run-tests") else { return }
+        guard !TestEnvironment.isRunningTests else { return }
 
         let center = NotificationCenter.default
         let activeObs = center.addObserver(
@@ -899,7 +970,7 @@ public final class LibraryManager {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.verifyAndPruneMissingFiles()
+                _ = await self?.verifyAndPruneMissingFilesAsync()
             }
         }
         let keyObs = center.addObserver(
@@ -908,21 +979,21 @@ public final class LibraryManager {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.verifyAndPruneMissingFiles()
+                _ = await self?.verifyAndPruneMissingFilesAsync()
             }
         }
         notificationObservers = [activeObs, keyObs]
     }
 
     private func setupPeriodicSync() {
-        guard !CommandLine.arguments.contains("--run-tests") else { return }
+        guard !TestEnvironment.isRunningTests else { return }
         // Fallback sweep for unmounted volumes; live changes already arrive via the
         // directory watcher and app-activation checks. A 2.5s sweep re-stat'd every
         // library file on the main thread during playback.
         syncTimer = Timer.scheduledTimer(withTimeInterval: 60.0, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self = self, !self.videos.isEmpty || !self.folders.isEmpty else { return }
-                self.verifyAndPruneMissingFiles()
+                _ = await self.verifyAndPruneMissingFilesAsync()
             }
         }
     }

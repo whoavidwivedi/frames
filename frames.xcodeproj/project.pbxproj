@@ -10,6 +10,7 @@
 		A11100012345678901234567 /* GoogleSansFlex.ttf in Resources */ = {isa = PBXBuildFile; fileRef = B22200022345678901234567 /* GoogleSansFlex.ttf */; };
 		C11100032345678901234567 /* GoogleSansFont.swift in Sources */ = {isa = PBXBuildFile; fileRef = D22200042345678901234567 /* GoogleSansFont.swift */; };
 		0842326DC9FC3AE882B174A1 /* framesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63590F9AD633F762940AB2EC /* framesTests.swift */; };
+		7F3E1A2B4C5D6E7F8091A2B4 /* FramesTestSuite.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49CDD2212CF07B838E59513F /* FramesTestSuite.swift */; };
 		0232F4A238A36D0F37B41026 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 056BD858FB795266DD647D3B /* AppIcon.icns */; };
 		E8C4EF41630A99B17C809543 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8B71FFE2A1D445C057EF475B /* Assets.xcassets */; };
 		BC2316BCF8099781CCA4524C /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 049A20C1FBCCDE23AF9065FF /* ContentView.swift */; };
@@ -47,7 +48,6 @@
 		3C91EDFB72F322939499EAFD /* VideoMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07CCA5CFD0C4433C2C2F718E /* VideoMetadata.swift */; };
 		477EE164ADE4D88AE7A9FC87 /* SubtitleOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2BA08ADE586640372E30C0B /* SubtitleOverlayView.swift */; };
 		0253F35A8F191A66C1CF87BE /* SubtitleParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFF91D6621B8D32DCFD5E316 /* SubtitleParser.swift */; };
-		2064E5E7EE7465464852E040 /* FramesTestSuite.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49CDD2212CF07B838E59513F /* FramesTestSuite.swift */; };
 		BC266A94EE9602B301AAD35F /* CustomScrubber.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7F0F376E3171E5B82B3D681 /* CustomScrubber.swift */; };
 		C120853CAC1FCD904D32CCA8 /* LiquidGlassStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59E9E301B1965D9ED550466E /* LiquidGlassStyle.swift */; };
 		F46963707DBB1A5F906A39B2 /* PointerCursor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9981A90A8E4365A9AD362F1 /* PointerCursor.swift */; };
@@ -205,6 +205,7 @@
 			isa = PBXGroup;
 			children = (
 				63590F9AD633F762940AB2EC /* framesTests.swift */,
+				49CDD2212CF07B838E59513F /* FramesTestSuite.swift */,
 			);
 			path = framesTests;
 			sourceTree = "<group>";
@@ -338,14 +339,6 @@
 				EFF91D6621B8D32DCFD5E316 /* SubtitleParser.swift */,
 			);
 			path = "Subtitles";
-			sourceTree = "<group>";
-		};
-		BB86D38632E625389926F911 /* Tests */ = {
-			isa = PBXGroup;
-			children = (
-				49CDD2212CF07B838E59513F /* FramesTestSuite.swift */,
-			);
-			path = "Tests";
 			sourceTree = "<group>";
 		};
 		A6B413EDD3CE493B462AE965 /* UI */ = {
@@ -556,7 +549,6 @@
 				3C91EDFB72F322939499EAFD /* VideoMetadata.swift in Sources */,
 				477EE164ADE4D88AE7A9FC87 /* SubtitleOverlayView.swift in Sources */,
 				0253F35A8F191A66C1CF87BE /* SubtitleParser.swift in Sources */,
-				2064E5E7EE7465464852E040 /* FramesTestSuite.swift in Sources */,
 				BC266A94EE9602B301AAD35F /* CustomScrubber.swift in Sources */,
 				C120853CAC1FCD904D32CCA8 /* LiquidGlassStyle.swift in Sources */,
 				F46963707DBB1A5F906A39B2 /* PointerCursor.swift in Sources */,
@@ -598,6 +590,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				0842326DC9FC3AE882B174A1 /* framesTests.swift in Sources */,
+				7F3E1A2B4C5D6E7F8091A2B4 /* FramesTestSuite.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

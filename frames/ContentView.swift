@@ -12,8 +12,8 @@ struct ContentView: View {
     @State private var keyboardHandler: KeyboardHandler?
     @State private var hideControlsTimer: Timer?
     @State private var isTargetedForDrop: Bool = false
+    @State private var hostWindow: NSWindow?
     @State private var lastControlsTimerReset = Date.distantPast
-    @State private var showSplash: Bool = false
     @State private var pendingResumePrompt: ResumePromptData? = nil
     @State private var updateManager = UpdateManager.shared
     @State private var settings = SettingsManager.shared
@@ -415,20 +415,9 @@ struct ContentView: View {
                 .zIndex(170)
             }
 
-            // Splash Screen Animation on App Launch
-            if showSplash {
-                SplashScreenView {
-                    withAnimation(.fluidQuick) {
-                        showSplash = false
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                .ignoresSafeArea()
-                .transition(.opacity)
-                .zIndex(100)
-            }
         }
         .frame(minWidth: 460, minHeight: 320)
+        .background(HostWindowAccessor(window: $hostWindow))
         .animation(.fluidQuick, value: engine.currentURL != nil)
         .animation(.fluidQuick, value: engine.controlsVisible)
         .animation(.fluidOverlay, value: settings.isSettingsPresented)
@@ -451,11 +440,6 @@ struct ContentView: View {
                 }
             }
         }
-        .onChange(of: engine.hasEnded) { _, hasEnded in
-            if hasEnded {
-                returnToDashboard()
-            }
-        }
         .onChange(of: engine.metadata.title) { _, _ in
             updateWindowRepresentation(for: engine.currentURL)
         }
@@ -464,25 +448,28 @@ struct ContentView: View {
         }
         .onAppear {
             keyboardHandler = KeyboardHandler(engine: engine)
-            engine.onPlaybackEnded = {
+            engine.onPlaybackEnded = { [weak hostWindow] in
                 Task { @MainActor in
+                    if let hostWindow, hostWindow !== NSApp.keyWindow && hostWindow !== NSApp.mainWindow { return }
                     returnToDashboard()
                 }
             }
             resetControlsTimer()
         }
         .onReceive(NotificationCenter.default.publisher(for: .openVideoNotification)) { notification in
-            if let url = notification.object as? URL {
-                handleDroppedURL(url)
-            }
+            guard isActiveWindow, let url = notification.object as? URL else { return }
+            handleDroppedURL(url)
         }
         .onReceive(NotificationCenter.default.publisher(for: .returnToDashboardNotification)) { _ in
+            guard isActiveWindow else { return }
             returnToDashboard()
         }
         .onReceive(NotificationCenter.default.publisher(for: .toggleCommandPaletteNotification)) { _ in
+            guard isActiveWindow else { return }
             commandPalette.toggle()
         }
         .onReceive(NotificationCenter.default.publisher(for: .requestOpenFilePickerNotification)) { _ in
+            guard isActiveWindow else { return }
             openFileDialog()
         }
         .onDrop(of: [.fileURL], isTargeted: $isTargetedForDrop) { providers in
@@ -510,7 +497,7 @@ struct ContentView: View {
     }
 
     private func requestPlayVideo(url: URL) {
-        guard FileManager.default.fileExists(atPath: url.path) || CommandLine.arguments.contains("--run-tests") else {
+        guard FileManager.default.fileExists(atPath: url.path) || TestEnvironment.isRunningTests else {
             library.verifyAndPruneMissingFiles()
             return
         }
@@ -568,8 +555,13 @@ struct ContentView: View {
         }
     }
 
+    private var isActiveWindow: Bool {
+        guard let hostWindow else { return true }
+        return hostWindow === NSApp.keyWindow || hostWindow === NSApp.mainWindow
+    }
+
     private func updateWindowRepresentation(for url: URL?) {
-        guard let window = NSApp.keyWindow ?? NSApp.mainWindow ?? NSApp.windows.first(where: { $0.canBecomeMain }) else { return }
+        guard let window = hostWindow ?? NSApp.keyWindow ?? NSApp.mainWindow ?? NSApp.windows.first(where: { $0.canBecomeMain }) else { return }
         if let url = url {
             let displayName = engine.metadata.title.isEmpty ? url.lastPathComponent : engine.metadata.title
             window.title = displayName
@@ -646,4 +638,18 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
+}
+
+private struct HostWindowAccessor: NSViewRepresentable {
+    @Binding var window: NSWindow?
+
+    func makeNSView(context: Context) -> NSView {
+        NSView(frame: .zero)
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        if window !== nsView.window {
+            window = nsView.window
+        }
+    }
 }
