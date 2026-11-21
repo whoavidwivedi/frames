@@ -835,7 +835,7 @@ public final class LibraryManager {
     /// Synchronous variant retained for callers that need an immediate answer.
     @discardableResult
     public func verifyAndPruneMissingFiles() -> Bool {
-        applyPruneResult(scanFileState(folders: folders.map { FolderProbe(id: $0.id, path: $0.path) },
+        applyPruneResult(Self.scanFileState(folders: folders.map { FolderProbe(id: $0.id, path: $0.path) },
                                         videoPaths: videos.map { $0.url.path },
                                         individualPaths: Array(persistedIndividualVideoPaths),
                                         favoritePaths: Array(persistedFavoritePaths),
@@ -853,7 +853,7 @@ public final class LibraryManager {
         let progressPaths = Array(persistedProgress.keys)
 
         let result = await Task.detached(priority: .utility) {
-            scanFileState(folders: probes,
+            Self.scanFileState(folders: probes,
                           videoPaths: videoPaths,
                           individualPaths: individualPaths,
                           favoritePaths: favoritePaths,
@@ -862,7 +862,7 @@ public final class LibraryManager {
         return applyPruneResult(result)
     }
 
-    private func scanFileState(folders: [FolderProbe],
+    private nonisolated static func scanFileState(folders: [FolderProbe],
                                videoPaths: [String],
                                individualPaths: [String],
                                favoritePaths: [String],
@@ -932,6 +932,32 @@ public final class LibraryManager {
         }
 
         return stateChanged
+    }
+
+    public func updateDirectoryWatcher() {
+        guard !CommandLine.arguments.contains("--run-tests") else { return }
+
+        var dirsToWatch = Set<String>()
+        for folder in folders {
+            dirsToWatch.insert(folder.path)
+        }
+        for video in videos {
+            dirsToWatch.insert(video.url.deletingLastPathComponent().path)
+        }
+        for path in persistedIndividualVideoPaths {
+            dirsToWatch.insert(URL(fileURLWithPath: path).deletingLastPathComponent().path)
+        }
+
+        directoryWatcher?.updateWatchedPaths(dirsToWatch)
+    }
+
+    private func handleFileSystemEvent() {
+        Task { @MainActor [weak self] in
+            _ = await self?.verifyAndPruneMissingFilesAsync()
+        }
+        for folder in folders {
+            scanFolder(folder: folder)
+        }
     }
 
     private func setupLifecycleObservers() {
