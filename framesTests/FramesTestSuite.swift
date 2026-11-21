@@ -1,5 +1,3 @@
-#if DEBUG
-
 import Foundation
 import CoreGraphics
 import SwiftUI
@@ -10,6 +8,8 @@ import CoreMedia
 import QuartzCore
 import Metal
 import VideoToolbox
+import AppKit
+@testable import frames
 
 @MainActor
 public enum FramesTestSuite {
@@ -4925,5 +4925,3 @@ public enum FramesTestSuite {
         assert("Seek on Unloaded Engine Clamped to Zero", engine.currentTime == 0.0)
     }
 }
-
-#endif // DEBUG

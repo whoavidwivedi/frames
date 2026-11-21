@@ -96,41 +96,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             window.tabbingMode = .disallowed
         }
 
-        #if DEBUG
-        // Test entry points are compiled only into Debug builds so the production
-        // binary does not ship the test harness or its `exit()` paths.
-        if CommandLine.arguments.contains("--run-tests") {
-            let result = FramesTestSuite.runAllTests()
-            for line in result.logs {
-                print(line)
-            }
-            fflush(stdout)
-            exit(result.failed == 0 ? 0 : 1)
-        }
-
-        if let smokeIndex = CommandLine.arguments.firstIndex(of: "--smoke-test") {
-            var mediaURL: URL? = nil
-            if smokeIndex + 1 < CommandLine.arguments.count {
-                let candidate = CommandLine.arguments[smokeIndex + 1]
-                if !candidate.hasPrefix("-") {
-                    let url = URL(fileURLWithPath: candidate)
-                    var isDir: ObjCBool = false
-                    if !FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) || isDir.boolValue {
-                        print("✖ ERROR: Specified smoke test media file not found or is a directory: \(candidate)")
-                        fflush(stdout)
-                        exit(1)
-                    }
-                    mediaURL = url
-                }
-            }
-            let result = FramesTestSuite.runSmokeTest(mediaURL: mediaURL)
-            for line in result.logs {
-                print(line)
-            }
-            fflush(stdout)
-            exit(result.passed ? 0 : 1)
-        }
-        #endif
 
         if let mainMenu = NSApp.mainMenu {
             Self.cleanTabBarMenuItems(from: mainMenu)
