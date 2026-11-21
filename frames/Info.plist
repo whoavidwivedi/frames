@@ -46,5 +46,7 @@
 	<array>
 		<string>GoogleSansFlex.ttf</string>
 	</array>
+	<key>FramesDeveloperTeamID</key>
+	<string>$(FRAMES_DEVELOPER_TEAM_ID)</string>
 </dict>
 </plist>

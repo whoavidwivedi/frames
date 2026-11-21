@@ -624,8 +624,21 @@ public final class UpdateManager: NSObject {
             throw updateError(code: -14, message: "Unable to read the update bundle's code signature.")
         }
 
-        // 1.2.840.113635.100.6.1.9 is the Developer ID Application certificate OID.
-        let requirementText = "anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.9] exists"
+        // Developer ID Application certificates are issued by a WWDR intermediate
+        // (1.2.840.113635.100.6.2.6) and carry the Developer ID Application OID
+        // (1.2.840.113635.100.6.1.13). The .1.9 OID identifies Mac App Store
+        // signing, so it must not be used here. Pin the bundle identifier and the
+        // expected team as well, so an unrelated Developer ID-signed app cannot be
+        // installed as an update even if an attacker replaces the archive and checksum.
+        let teamID = (Bundle.main.object(forInfoDictionaryKey: "FramesDeveloperTeamID") as? String ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard teamID.count == 10, teamID.allSatisfy({ $0.isLetter || $0.isNumber }) else {
+            throw updateError(code: -17, message: "Developer ID team ID is not configured for this build.")
+        }
+        let requirementText = "anchor apple generic and identifier \"whoavidwivedi.frames\" "
+            + "and certificate 1[field.1.2.840.113635.100.6.2.6] exists "
+            + "and certificate leaf[field.1.2.840.113635.100.6.1.13] exists "
+            + "and certificate leaf[subject.OU] = \"\(teamID)\""
         var requirement: SecRequirement?
         let requirementStatus = SecRequirementCreateWithString(
             requirementText as CFString,
