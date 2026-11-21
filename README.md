@@ -46,7 +46,7 @@ Install Frames directly on your Mac with a single command — the installer veri
 
 > **What this does**: Fetches the latest release and its published `SHA256SUMS.txt`, verifies the archive checksum, the Developer ID code signature and the Frames bundle identifier, installs `Frames.app` into `/Applications`, and launches Frames. Installation is aborted if any check fails. Set `FRAMES_EXPECTED_TEAM_ID=<team-id>` to additionally pin the exact signing team, e.g. `FRAMES_EXPECTED_TEAM_ID=ABCDE12345 /bin/bash -c "$(curl -fsSL .../install.sh)"`.
 
-> **Unsigned releases**: When no Apple Developer ID is configured, releases are ad-hoc signed and not notarized. The one-line installer above still refuses them. The in-app updater can install them after an explicit “unsigned build” warning, and the manual steps in `UNSIGNED_BUILD.txt` remove the Gatekeeper quarantine attribute.
+> **Unsigned releases**: When no Apple Developer ID is configured, releases are ad-hoc signed and not notarized. The one-line installer above still refuses them. The in-app updater can install them after an explicit “unsigned build” warning, and the manual steps in `UNSIGNED_BUILD.txt` remove the Gatekeeper quarantine attribute. Upgrading from v1.9.5 or earlier requires one manual install because those builds still contain the old strict updater.
 
 ---
 

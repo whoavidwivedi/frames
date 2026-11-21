@@ -165,6 +165,8 @@ jobs:
             cat > "$BODY_FILE" <<'EOF'
           > [!WARNING]
           > **Unsigned build.** No Apple Developer ID credentials are configured, so this ZIP is ad-hoc signed but neither Developer ID signed nor notarized. Frames' in-app updater can install it after an explicit warning; `scripts/install.sh` still requires a Developer ID signature. See `UNSIGNED_BUILD.txt` for manual installation. Signed releases resume automatically once the secrets are configured.
+          >
+          > **Upgrading from v1.9.5 or earlier:** install this ZIP manually once. Those older builds still contain the previous strict Developer ID updater and will continue to show `OSStatus -67050`. After this release is installed, future unsigned OTA updates work with an explicit warning.
           EOF
           else
             : > "$BODY_FILE"
