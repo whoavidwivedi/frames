@@ -355,7 +355,9 @@ public final class VideoPlayerEngine {
     public func play() {
         if hasEnded || (currentTime >= duration && duration > 0) {
             hasEnded = false
-            seek(to: 0)
+            // An exact seek re-anchors the audio engine too. A non-exact (scrub)
+            // seek leaves audio at EOF, producing silence after replay.
+            seek(to: 0, exact: true)
         }
         lastSyncTime = currentTime
         lastSyncDate = Date()
@@ -392,7 +394,7 @@ public final class VideoPlayerEngine {
 
     public func replay() {
         hasEnded = false
-        seek(to: 0)
+        seek(to: 0, exact: true)
         play()
     }
 
@@ -756,7 +758,7 @@ public final class VideoPlayerEngine {
 
         statusObserver = item.observe(\.status, options: [.new]) { [weak self] playerItem, _ in
             Task { @MainActor [weak self] in
-                guard let self = self else { return }
+                guard let self = self, !self.isNativePipelineActive else { return }
                 if playerItem.status == .readyToPlay {
                     let d = playerItem.duration.seconds
                     if !d.isNaN && !d.isInfinite && d > 0 {
@@ -806,7 +808,9 @@ public final class VideoPlayerEngine {
 
         timeControlStatusObserver = player.observe(\.timeControlStatus, options: [.new]) { [weak self] p, _ in
             Task { @MainActor [weak self] in
-                guard let self = self else { return }
+                // A queued AVPlayer notification must not overwrite the state of
+                // the native pipeline that took over from AVFoundation.
+                guard let self = self, !self.isNativePipelineActive else { return }
                 self.isPlaying = (p.timeControlStatus == .playing)
                 self.updateBufferingStatus(p.timeControlStatus == .waitingToPlayAtSpecifiedRate)
             }

@@ -610,6 +610,15 @@ public final class PlaybackPipeline: ObservableObject {
     private var lastAudioClock: Double = -1
     private var lastAudioClockDate: CFTimeInterval = 0
     private var audioClockStalled = false
+    /// Which source produced the most recent playback time. Used to re-anchor
+    /// the wall-clock fallback when switching sources so time never jumps by
+    /// the accumulated drift between the DAC oscillator and CACurrentMediaTime.
+    private var lastClockSourceIsAudio = false
+
+    /// Serializes demuxer/decoder operations shared by the feeder, scrub worker
+    /// and discrete seeks. The demuxers guard their own state, but VideoToolbox
+    /// decode sessions must also be single-submission at a time.
+    nonisolated private let mediaGate = NSLock()
 
     // Demuxer Stream End Tracking
     private var eofLock = os_unfair_lock()
@@ -783,6 +792,28 @@ public final class PlaybackPipeline: ObservableObject {
     private func install(_ prepared: PreparedPlayback, url: URL) -> Bool {
         let demuxer = prepared.demuxer
         let videoTrack = demuxer.videoTracks.first
+
+        // A file load must not inherit decoded frames or seek indexes from the
+        // previous file. `updateCapacity` / `setCapacity` early-return when the
+        // new file has the same dimensions, so they cannot be relied on to reset
+        // this state. Clear it explicitly before installing the new subsystems.
+        feederTask?.cancel()
+        feederTask = nil
+        scrubTask?.cancel()
+        scrubTask = nil
+        scrubGeneration &+= 1
+        frameQueue.removeAll()
+        scrubCache.clear()
+        packetChunkBuffer.removeAll()
+        renderer?.clearFrame()
+        currentTime = 0
+        isDemuxerEOF = false
+        isScrubbingActive = false
+        scrubResiduePending = false
+        scrubResumeOnExit = false
+        pendingScrubTarget = nil
+        resetClockTracker()
+
         self.demuxer = demuxer
         self.duration = demuxer.duration
         self.videoDecoder = prepared.decoder
@@ -971,6 +1002,9 @@ public final class PlaybackPipeline: ObservableObject {
         scrubResumeOnExit = false
         scrubTask?.cancel()
         scrubTask = nil
+        // Invalidate the cancelled worker so its exit callback cannot reset the
+        // frame queue after a subsequent resume has already refilled it.
+        scrubGeneration &+= 1
         currentTime = min(duration > 0 ? duration : Double.infinity, finalTime)
         audioEngine?.pause()
         feederTask?.cancel()
@@ -1063,12 +1097,22 @@ public final class PlaybackPipeline: ObservableObject {
         feederTask = nil
         
         if isScrubbing {
+            let enteringScrub = !isScrubbingActive
             isScrubbingActive = true
             scrubResiduePending = true
             scrubResumeOnExit = false
             pendingScrubTarget = time
             currentTime = time
             onTimeUpdate?(time)
+
+            // Re-anchor audio as soon as scrubbing begins. Leaving the audio
+            // engine pinned to its pre-scrub position made a later replay silent
+            // because every packet before `minimumSeekPTS` was discarded.
+            if enteringScrub {
+                audioEngine?.pause()
+                audioEngine?.seek(to: time)
+                resetClockTracker()
+            }
 
             // 1. Instant scrub cache check: if frame was recently decoded, display immediately
             if let cached = scrubCache.getFrame(forTargetPTS: time, tolerance: 0.50) ?? scrubCache.nearestFrame(to: time) {
@@ -1089,7 +1133,8 @@ public final class PlaybackPipeline: ObservableObject {
         scrubResumeOnExit = false
         scrubTask?.cancel()
         scrubTask = nil
-        
+        scrubGeneration &+= 1
+
         frameQueue.reset(forSeek: time)
         packetChunkBuffer.removeAll()
         videoDecoder?.flush()
@@ -1098,7 +1143,9 @@ public final class PlaybackPipeline: ObservableObject {
         // O(log N) binary search seek in Matroska index (prioritizing video keyframe cues)
         lastReportedUIClock = -1.0
         resetClockTracker()
+        mediaGate.lock()
         demuxer.seek(to: time)
+        mediaGate.unlock()
         playbackStartTime = CACurrentMediaTime()
         playbackStartPts = time
         currentTime = time
@@ -1169,10 +1216,19 @@ public final class PlaybackPipeline: ObservableObject {
         let decoder = self.videoDecoder
         let cache = self.scrubCache
         let renderer = self.renderer
+        let mediaGate = self.mediaGate
         
         scrubTask = Task.detached(priority: .userInitiated) { [weak self, weak demuxer] in
             guard let demuxer else { return }
-            
+
+            // Serialize every demux/decode call with the feeder so a cancelled
+            // feeder cannot still be using the demuxer or VideoToolbox session.
+            func withGate<T>(_ body: () throws -> T) rethrows -> T {
+                mediaGate.lock()
+                defer { mediaGate.unlock() }
+                return try body()
+            }
+
             while !Task.isCancelled {
                 let target = await MainActor.run { [weak self] () -> Double? in
                     guard let self, self.isScrubbingActive else { return nil }
@@ -1189,7 +1245,7 @@ public final class PlaybackPipeline: ObservableObject {
                 }
                 
                 // Jump directly to the nearest keyframe cluster in O(log N) time
-                demuxer.seek(to: targetPTS)
+                withGate { demuxer.seek(to: targetPTS) }
                 
                 guard let dec = decoder else { continue }
                 
@@ -1200,13 +1256,13 @@ public final class PlaybackPipeline: ObservableObject {
                 // Read until first keyframe in cluster
                 while packetsRead < 45 && !Task.isCancelled {
                     let shouldBreak: Bool = autoreleasepool {
-                        guard let packet = try? demuxer.nextPacket() else { return true }
+                        guard let packet = withGate({ try? demuxer.nextPacket() }) else { return true }
                         packetsRead += 1
                         
                         if packet.trackNumber == dec.track.trackNumber {
                             if packet.isKeyframe {
                                 keyframePTS = packet.pts
-                                _ = dec.decode(packet: packet, doNotOutput: false)
+                                withGate { _ = dec.decode(packet: packet, doNotOutput: false) }
                                 foundKeyframe = true
                                 return true
                             }
@@ -1234,10 +1290,10 @@ public final class PlaybackPipeline: ObservableObject {
                         }
                         if hasInterrupted { break }
                         let reachedEnd: Bool = autoreleasepool {
-                            guard let packet = try? demuxer.nextPacket() else { return true }
+                            guard let packet = withGate({ try? demuxer.nextPacket() }) else { return true }
                             refinedPackets += 1
                             if packet.trackNumber == dec.track.trackNumber {
-                                _ = dec.decode(packet: packet, doNotOutput: false)
+                                withGate { _ = dec.decode(packet: packet, doNotOutput: false) }
                                 if packet.pts >= targetPTS + 0.08 { return true }
                             }
                             return false
@@ -1301,6 +1357,7 @@ public final class PlaybackPipeline: ObservableObject {
         lastAudioClock = -1
         lastAudioClockDate = 0
         audioClockStalled = false
+        lastClockSourceIsAudio = false
     }
 
     /// Master clock synchronization: Audio Hardware DAC clock takes precedence, with high-precision monotonic clock fallback.
@@ -1308,30 +1365,43 @@ public final class PlaybackPipeline: ObservableObject {
         guard isPlaying else { return currentTime }
 
         let now = CACurrentMediaTime()
-        let wallClock = playbackStartPts + (now - playbackStartTime) * Double(playbackRate)
         let audioClock = routing.currentAudioEngine?.currentMasterTime ?? -1
+        let audioUsable = audioClock > 0.05 && !audioClockStalled
 
-        guard audioClock > 0.05 else { return wallClock }
-        // Once the hardware clock stalls it is not trustworthy for this playback session;
-        // stay on wall time until the next seek/switch re-anchors it.
-        if audioClockStalled { return wallClock }
-
-        if audioClock > lastAudioClock + 0.0005 {
-            lastAudioClock = audioClock
-            lastAudioClockDate = now
+        if audioUsable {
+            // The DAC is the master. Adopting it directly is correct even when we
+            // were previously on wall time; the wall anchor is only a fallback.
+            lastClockSourceIsAudio = true
+            if audioClock > lastAudioClock + 0.0005 || audioClock < lastAudioClock - 0.5 {
+                // Normal advance, or a jump from a seek / engine swap.
+                lastAudioClock = audioClock
+                lastAudioClockDate = now
+                return audioClock
+            }
+            if now - lastAudioClockDate > 0.25 {
+                // The hardware clock stopped advancing. Latch the stall and hand
+                // off to a wall clock anchored at the last valid DAC reading so
+                // displayed time does not jump by accumulated oscillator drift.
+                audioClockStalled = true
+                lastClockSourceIsAudio = false
+                playbackStartPts = lastAudioClock > 0 ? lastAudioClock : audioClock
+                playbackStartTime = now
+                return playbackStartPts
+            }
             return audioClock
         }
-        if audioClock < lastAudioClock - 0.5 {
-            // Clock jumped (seek / engine swap): re-anchor to the new value.
-            lastAudioClock = audioClock
-            lastAudioClockDate = now
-            return audioClock
+
+        // Wall-clock fallback.
+        if lastClockSourceIsAudio {
+            // First frame after leaving the DAC clock (device switch, underrun,
+            // stall): re-anchor so wall time continues from the last good sample
+            // instead of a stale anchor frozen at the last play()/seek().
+            lastClockSourceIsAudio = false
+            let anchor = lastAudioClock > 0 ? lastAudioClock : (audioClock > 0.05 ? audioClock : currentTime)
+            playbackStartPts = anchor
+            playbackStartTime = now
         }
-        if now - lastAudioClockDate > 0.25 {
-            audioClockStalled = true
-            return wallClock
-        }
-        return audioClock
+        return playbackStartPts + (now - playbackStartTime) * Double(playbackRate)
     }
     
     // MARK: - Dedicated Feeder Task
@@ -1349,6 +1419,10 @@ public final class PlaybackPipeline: ObservableObject {
         let isSingleSeek = (targetSeekTime != nil)
         let targetPTS = targetSeekTime ?? 0.0
         let onSubCue = self.onSubtitleCue
+        let mediaGate = self.mediaGate
+        let currentURL = self.currentURL
+        let isNetworkSource = currentURL?.path.hasPrefix("/Volumes/") == true
+            || ["smb", "afp", "nfs"].contains(currentURL?.scheme?.lowercased() ?? "")
         
         let controller = FeederTaskController(generation: generation)
         self.feederTask = controller
@@ -1364,6 +1438,12 @@ public final class PlaybackPipeline: ObservableObject {
             func isCurrentGen() -> Bool {
                 return token.isCurrent(generation) && !controller.isCancelled
             }
+
+            func withGate<T>(_ body: () throws -> T) rethrows -> T {
+                mediaGate.lock()
+                defer { mediaGate.unlock() }
+                return try body()
+            }
             
             // Mode A: Precision Seek Preroll (Decodes keyframe and intermediate frames up to target PTS)
             if isSingleSeek {
@@ -1374,7 +1454,7 @@ public final class PlaybackPipeline: ObservableObject {
                 
                 while isCurrentGen() && !targetFrameFound && packetsRead < maxPackets {
                     autoreleasepool {
-                        guard let packet = try? demuxer.nextPacket() else {
+                        guard let packet = withGate({ try? demuxer.nextPacket() }) else {
                             targetFrameFound = true
                             return
                         }
@@ -1391,7 +1471,7 @@ public final class PlaybackPipeline: ObservableObject {
                             }
 
                             // Decode frame normally so VideoToolbox ASIC populates reference frames and decoded image
-                            _ = dec.decode(packet: packet, doNotOutput: false)
+                            withGate { _ = dec.decode(packet: packet, doNotOutput: false) }
                             
                             // Continue decoding until we pass the target PTS with sufficient margin to resolve any B-frame forward references
                             if packet.pts >= targetPTS + 0.12 {
@@ -1432,16 +1512,21 @@ public final class PlaybackPipeline: ObservableObject {
             }
             
             // Mode B: Continuous Streaming Playback with Chunked Packet Prefetching & Backpressure
+            var consecutiveTransientErrors = 0
+            let maxTransientRetries = isNetworkSource ? 10 : 3
+            let transientRetryDelayMs = isNetworkSource ? 100 : 25
+            var eofDrainCompleted = false
+
             while isCurrentGen() {
                 let videoBuffered = q.count >= q.maxCount
                 let activeAudio = routing.currentAudioEngine
                 let audioHasHeadroom = activeAudio?.hasBufferHeadroom ?? false
                 let audioBuffered = !audioHasHeadroom
 
-                // Throttle feeding if decoded frame queue and audio buffer have sufficient headroom
-                // Also throttle if packetBuffer has accumulated enough deferred video packets
-                // Event-based backpressure: sleep until headroom becomes available or cancelled
-                if videoBuffered && (audioBuffered || packetBuffer.count >= packetBuffer.maxCapacity) {
+                // Only sleep when *both* video and audio are saturated and there is
+                // nowhere to put deferred video packets. Sleeping while audio has
+                // headroom starved the DAC and forced the wall-clock fallback.
+                if videoBuffered && audioBuffered && packetBuffer.count >= packetBuffer.maxCapacity {
                     controller.waitForHeadroom(timeoutMs: 50)
                     continue
                 }
@@ -1449,57 +1534,84 @@ public final class PlaybackPipeline: ObservableObject {
                 guard isCurrentGen() else { break }
 
                 var shouldSleepAfterEOF = false
+                var hadTransientError = false
                 autoreleasepool {
                     // 1. Prioritize deferred video packets if video queue has headroom:
                     // If video has drained below maxCount, decode the next packet from packetBuffer
                     if !videoBuffered, let deferredPacket = packetBuffer.dequeue() {
                         if let dec = decoder {
-                            _ = dec.decode(packet: deferredPacket)
+                            withGate { _ = dec.decode(packet: deferredPacket) }
                         }
                         return
                     }
 
-                    // 2. Read next packet from container
-                    guard let packet = try? demuxer.nextPacket() else {
-                        self.isDemuxerEOF = true
-                        shouldSleepAfterEOF = true
-                        return
-                    }
-
-                    // Route packet to hardware video decoder or native audio translation engine
-                    let activeAudioNum = routing.activeAudioTrackNumber
-                    let activeSubNum = routing.activeSubtitleTrackNumber
-
-                    if let dec = decoder, packet.trackNumber == dec.track.trackNumber {
-                        if packet.isKeyframe {
-                            packetBuffer.recordGOP(keyframePTS: packet.pts, fileOffset: packet.fileOffset)
+                    // 2. Read next packet from container. `nil` is a definitive end of
+                    // stream; a thrown error is treated as transient and retried so a
+                    // momentary network-volume read failure does not end playback.
+                    do {
+                        guard let packet = try withGate({ try demuxer.nextPacket() }) else {
+                            self.isDemuxerEOF = true
+                            shouldSleepAfterEOF = true
+                            return
                         }
-                        // Backpressure: If video is already buffered, defer video decode to prevent
-                        // uncompressed CVPixelBuffer memory leak while waiting for audio packets.
-                        if videoBuffered {
-                            packetBuffer.enqueue(packet)
-                        } else {
-                            _ = dec.decode(packet: packet)
-                        }
-                    } else if let a = activeAudio, packet.trackNumber == activeAudioNum {
-                        a.process(packet: packet)
-                    } else if let subNum = activeSubNum, packet.trackNumber == subNum {
-                        if let text = String(data: packet.data, encoding: .utf8) {
-                            let clean = SubtitleParser.cleanSubtitleCueText(text)
-                            if !clean.isEmpty {
-                                let dur = (packet.duration ?? 0) > 0 ? packet.duration! : 3.0
-                                let cue = SubtitleCue(startTime: packet.pts, endTime: packet.pts + dur, text: clean)
-                                if let onSubCue = onSubCue {
-                                    Task { @MainActor in
-                                        onSubCue(cue)
+
+                        // Route packet to hardware video decoder or native audio translation engine
+                        let activeAudioNum = routing.activeAudioTrackNumber
+                        let activeSubNum = routing.activeSubtitleTrackNumber
+
+                        if let dec = decoder, packet.trackNumber == dec.track.trackNumber {
+                            if packet.isKeyframe {
+                                packetBuffer.recordGOP(keyframePTS: packet.pts, fileOffset: packet.fileOffset)
+                            }
+                            // Backpressure: If video is already buffered, defer video decode to prevent
+                            // uncompressed CVPixelBuffer memory leak while waiting for audio packets.
+                            if videoBuffered {
+                                packetBuffer.enqueue(packet)
+                            } else {
+                                withGate { _ = dec.decode(packet: packet) }
+                            }
+                        } else if let a = activeAudio, packet.trackNumber == activeAudioNum {
+                            a.process(packet: packet)
+                        } else if let subNum = activeSubNum, packet.trackNumber == subNum {
+                            if let text = String(data: packet.data, encoding: .utf8) {
+                                let clean = SubtitleParser.cleanSubtitleCueText(text)
+                                if !clean.isEmpty {
+                                    let dur = (packet.duration ?? 0) > 0 ? packet.duration! : 3.0
+                                    let cue = SubtitleCue(startTime: packet.pts, endTime: packet.pts + dur, text: clean)
+                                    if let onSubCue = onSubCue {
+                                        Task { @MainActor in
+                                            onSubCue(cue)
+                                        }
                                     }
                                 }
                             }
                         }
+                    } catch {
+                        hadTransientError = true
                     }
                 }
 
+                if hadTransientError {
+                    consecutiveTransientErrors += 1
+                    if consecutiveTransientErrors <= maxTransientRetries {
+                        controller.waitForHeadroom(timeoutMs: transientRetryDelayMs)
+                    } else {
+                        // Persistent failure: give up rather than spin forever.
+                        self.isDemuxerEOF = true
+                        shouldSleepAfterEOF = true
+                    }
+                    continue
+                }
+                consecutiveTransientErrors = 0
+
                 if shouldSleepAfterEOF {
+                    // VideoToolbox decoding is asynchronous. Drain in-flight frames
+                    // once before deciding the frame queue is empty, otherwise the
+                    // final frames of the file are dropped.
+                    if !eofDrainCompleted {
+                        decoder?.waitForFrames()
+                        eofDrainCompleted = true
+                    }
                     if packetBuffer.isEmpty && q.count == 0 {
                         Task { @MainActor [weak self] in
                             self?.markPlaybackEnded()
