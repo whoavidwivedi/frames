@@ -109,13 +109,19 @@ nonisolated public final class NativeAudioDecoder: @unchecked Sendable {
         // IN16, IF32, ...) rather than Matroska's A_PCM/* IDs. These are raw
         // linear samples, so they must take the PCM path instead of being fed
         // to an AAC AudioConverter, which cannot decode them.
-        let pcmSampleEntries: Set<String> = ["IN32", "IN24", "IN16", "IN08", "TWOS", "SOWT", "IF32", "FL32", "LPCM"]
+        // IN08 is intentionally excluded: the sample translator handles 16/24/32-bit
+        // integer and 32-bit float samples, so an 8-bit entry cannot be decoded here.
+        let pcmSampleEntries: Set<String> = ["IN32", "IN24", "IN16", "TWOS", "SOWT", "IF32", "FL32", "LPCM"]
         if codec.hasPrefix("A_PCM") || pcmSampleEntries.contains(codec) {
             self.isPCM = true
+            // QuickTime v2 lpcm format flags: 0x1 = float, 0x2 = big-endian.
             self.isFloatPCM = codec.contains("FLOAT") || ["IF32", "FL32"].contains(codec)
-            // IN*/TWOS and Matroska /BIG store samples most-significant byte first.
-            self.isBigEndianPCM = codec.contains("/BIG")
-                || ["IN32", "IN24", "IN16", "IN08", "TWOS"].contains(codec)
+                || (track.pcmFormatFlags & 0x1) != 0
+            // An explicit `enda` box wins over the codec's default byte order.
+            let codecBigEndian = codec.contains("/BIG")
+                || ["IN32", "IN24", "IN16", "TWOS"].contains(codec)
+            self.isBigEndianPCM = track.pcmBigEndian
+                ?? (codecBigEndian || (track.pcmFormatFlags & 0x2) != 0)
             self.converter = nil
             return
         }
@@ -373,6 +379,16 @@ nonisolated public final class NativeAudioDecoder: @unchecked Sendable {
                                   Int32(bytePtr[offset])
                         }
                         channelData[ch][f] = Float(val) * scale
+                    }
+                }
+            } else if bytesPerSample == 1 {
+                // 8-bit signed PCM (Matroska A_PCM/INT with 8-bit samples).
+                let bytePtr = base.bindMemory(to: UInt8.self, capacity: data.count)
+                for f in 0..<Int(frameCount) {
+                    for ch in 0..<outChannels {
+                        let srcCh = min(ch, channels - 1)
+                        let sample = Int8(bitPattern: bytePtr[f * channels + srcCh])
+                        channelData[ch][f] = Float(sample) / 128.0
                     }
                 }
             }

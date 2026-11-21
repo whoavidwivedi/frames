@@ -110,6 +110,7 @@ nonisolated public struct FourCC: Equatable, Hashable, CustomStringConvertible, 
     nonisolated public static let av1C: FourCC = "av1C"
     nonisolated public static let vpcC: FourCC = "vpcC"
     nonisolated public static let esds: FourCC = "esds"
+    nonisolated public static let enda: FourCC = "enda"
     nonisolated public static let dac3: FourCC = "dac3"
     nonisolated public static let dec3: FourCC = "dec3"
     nonisolated public static let dOps: FourCC = "dOps"
@@ -710,6 +711,8 @@ nonisolated public final class MP4Demuxer: @unchecked Sendable, MediaDemuxer {
             sampleRate: sampleDescription.sampleRate > 0 ? sampleDescription.sampleRate : Double(mediaTimescale),
             channels: sampleDescription.channels,
             bitDepth: sampleDescription.bitDepth,
+            pcmFormatFlags: sampleDescription.pcmFormatFlags,
+            pcmBigEndian: sampleDescription.pcmBigEndian,
             name: sampleDescription.name,
             language: language,
             isDefault: (tkhd[3] & 0x01) != 0,
@@ -738,6 +741,8 @@ nonisolated public final class MP4Demuxer: @unchecked Sendable, MediaDemuxer {
         var sampleRate: Double = 0.0
         var channels: Int = 0
         var bitDepth: Int = 16
+        var pcmFormatFlags: UInt32 = 0
+        var pcmBigEndian: Bool? = nil
         var name: String? = nil
     }
 
@@ -837,6 +842,10 @@ nonisolated public final class MP4Demuxer: @unchecked Sendable, MediaDemuxer {
                     if trueBits > 0 {
                         result.bitDepth = Int(trueBits)
                     }
+                    // lpcm format-specific flags: bit 0 = float, bit 1 = big-endian.
+                    result.pcmFormatFlags = entryData.withUnsafeBytes {
+                        $0.loadUnaligned(fromByteOffset: 60, as: UInt32.self).bigEndian
+                    }
                 }
 
                 if childBoxOffset < entryData.count {
@@ -860,6 +869,14 @@ nonisolated public final class MP4Demuxer: @unchecked Sendable, MediaDemuxer {
                             }
                         case .dac3, .dec3, .dOps, .dfLa:
                             result.codecPrivate = box.payload
+                        case .enda:
+                            // QuickTime `enda`: 0 = big-endian, 1 = little-endian samples.
+                            if box.payload.count >= 2 {
+                                let value = box.payload.withUnsafeBytes {
+                                    $0.loadUnaligned(fromByteOffset: 0, as: UInt16.self).bigEndian
+                                }
+                                result.pcmBigEndian = (value & 0xFF) != 1
+                            }
                         default:
                             break
                         }
