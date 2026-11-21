@@ -275,13 +275,17 @@ nonisolated public final class FrameQueue: @unchecked Sendable {
         let duration = (frameDuration ?? nominal) > 0.001 ? (frameDuration ?? nominal) : (1.0 / 30.0)
         let lagThreshold = max(0.033, 2.0 * duration)
         
-        var headroomCallback: (@Sendable () -> Void)? = nil
         var result: (buffer: CVPixelBuffer, pts: Double)? = nil
         
+        let queueCapacity = max(1, maxCount)
+
         os_unfair_lock_lock(&queueLock)
         
         var tail = consumerTail.pointee
         let head = producerHead.pointee
+        // Only signal when this dequeue relieves saturation. Signaling on every
+        // frame made the feeder wake, find no work and spin on the semaphore.
+        let wasFull = (head - tail) >= UInt64(queueCapacity)
         
         if head > tail {
             // Discard stale frames lagging behind masterClock by dynamic frame-rate-aware threshold.
@@ -302,7 +306,6 @@ nonisolated public final class FrameQueue: @unchecked Sendable {
             if dropped {
                 OSMemoryBarrier()
                 consumerTail.pointee = tail
-                headroomCallback = onHeadroomAvailable
             }
             
             if head > tail {
@@ -314,7 +317,6 @@ nonisolated public final class FrameQueue: @unchecked Sendable {
                         storage[slot] = nil
                         OSMemoryBarrier()
                         consumerTail.pointee = tail + 1
-                        headroomCallback = onHeadroomAvailable
                         result = (candidate.pixelBuffer, candidate.pts)
                     }
                 }
@@ -323,7 +325,7 @@ nonisolated public final class FrameQueue: @unchecked Sendable {
         
         os_unfair_lock_unlock(&queueLock)
         
-        if let cb = headroomCallback {
+        if wasFull && (result != nil || consumerTail.pointee > tail), let cb = onHeadroomAvailable {
             cb()
         }
         
@@ -439,6 +441,28 @@ nonisolated private final class ActiveMediaRouting: @unchecked Sendable {
 @inline(__always)
 public func pthread_set_qos_class_np(_ thread: pthread_t, _ qosClass: qos_class_t, _ relativePriority: Int32 = 0) -> Int32 {
     return pthread_set_qos_class_self_np(qosClass, relativePriority)
+}
+
+// MARK: - Scrub Cache Population Gate
+
+/// Controls whether decoded frames are retained in the scrub cache. The cache
+/// is only useful while seeking/scrubbing; keeping it populated during normal
+/// playback pinned hundreds of megabytes of IOSurface-backed memory.
+nonisolated public final class ScrubCacheGate: @unchecked Sendable {
+    private var enabled = false
+    private let lock = NSLock()
+
+    public var isEnabled: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return enabled
+    }
+
+    public func setEnabled(_ value: Bool) {
+        lock.lock()
+        enabled = value
+        lock.unlock()
+    }
 }
 
 // MARK: - Dedicated E-Core Feeder Thread Controller
@@ -580,6 +604,7 @@ public final class PlaybackPipeline: ObservableObject {
     // Decoded Frame Ring Buffer & Scrub Frame Cache
     public let frameQueue = FrameQueue(maxCount: 18)
     private let scrubCache = ScrubFrameCache(maxCapacity: 24)
+    private let scrubCacheGate = ScrubCacheGate()
     public let packetChunkBuffer = PacketChunkBuffer(maxCapacity: 256)
     private var lastReportedUIClock: Double = -1.0
     public private(set) var nominalFrameDuration: Double = 1.0 / 30.0
@@ -804,6 +829,7 @@ public final class PlaybackPipeline: ObservableObject {
         scrubGeneration &+= 1
         frameQueue.removeAll()
         scrubCache.clear()
+        scrubCacheGate.setEnabled(false)
         packetChunkBuffer.removeAll()
         renderer?.clearFrame()
         currentTime = 0
@@ -848,13 +874,16 @@ public final class PlaybackPipeline: ObservableObject {
 
         let q = self.frameQueue
         let cache = self.scrubCache
+        let cacheGate = self.scrubCacheGate
         prepared.decoder.setFrameHandler { frame in
             let w = CVPixelBufferGetWidth(frame.pixelBuffer)
             let h = CVPixelBufferGetHeight(frame.pixelBuffer)
             if w > 0 && h > 0 {
                 cache.updateCapacity(forWidth: w, height: h)
             }
-            cache.insert(buffer: frame.pixelBuffer, pts: frame.pts)
+            if cacheGate.isEnabled {
+                cache.insert(buffer: frame.pixelBuffer, pts: frame.pts)
+            }
             q.enqueue(frame)
         }
 
@@ -980,6 +1009,8 @@ public final class PlaybackPipeline: ObservableObject {
         }
         
         isPlaying = true
+        scrubCacheGate.setEnabled(false)
+        scrubCache.clear()
         playbackStartTime = CACurrentMediaTime()
         playbackStartPts = currentTime
         resetClockTracker()
@@ -1097,6 +1128,7 @@ public final class PlaybackPipeline: ObservableObject {
         feederTask = nil
         
         if isScrubbing {
+            scrubCacheGate.setEnabled(true)
             let enteringScrub = !isScrubbingActive
             isScrubbingActive = true
             scrubResiduePending = true
@@ -1127,6 +1159,7 @@ public final class PlaybackPipeline: ObservableObject {
         }
 
         // Discrete timeline click or explicit seek
+        scrubCacheGate.setEnabled(true)
         isScrubbingActive = false
         scrubResiduePending = false
         pendingScrubTarget = nil
@@ -1194,6 +1227,7 @@ public final class PlaybackPipeline: ObservableObject {
     private func scrubTaskDidExit(generation: Int) {
         guard generation == scrubGeneration else { return }
         scrubTask = nil
+        scrubCacheGate.setEnabled(false)
         
         // Sanitize frame queue and packet chunk buffer immediately upon scrub task exit
         frameQueue.reset(forSeek: currentTime)

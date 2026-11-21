@@ -98,7 +98,7 @@ nonisolated public final class ScrubFrameCache: @unchecked Sendable {
         lastConfiguredHeight = height
         os_unfair_lock_unlock(&lock)
 
-        let capacity = ScrubFrameCache.recommendedCapacity(width: width, height: height)
+        let capacity = ScrubFrameCache.deviceScaledCapacity(width: width, height: height)
         setCapacity(capacity)
     }
     
