@@ -96,6 +96,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             window.tabbingMode = .disallowed
         }
 
+        #if DEBUG
+        // Test entry points are compiled only into Debug builds so the production
+        // binary does not ship the test harness or its `exit()` paths.
         if CommandLine.arguments.contains("--run-tests") {
             let result = FramesTestSuite.runAllTests()
             for line in result.logs {
@@ -127,6 +130,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             fflush(stdout)
             exit(result.passed ? 0 : 1)
         }
+        #endif
 
         if let mainMenu = NSApp.mainMenu {
             Self.cleanTabBarMenuItems(from: mainMenu)

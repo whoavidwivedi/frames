@@ -1,3 +1,5 @@
+#if DEBUG
+
 import Foundation
 import CoreGraphics
 import SwiftUI
@@ -4924,3 +4926,4 @@ public enum FramesTestSuite {
     }
 }
 
+#endif // DEBUG

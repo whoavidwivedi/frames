@@ -157,28 +157,25 @@ fi
 # 2. Automated Test Suite Verification
 # ------------------------------------------------------------------------------
 if [[ "${SKIP_TESTS}" == "false" ]]; then
-    echo "==> [2/7] Running test suite against Debug build..."
-    xcodebuild \
+    echo "==> [2/7] Running test suite with xcodebuild test..."
+    TEST_RESULT_BUNDLE="${PROJECT_ROOT}/build/FramesTests.xcresult"
+    rm -rf "${TEST_RESULT_BUNDLE}"
+
+    # Rely on the xcodebuild exit code rather than grepping console text; a
+    # logging change can no longer turn a failing suite into a false pass.
+    if ! xcodebuild \
         -project "${PROJECT_ROOT}/frames.xcodeproj" \
         -scheme frames \
         -configuration Debug \
+        -destination "platform=macOS,arch=arm64" \
         -derivedDataPath "${PROJECT_ROOT}/build/DerivedData" \
-        build >/dev/null
-
-    DEBUG_BINARY="${PROJECT_ROOT}/build/DerivedData/Build/Products/Debug/frames.app/Contents/MacOS/frames"
-    if [[ ! -x "${DEBUG_BINARY}" ]]; then
-        echo "❌ Error: Built debug binary not executable at ${DEBUG_BINARY}"
+        -resultBundlePath "${TEST_RESULT_BUNDLE}" \
+        CODE_SIGNING_ALLOWED=NO \
+        test; then
+        echo "❌ Test suite failed. Result bundle: ${TEST_RESULT_BUNDLE}"
         exit 1
     fi
-
-    TEST_OUTPUT=$("${DEBUG_BINARY}" --run-tests)
-    if echo "${TEST_OUTPUT}" | grep -q "0 FAILED"; then
-        echo "  ✔ Test suite passed cleanly!"
-    else
-        echo "❌ Test suite failed!"
-        echo "${TEST_OUTPUT}"
-        exit 1
-    fi
+    echo "  ✔ Test suite passed cleanly!"
 else
     echo "==> [2/7] Skipping test suite (--skip-tests specified)."
 fi
