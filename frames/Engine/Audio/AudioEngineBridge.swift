@@ -268,13 +268,14 @@ nonisolated public final class AudioEngineBridge: @unchecked Sendable {
     
     /// Returns the true monotonic nanosecond-accurate hardware clock time (in seconds).
     public var currentMasterTime: Double {
+        lock.lock()
+        defer { lock.unlock() }
+
         let now = CFAbsoluteTimeGetCurrent()
         if now - cachedMasterTimeDate < 0.008 {
             return cachedMasterTime
         }
-        lock.lock()
-        defer { lock.unlock() }
-        
+
         guard isPlaying else {
             cachedMasterTime = lastReportedTime
             cachedMasterTimeDate = CFAbsoluteTimeGetCurrent()
