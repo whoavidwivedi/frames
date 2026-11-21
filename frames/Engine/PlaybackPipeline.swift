@@ -1549,7 +1549,7 @@ public final class PlaybackPipeline: ObservableObject {
                     // stream; a thrown error is treated as transient and retried so a
                     // momentary network-volume read failure does not end playback.
                     do {
-                        guard let packet = withGate({ try demuxer.nextPacket() }) else {
+                        guard let packet = try withGate({ try demuxer.nextPacket() }) else {
                             self.isDemuxerEOF = true
                             shouldSleepAfterEOF = true
                             return
