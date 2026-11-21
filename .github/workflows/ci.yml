@@ -8,7 +8,11 @@ on:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  # Keep every queued run, including intermediate pushes to main. `queue: max`
+  # is required because the default single-slot queue otherwise replaces older
+  # pending runs with newer ones.
+  cancel-in-progress: false
+  queue: max
 
 jobs:
   test-and-build:
