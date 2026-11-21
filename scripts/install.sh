@@ -9,7 +9,8 @@ set -euo pipefail
 # SHA-256 checksum and the Developer ID code signature, then launches the app.
 # Set FRAMES_EXPECTED_TEAM_ID to additionally pin the exact Developer ID team
 # that signs Frames. The one-line install works without it; setting it provides
-# stricter identity verification once a Developer ID is configured.
+# stricter identity verification once a Developer ID is configured. Unsigned
+# releases are refused here; use the in-app updater or UNSIGNED_BUILD.txt.
 # ==============================================================================
 
 # Colors & Formatting

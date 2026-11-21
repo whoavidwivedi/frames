@@ -38,13 +38,15 @@ The user interface adheres strictly to the **shadcn `base-luma`/`neutral`** (pre
 
 ## ⚡️ Quick Install (1-Line Terminal Command)
 
-Install Frames directly on your Mac with a single command — automatically handles Gatekeeper permissions and launches immediately without any quarantine warnings:
+Install Frames directly on your Mac with a single command — the installer verifies the published checksum and Developer ID signature before installing and launching:
 
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/whoavidwivedi/frames/main/scripts/install.sh)"
 ```
 
 > **What this does**: Fetches the latest release and its published `SHA256SUMS.txt`, verifies the archive checksum, the Developer ID code signature and the Frames bundle identifier, installs `Frames.app` into `/Applications`, and launches Frames. Installation is aborted if any check fails. Set `FRAMES_EXPECTED_TEAM_ID=<team-id>` to additionally pin the exact signing team, e.g. `FRAMES_EXPECTED_TEAM_ID=ABCDE12345 /bin/bash -c "$(curl -fsSL .../install.sh)"`.
+
+> **Unsigned releases**: When no Apple Developer ID is configured, releases are ad-hoc signed and not notarized. The one-line installer above still refuses them. The in-app updater can install them after an explicit “unsigned build” warning, and the manual steps in `UNSIGNED_BUILD.txt` remove the Gatekeeper quarantine attribute.
 
 ---
 
@@ -78,7 +80,7 @@ Install Frames directly on your Mac with a single command — automatically hand
 * **Non-Intrusive Update Discovery**: Asynchronous background query against GitHub Releases API with SemVer 2.0.0 parsing. Never forces disruptive silent updates.
 * **Liquid Glass Update Modal**: Sleek adaptive modal displaying version diff (`v1.2.0 → v1.3.0`), release notes highlights, download size, and real-time download progress.
 * **Granular User Control**: "Update & Restart", "Later", and "Skip this version" options, plus manual check affordance in App Menu (`Frames -> Check for Updates...`) and Command Palette.
-* **Verified Bundle Swap & Clean Restart**: Verifies the published SHA-256 checksum and the Developer ID code signature before extraction, validates bundle structure, swaps the bundle atomically, and smoothly restarts.
+* **Verified Bundle Swap & Clean Restart**: Verifies the published SHA-256 checksum and bundle structure before extraction. Signed releases additionally require a valid Developer ID signature; unsigned releases require explicit confirmation and have their quarantine attribute cleared before the bundle is swapped and Frames restarts.
 
 ### 6. Command Palette (`⌘K`) & High-Res Frame Capture (`⌘S`)
 * **Instant Keyboard Access**: Press `⌘K` from anywhere in the app to search and execute any command, switch themes, navigate folders, adjust audio/video playback, or check for updates.
