@@ -26,6 +26,7 @@ nonisolated public final class NativeAudioDecoder: @unchecked Sendable {
     private var converter: AudioConverterRef?
     private let isPCM: Bool
     private let isFloatPCM: Bool
+    private let isBigEndianPCM: Bool
     private let bitDepth: Int
     
     // Feeder context for AudioConverterComplexInputDataProc
@@ -104,15 +105,24 @@ nonisolated public final class NativeAudioDecoder: @unchecked Sendable {
         self.outputFormat = format
         
         let codec = track.codecID.uppercased()
-        if codec.hasPrefix("A_PCM") {
+        // MP4/QuickTime use four-character PCM sample entries (IN32, IN24,
+        // IN16, IF32, ...) rather than Matroska's A_PCM/* IDs. These are raw
+        // linear samples, so they must take the PCM path instead of being fed
+        // to an AAC AudioConverter, which cannot decode them.
+        let pcmSampleEntries: Set<String> = ["IN32", "IN24", "IN16", "IN08", "TWOS", "SOWT", "IF32", "FL32", "LPCM"]
+        if codec.hasPrefix("A_PCM") || pcmSampleEntries.contains(codec) {
             self.isPCM = true
-            self.isFloatPCM = codec.contains("FLOAT")
+            self.isFloatPCM = codec.contains("FLOAT") || ["IF32", "FL32"].contains(codec)
+            // IN*/TWOS and Matroska /BIG store samples most-significant byte first.
+            self.isBigEndianPCM = codec.contains("/BIG")
+                || ["IN32", "IN24", "IN16", "IN08", "TWOS"].contains(codec)
             self.converter = nil
             return
         }
         
         self.isPCM = false
         self.isFloatPCM = false
+        self.isBigEndianPCM = false
         
         // Map codec to CoreAudio AudioFormatID
         let formatID: AudioFormatID
@@ -316,17 +326,21 @@ nonisolated public final class NativeAudioDecoder: @unchecked Sendable {
                 for f in 0..<Int(frameCount) {
                     for ch in 0..<outChannels {
                         let srcCh = min(ch, channels - 1)
-                        channelData[ch][f] = floatPtr[f * channels + srcCh]
+                        let sample = floatPtr[f * channels + srcCh]
+                        channelData[ch][f] = isBigEndianPCM
+                            ? Float(bitPattern: sample.bitPattern.byteSwapped)
+                            : sample
                     }
                 }
             } else if bytesPerSample == 4 {
-                // 32-bit Signed Integer PCM (A_PCM/INT/LIT, IN32)
+                // 32-bit Signed Integer PCM (A_PCM/INT/LIT, MP4 IN32)
                 let int32Ptr = base.bindMemory(to: Int32.self, capacity: Int(frameCount) * channels)
                 let scale: Float = 1.0 / 2147483648.0
                 for f in 0..<Int(frameCount) {
                     for ch in 0..<outChannels {
                         let srcCh = min(ch, channels - 1)
-                        channelData[ch][f] = Float(int32Ptr[f * channels + srcCh]) * scale
+                        let sample = int32Ptr[f * channels + srcCh]
+                        channelData[ch][f] = Float(isBigEndianPCM ? Int32(bigEndian: sample) : sample) * scale
                     }
                 }
             } else if bytesPerSample == 2 {
@@ -336,7 +350,8 @@ nonisolated public final class NativeAudioDecoder: @unchecked Sendable {
                 for f in 0..<Int(frameCount) {
                     for ch in 0..<outChannels {
                         let srcCh = min(ch, channels - 1)
-                        channelData[ch][f] = Float(int16Ptr[f * channels + srcCh]) * scale
+                        let sample = int16Ptr[f * channels + srcCh]
+                        channelData[ch][f] = Float(isBigEndianPCM ? Int16(bigEndian: sample) : sample) * scale
                     }
                 }
             } else if bytesPerSample == 3 {
@@ -347,9 +362,16 @@ nonisolated public final class NativeAudioDecoder: @unchecked Sendable {
                     for ch in 0..<outChannels {
                         let srcCh = min(ch, channels - 1)
                         let offset = (f * channels + srcCh) * 3
-                        let val = Int32(Int8(bitPattern: bytePtr[offset + 2])) << 16 |
+                        let val: Int32
+                        if isBigEndianPCM {
+                            val = Int32(Int8(bitPattern: bytePtr[offset])) << 16 |
+                                  Int32(bytePtr[offset + 1]) << 8 |
+                                  Int32(bytePtr[offset + 2])
+                        } else {
+                            val = Int32(Int8(bitPattern: bytePtr[offset + 2])) << 16 |
                                   Int32(bytePtr[offset + 1]) << 8 |
                                   Int32(bytePtr[offset])
+                        }
                         channelData[ch][f] = Float(val) * scale
                     }
                 }
