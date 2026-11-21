@@ -271,14 +271,13 @@ nonisolated public final class NativeAudioDecoder: @unchecked Sendable {
             let feederPtr = Unmanaged.passUnretained(feeder).toOpaque()
             let abl = pcmBuffer.mutableAudioBufferList
             
-            var packetDesc: UnsafeMutablePointer<AudioStreamPacketDescription>? = feeder.packetDescPtr
             let status = AudioConverterFillComplexBuffer(
                 conv,
                 inputProc,
                 feederPtr,
                 &ioOutputFrames,
                 abl,
-                &packetDesc
+                feeder.packetDescPtr
             )
             
             guard (status == noErr || status == kAudioDecoderEndOfBatchStatus), ioOutputFrames > 0 else {

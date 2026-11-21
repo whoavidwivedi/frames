@@ -211,7 +211,7 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
 
                 if elemID == .cluster {
                     let clusterStart = offset
-                    let payloadOffset = mkvCheckedAdd(offset, UInt64(totalHeaderLen)) ?? self.fileSize
+                    let payloadOffset = mkvCheckedAdd(offset, UInt64(totalHeaderLen)) ?? size
                     var clusterHead = Data(count: 64)
                     let chRead = clusterHead.withUnsafeMutableBytes { ptr -> Int in
                         guard let base = ptr.baseAddress else { return 0 }
