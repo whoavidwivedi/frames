@@ -22,6 +22,20 @@ public final class FrameCaptureEngine {
         public let height: Int
     }
 
+    public enum CaptureError: Error, LocalizedError {
+        case imageCreationFailed
+        case encodingFailed
+        case placeholderCreationFailed
+
+        public var errorDescription: String? {
+            switch self {
+            case .imageCreationFailed: return "Could not create an image from the current video frame."
+            case .encodingFailed: return "Could not encode the video frame as PNG."
+            case .placeholderCreationFailed: return "Could not create a fallback snapshot image."
+            }
+        }
+    }
+
     private let picturesFolder: URL
 
     public init(customFolder: URL? = nil) {
@@ -83,12 +97,14 @@ public final class FrameCaptureEngine {
 
             let ciImage = CIImage(cvPixelBuffer: buffer)
             let context = CIContext(options: [.useSoftwareRenderer: false])
-            if let cgImage = context.createCGImage(ciImage, from: ciImage.extent) {
-                let bitmapRep = NSBitmapImageRep(cgImage: cgImage)
-                if let pngData = bitmapRep.representation(using: .png, properties: [:]) {
-                    try pngData.write(to: fileURL, options: .atomic)
-                }
+            guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else {
+                throw CaptureError.imageCreationFailed
             }
+            let bitmapRep = NSBitmapImageRep(cgImage: cgImage)
+            guard let pngData = bitmapRep.representation(using: .png, properties: [:]) else {
+                throw CaptureError.encodingFailed
+            }
+            try pngData.write(to: fileURL, options: .atomic)
         } else {
             // Fallback placeholder PNG generation if no buffer active (e.g. paused on unsupported frame)
             imageWidth = 1920
@@ -105,9 +121,10 @@ public final class FrameCaptureEngine {
                 bytesPerRow: imageWidth * 4,
                 bitsPerPixel: 32
             )
-            if let rep = rep, let data = rep.representation(using: .png, properties: [:]) {
-                try data.write(to: fileURL, options: .atomic)
+            guard let rep = rep, let data = rep.representation(using: .png, properties: [:]) else {
+                throw CaptureError.placeholderCreationFailed
             }
+            try data.write(to: fileURL, options: .atomic)
         }
 
         let totalSeconds = Int(max(0, timestampSeconds))

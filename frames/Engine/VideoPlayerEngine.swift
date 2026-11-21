@@ -2,6 +2,7 @@ import Foundation
 import AVFoundation
 import Combine
 import CoreMedia
+import CoreVideo
 import SwiftUI
 import VideoToolbox
 
@@ -147,6 +148,13 @@ public final class VideoPlayerEngine {
     public var controlsVisible: Bool = true
     public var isFullscreen: Bool = false
     public var activeInspectorSheet: InspectorSheet? = nil
+
+    /// The frame currently presented by the native Metal renderer. Frame capture
+    /// uses this so ⌘S saves the visible frame instead of a blank placeholder.
+    public var currentFrameBuffer: CVPixelBuffer? {
+        guard isNativePipelineActive else { return nil }
+        return nativePipeline.renderer?.currentBuffer
+    }
 
     // MARK: - Native Metal & Demuxer Pipeline (Zero-Copy Apple Silicon)
     public let nativePipeline = PlaybackPipeline()
