@@ -30,6 +30,21 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Resolve release version
+        id: version
+        run: |
+          VERSION="${{ github.ref_name }}"
+          if [ -z "$VERSION" ] || [ "$VERSION" = "main" ]; then
+            VERSION="${{ inputs.version }}"
+          fi
+          VERSION="${VERSION#v}"
+          if [ -z "$VERSION" ]; then
+            echo "::error::Could not resolve a release version."
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Build Release App
         run: |
           xcodebuild -project frames.xcodeproj \
@@ -44,16 +59,36 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             build
 
+      - name: Check signing configuration
+        id: signing
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          ALLOW_UNSIGNED: ${{ vars.ALLOW_UNSIGNED_RELEASES }}
+        run: |
+          if [ -n "$MACOS_CERTIFICATE" ] && [ -n "$MACOS_CERTIFICATE_PASSWORD" ] && \
+             [ -n "$MACOS_SIGNING_IDENTITY" ] && [ -n "$APPLE_ID" ] && \
+             [ -n "$APPLE_TEAM_ID" ] && [ -n "$APPLE_APP_PASSWORD" ]; then
+            echo "mode=signed" >> "$GITHUB_OUTPUT"
+          elif [ "$ALLOW_UNSIGNED" = "true" ]; then
+            echo "mode=unsigned" >> "$GITHUB_OUTPUT"
+            echo "::warning::Developer ID secrets are not configured. Publishing an UNSIGNED build because ALLOW_UNSIGNED_RELEASES=true. The in-app updater and scripts/install.sh will reject this build; remove that variable once signing secrets are available."
+          else
+            echo "::error::Developer ID signing secrets are not configured. Set ALLOW_UNSIGNED_RELEASES=true to knowingly publish an unverifiable build."
+            exit 1
+          fi
+
       - name: Import Developer ID signing identity
+        if: steps.signing.outputs.mode == 'signed'
         env:
           MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
           MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
         run: |
-          if [ -z "$MACOS_CERTIFICATE" ] || [ -z "$MACOS_CERTIFICATE_PASSWORD" ] || [ -z "$MACOS_SIGNING_IDENTITY" ]; then
-            echo "::error::Developer ID signing secrets are not configured. Unsigned releases are not published."
-            exit 1
-          fi
           KEYCHAIN_PATH="$RUNNER_TEMP/frames-signing.keychain-db"
           CERT_PATH="$RUNNER_TEMP/developer-id.p12"
           echo "$MACOS_CERTIFICATE" | base64 --decode > "$CERT_PATH"
@@ -65,6 +100,7 @@ jobs:
           security list-keychains -d user -s "$KEYCHAIN_PATH"
 
       - name: Sign and Notarize Release App
+        if: steps.signing.outputs.mode == 'signed'
         env:
           MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -74,23 +110,33 @@ jobs:
           APP="build/DerivedData/Build/Products/Release/frames.app"
           codesign --force --deep --options runtime --timestamp --sign "$MACOS_SIGNING_IDENTITY" "$APP"
           codesign --verify --deep --strict --verbose=2 "$APP"
-          if [ -z "$APPLE_ID" ] || [ -z "$APPLE_TEAM_ID" ] || [ -z "$APPLE_APP_PASSWORD" ]; then
-            echo "::error::Notarization secrets are not configured. Unsigned/notarization-less releases are not published."
-            exit 1
-          fi
           ditto -c -k --keepParent "$APP" "$RUNNER_TEMP/frames-notarize.zip"
           xcrun notarytool submit "$RUNNER_TEMP/frames-notarize.zip" \
             --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait
           xcrun stapler staple "$APP"
           spctl -a -vvv "$APP"
 
+      - name: Write unsigned build notice
+        if: steps.signing.outputs.mode == 'unsigned'
+        run: |
+          mkdir -p dist
+          cat > dist/UNSIGNED_BUILD.txt <<'EOF'
+          This release was built without a Developer ID signature or notarization
+          because no Apple Developer credentials are configured for this repository.
+
+          - The in-app OTA updater and scripts/install.sh will refuse this build.
+          - To install manually: unzip Frames-v*-macOS.zip, move Frames.app to
+            /Applications, then remove the quarantine attribute:
+              xattr -dr com.apple.quarantine /Applications/Frames.app
+          - The SHA256SUMS.txt manifest still verifies download integrity only;
+            it is not a code-signing guarantee.
+
+          This notice is removed automatically when signing secrets are configured.
+          EOF
+
       - name: Package ZIP and Checksums
         run: |
-          VERSION="${{ github.ref_name }}"
-          if [ -z "$VERSION" ] || [ "$VERSION" = "main" ]; then
-            VERSION="${{ inputs.version }}"
-          fi
-          VERSION="${VERSION#v}"
+          VERSION="${{ steps.version.outputs.version }}"
           APP="build/DerivedData/Build/Products/Release/frames.app"
           mkdir -p dist
           ditto -c -k --keepParent "$APP" "dist/Frames-v${VERSION}-macOS.zip"
@@ -102,8 +148,13 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
         with:
+          tag_name: ${{ steps.version.outputs.tag }}
           draft: ${{ inputs.draft || false }}
+          body: |
+            > [!WARNING]
+            > **Unsigned build.** No Apple Developer ID credentials are configured, so this ZIP is neither Developer ID signed nor notarized. Frames' in-app updater and `scripts/install.sh` will reject it; see `UNSIGNED_BUILD.txt` for manual installation. Signed releases resume automatically once the secrets are configured.
           files: |
             dist/*.zip
             dist/SHA256SUMS.txt
+            dist/UNSIGNED_BUILD.txt
           generate_release_notes: true
