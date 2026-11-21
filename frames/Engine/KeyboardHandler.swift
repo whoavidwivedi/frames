@@ -265,7 +265,7 @@ public final class KeyboardHandler {
                     if let currentURL = engine.currentURL {
                         do {
                             let metadata = try FrameCaptureEngine.shared.saveFrame(
-                                pixelBuffer: nil,
+                                pixelBuffer: engine.currentFrameBuffer,
                                 videoTitle: currentURL.deletingPathExtension().lastPathComponent,
                                 timestampSeconds: engine.currentTime
                             )
@@ -274,7 +274,10 @@ public final class KeyboardHandler {
                                 object: metadata
                             )
                         } catch {
-                            print("Frame snapshot error: \(error)")
+                            NotificationCenter.default.post(
+                                name: Notification.Name("FramesSnapshotFailedNotification"),
+                                object: error.localizedDescription
+                            )
                         }
                     }
                 }

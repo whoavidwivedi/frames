@@ -670,11 +670,22 @@ public struct FramesCommandPalette: View {
                 group: playbackGroup
             ) {
                 if let currentURL = engine.currentURL {
-                    _ = try? FrameCaptureEngine.shared.saveFrame(
-                        pixelBuffer: nil,
-                        videoTitle: currentURL.deletingPathExtension().lastPathComponent,
-                        timestampSeconds: engine.currentTime
-                    )
+                    do {
+                        let metadata = try FrameCaptureEngine.shared.saveFrame(
+                            pixelBuffer: engine.currentFrameBuffer,
+                            videoTitle: currentURL.deletingPathExtension().lastPathComponent,
+                            timestampSeconds: engine.currentTime
+                        )
+                        NotificationCenter.default.post(
+                            name: Notification.Name("FramesSnapshotCapturedNotification"),
+                            object: metadata
+                        )
+                    } catch {
+                        NotificationCenter.default.post(
+                            name: Notification.Name("FramesSnapshotFailedNotification"),
+                            object: error.localizedDescription
+                        )
+                    }
                 }
             })
 
