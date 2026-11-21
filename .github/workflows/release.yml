@@ -77,11 +77,19 @@ jobs:
             echo "mode=signed" >> "$GITHUB_OUTPUT"
           elif [ "$ALLOW_UNSIGNED" = "true" ]; then
             echo "mode=unsigned" >> "$GITHUB_OUTPUT"
-            echo "::warning::Developer ID secrets are not configured. Publishing an UNSIGNED build because ALLOW_UNSIGNED_RELEASES=true. The in-app updater and scripts/install.sh will reject this build; remove that variable once signing secrets are available."
+            echo "::warning::Developer ID secrets are not configured. Publishing an UNSIGNED build because ALLOW_UNSIGNED_RELEASES=true. The in-app updater will ask for confirmation and scripts/install.sh will reject this build; remove that variable once signing secrets are available."
           else
             echo "::error::Developer ID signing secrets are not configured. Set ALLOW_UNSIGNED_RELEASES=true to knowingly publish an unverifiable build."
             exit 1
           fi
+
+      - name: Ad-hoc sign unsigned release app
+        if: steps.signing.outputs.mode == 'unsigned'
+        run: |
+          APP="build/DerivedData/Build/Products/Release/frames.app"
+          codesign --force --deep --sign - "$APP"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          codesign -dvvv "$APP" 2>&1 | grep -q 'Signature=adhoc'
 
       - name: Import Developer ID signing identity
         if: steps.signing.outputs.mode == 'signed'
@@ -122,10 +130,14 @@ jobs:
         run: |
           mkdir -p dist
           cat > dist/UNSIGNED_BUILD.txt <<'EOF'
-          This release was built without a Developer ID signature or notarization
-          because no Apple Developer credentials are configured for this repository.
+          This release is ad-hoc signed but was not signed with a Developer ID
+          or notarized because no Apple Developer credentials are configured
+          for this repository.
 
-          - The in-app OTA updater and scripts/install.sh will refuse this build.
+          - The in-app OTA updater can install this build after an explicit
+            unsigned-build warning; it clears the quarantine attribute for you.
+          - scripts/install.sh still requires a Developer ID signature and will
+            refuse this build.
           - To install manually: unzip Frames-v*-macOS.zip, move the extracted
             frames.app to /Applications/Frames.app, then remove the quarantine
             attribute:
@@ -152,7 +164,7 @@ jobs:
           if [ "${{ steps.signing.outputs.mode }}" = "unsigned" ]; then
             cat > "$BODY_FILE" <<'EOF'
           > [!WARNING]
-          > **Unsigned build.** No Apple Developer ID credentials are configured, so this ZIP is neither Developer ID signed nor notarized. Frames' in-app updater and `scripts/install.sh` will reject it; see `UNSIGNED_BUILD.txt` for manual installation. Signed releases resume automatically once the secrets are configured.
+          > **Unsigned build.** No Apple Developer ID credentials are configured, so this ZIP is ad-hoc signed but neither Developer ID signed nor notarized. Frames' in-app updater can install it after an explicit warning; `scripts/install.sh` still requires a Developer ID signature. See `UNSIGNED_BUILD.txt` for manual installation. Signed releases resume automatically once the secrets are configured.
           EOF
           else
             : > "$BODY_FILE"

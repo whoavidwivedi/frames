@@ -1750,6 +1750,15 @@ public enum FramesTestSuite {
         try? FileManager.default.removeItem(at: tempDir)
         assertTest("Invalid Bundle Correctly Rejected", condition: invalidBundleRejected)
 
+        // 5b. Signature policy rejects bundles with no valid signature.
+        var adHocPolicyRejectedInvalidBundle = false
+        do {
+            try UpdateManager.verifyAdHocSignature(at: tempDir)
+        } catch {
+            adHocPolicyRejectedInvalidBundle = true
+        }
+        assertTest("Ad-Hoc Policy Rejects Unsigned Bundle", condition: adHocPolicyRejectedInvalidBundle)
+
         // MARK: - 29. Multi-Stream Audio & Subtitle Auto-Detection & Control Bar Tests
         logs.append("\n[29] Testing Multi-Stream Audio, Subtitle Detection & Docked Controls...")
 

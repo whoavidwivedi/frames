@@ -4,6 +4,18 @@ import AppKit
 import CryptoKit
 import Security
 
+/// The code-signing posture of an app bundle.
+///
+/// `.developerID` bundles are Apple-anchored and can be verified against the
+/// publisher's Developer ID identity. `.unsignedAdhoc` bundles are locally
+/// signed only; they are accepted by OTA only after explicit user consent.
+/// `.invalid` means the bundle has no usable signature and is never accepted.
+public enum UpdateSignaturePolicy: Sendable, Equatable {
+    case developerID
+    case unsignedAdhoc
+    case invalid
+}
+
 /// Production-grade OTA Update Manager for Frames on macOS Apple Silicon.
 /// Provides non-intrusive background checking, manual updates, downloading with progress,
 /// integrity validation, and self-update with atomic bundle swap & restart.
@@ -372,9 +384,45 @@ public final class UpdateManager: NSObject {
                     )
                 }
 
-                // Structural integrity plus a valid Developer ID signature are both required.
+                // Structural integrity is always required. Signed releases use the
+                // strict Developer ID policy; ad-hoc releases require explicit
+                // consent and remain unsigned after installation.
                 try Self.verifyAppBundle(at: newAppBundleURL)
-                try Self.verifyDeveloperIDSignature(at: newAppBundleURL)
+                let downloadedPolicy = Self.signaturePolicy(for: newAppBundleURL)
+                let installedPolicy = Self.signaturePolicy(for: Bundle.main.bundleURL)
+                var isUnsignedInstall = false
+
+                switch downloadedPolicy {
+                case .developerID:
+                    try Self.verifyDeveloperIDSignature(at: newAppBundleURL)
+                case .unsignedAdhoc:
+                    // Older unsigned release jobs built with CODE_SIGNING_ALLOWED=NO,
+                    // so those installs classify as `.invalid` rather than `.unsignedAdhoc`.
+                    // They carry no certificate chain, so allow that one-time migration to
+                    // an ad-hoc signed build. A Developer ID install must never be
+                    // downgraded to an unsigned update.
+                    guard installedPolicy != .developerID else {
+                        throw Self.updateError(
+                            code: -18,
+                            message: "A Developer ID signed installation cannot be downgraded to an unsigned update."
+                        )
+                    }
+                    try Self.verifyAdHocSignature(at: newAppBundleURL)
+                    guard Self.confirmUnsignedUpdate() else {
+                        self.status = .available(info: update)
+                        self.isUpdatePromptPresented = false
+                        self.downloadProgress = 0.0
+                        self.downloadedBytes = 0
+                        self.totalBytes = 0
+                        return
+                    }
+                    isUnsignedInstall = true
+                case .invalid:
+                    throw Self.updateError(
+                        code: -19,
+                        message: "The update bundle is neither Developer ID signed nor ad-hoc signed. Refusing to install."
+                    )
+                }
 
                 self.status = .readyToRestart
 
@@ -385,7 +433,8 @@ public final class UpdateManager: NSObject {
                 try Self.executeRelaunchHelper(
                     newAppURL: newAppBundleURL,
                     targetAppURL: targetAppURL,
-                    currentPID: ProcessInfo.processInfo.processIdentifier
+                    currentPID: ProcessInfo.processInfo.processIdentifier,
+                    removeQuarantine: isUnsignedInstall
                 )
 
                 // Terminate current instance cleanly
@@ -484,7 +533,12 @@ public final class UpdateManager: NSObject {
     /// Replaces the installed bundle and relaunches it without constructing a
     /// shell script from external input. All paths are validated and FileManager
     /// APIs are used, so archive-derived names cannot become shell commands.
-    public static func executeRelaunchHelper(newAppURL: URL, targetAppURL: URL, currentPID: Int32) throws {
+    public static func executeRelaunchHelper(
+        newAppURL: URL,
+        targetAppURL: URL,
+        currentPID: Int32,
+        removeQuarantine: Bool = false
+    ) throws {
         let fileManager = FileManager.default
 
         guard newAppURL.pathExtension.lowercased() == "app",
@@ -508,6 +562,13 @@ public final class UpdateManager: NSObject {
 
         let backupURL = fileManager.temporaryDirectory
             .appendingPathComponent("FramesUpdateBackup_\(UUID().uuidString).app")
+
+        // Unsigned builds are launched by `/usr/bin/open` after the swap. Without
+        // this, Gatekeeper can block the freshly downloaded ad-hoc bundle even
+        // though the user explicitly accepted the unsigned update.
+        if removeQuarantine {
+            try Self.removeQuarantineAttribute(at: newAppURL)
+        }
 
         if fileManager.fileExists(atPath: targetPath) {
             try fileManager.moveItem(atPath: targetPath, toPath: backupURL.path)
@@ -547,6 +608,127 @@ public final class UpdateManager: NSObject {
     }
 
     // MARK: - Update Verification
+
+    /// Classifies a bundle by its actual code signature rather than trusting the
+    /// bundle name or release metadata. Certificate-bearing bundles are treated as
+    /// signed; certificate-free bundles must also pass full signature validation
+    /// before they are considered ad-hoc signed.
+    public static func signaturePolicy(for bundleURL: URL) -> UpdateSignaturePolicy {
+        var staticCode: SecStaticCode?
+        guard SecStaticCodeCreateWithPath(bundleURL as CFURL, SecCSFlags(rawValue: 0), &staticCode) == errSecSuccess,
+              let code = staticCode else {
+            return .invalid
+        }
+
+        var info: CFDictionary?
+        guard SecCodeCopySigningInformation(code, SecCSFlags(rawValue: kSecCSSigningInformation), &info) == errSecSuccess,
+              let signingInfo = info as? [String: Any] else {
+            return .invalid
+        }
+
+        if let certificates = signingInfo[kSecCodeInfoCertificates as String] as? [Any],
+           !certificates.isEmpty {
+            return .developerID
+        }
+
+        var verificationError: Unmanaged<CFError>?
+        let flags = SecCSFlags(rawValue: kSecCSCheckAllArchitectures | kSecCSCheckNestedCode)
+        let validity = SecStaticCodeCheckValidityWithErrors(code, flags, nil, &verificationError)
+        return validity == errSecSuccess ? .unsignedAdhoc : .invalid
+    }
+
+    /// Verifies the weaker policy used only for unsigned releases. This never
+    /// accepts a certificate-bearing bundle, so a mismatched Developer ID cannot
+    /// silently fall back to the ad-hoc path.
+    public static func verifyAdHocSignature(at bundleURL: URL) throws {
+        switch signaturePolicy(for: bundleURL) {
+        case .unsignedAdhoc:
+            guard codeSigningIdentifier(for: bundleURL) == "whoavidwivedi.frames" else {
+                throw updateError(
+                    code: -24,
+                    message: "The unsigned update has an unexpected code-signing identifier. Refusing to install."
+                )
+            }
+        case .developerID:
+            throw updateError(
+                code: -20,
+                message: "This update is Developer ID signed and must use the signed verification path."
+            )
+        case .invalid:
+            throw updateError(
+                code: -21,
+                message: "The update bundle has no valid ad-hoc code signature. Refusing to install."
+            )
+        }
+    }
+
+    private static func codeSigningIdentifier(for bundleURL: URL) -> String? {
+        var staticCode: SecStaticCode?
+        guard SecStaticCodeCreateWithPath(bundleURL as CFURL, SecCSFlags(rawValue: 0), &staticCode) == errSecSuccess,
+              let code = staticCode else {
+            return nil
+        }
+
+        var info: CFDictionary?
+        guard SecCodeCopySigningInformation(code, SecCSFlags(rawValue: kSecCSSigningInformation), &info) == errSecSuccess,
+              let signingInfo = info as? [String: Any] else {
+            return nil
+        }
+        return signingInfo[kSecCodeInfoIdentifier as String] as? String
+    }
+
+    /// Explicit consent for builds that cannot prove Apple-issued publisher identity.
+    @MainActor
+    private static func confirmUnsignedUpdate() -> Bool {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Install unsigned Frames update?"
+        alert.informativeText = """
+        This update has a valid checksum and bundle identity, but it is not signed with an Apple Developer ID and has not been notarized. macOS cannot verify the publisher.
+
+        Only continue if you trust the Frames GitHub release.
+        """
+        alert.addButton(withTitle: "Install Anyway")
+        alert.addButton(withTitle: "Cancel")
+        return alert.runModal() == .alertFirstButtonReturn
+    }
+
+    /// Mirrors the manual-install step documented for unsigned releases so the
+    /// relaunched bundle does not trigger a Gatekeeper quarantine warning.
+    private static func removeQuarantineAttribute(at url: URL) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/xattr")
+        process.arguments = ["-dr", "com.apple.quarantine", url.path]
+
+        let errorPipe = Pipe()
+        process.standardError = errorPipe
+
+        do {
+            try process.run()
+        } catch {
+            throw updateError(
+                code: -22,
+                message: "Unable to clear quarantine from the unsigned update: \(error.localizedDescription)"
+            )
+        }
+
+        process.waitUntilExit()
+        if process.terminationStatus != 0 {
+            let data = errorPipe.fileHandleForReading.readDataToEndOfFile()
+            let detail = String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                ?? "unknown error"
+            // Some macOS versions report a missing attribute as an error. That
+            // is the desired end state, so only genuine failures should abort.
+            let attributeAlreadyAbsent = detail.localizedCaseInsensitiveContains("No such xattr")
+            guard attributeAlreadyAbsent else {
+                throw updateError(
+                    code: -23,
+                    message: "Unable to clear quarantine from the unsigned update: \(detail)"
+                )
+            }
+        }
+    }
 
     private static func updateError(code: Int, message: String) -> NSError {
         NSError(domain: "FramesUpdate", code: code, userInfo: [NSLocalizedDescriptionKey: message])
