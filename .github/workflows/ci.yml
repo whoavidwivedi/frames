@@ -63,4 +63,13 @@ jobs:
           chmod +x scripts/migrate.command
           bash -n scripts/migrate.command
           ./scripts/migrate.command --help
-          ./scripts/migrate.command --dry-run
+          # The live smoke test exercises the ad-hoc/unsigned policy. Signed
+          # releases require a pinned team ID, so skip the dry run for those.
+          LATEST_JSON=$(curl -fsSL -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/whoavidwivedi/frames/releases/latest)
+          if echo "$LATEST_JSON" | grep -q 'UNSIGNED_BUILD.txt'; then
+            ./scripts/migrate.command --dry-run
+          else
+            echo "Skipping migration dry-run: latest release is Developer ID signed."
+          fi

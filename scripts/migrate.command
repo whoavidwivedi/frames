@@ -221,30 +221,29 @@ verify_bundle() {
     if grep -q 'Signature=adhoc' <<<"$signature_info"; then
         return 0
     fi
-    if grep -q 'Authority=Developer ID Application:' <<<"$signature_info"; then
-        # A Developer ID bundle must satisfy the same Apple-anchored, team-pinned
-        # requirement the in-app updater enforces. The team must come from a
-        # trusted local source (the caller), never from the downloaded bundle.
-        local expected_team="${FRAMES_EXPECTED_TEAM_ID:-}"
-        expected_team="$(echo "$expected_team" | tr -d '[:space:]')"
-        if [[ ${#expected_team} -ne 10 || ! "$expected_team" =~ ^[A-Za-z0-9]+$ ]]; then
-            return 1
-        fi
-        local requirement
-        requirement="anchor apple generic and identifier \"whoavidwivedi.frames\" "
-        requirement+="and certificate 1[field.1.2.840.113635.100.6.2.6] exists "
-        requirement+="and certificate leaf[field.1.2.840.113635.100.6.1.13] exists "
-        requirement+="and certificate leaf[subject.OU] = \"${expected_team}\""
-        codesign -v -R="$requirement" "$bundle" >/dev/null 2>&1 || return 1
-        return 0
+
+    # Every non-ad-hoc signature must satisfy the same Apple-anchored,
+    # team-pinned Developer ID requirement the in-app updater enforces. The
+    # team comes from a trusted local source (the caller), never from the
+    # downloaded bundle. An authority string alone is never sufficient.
+    local expected_team="${FRAMES_EXPECTED_TEAM_ID:-}"
+    expected_team="$(echo "$expected_team" | tr -d '[:space:]')"
+    if [[ ${#expected_team} -ne 10 || ! "$expected_team" =~ ^[A-Za-z0-9]+$ ]]; then
+        return 1
     fi
-    return 1
+    local requirement
+    requirement="anchor apple generic and identifier \"whoavidwivedi.frames\" "
+    requirement+="and certificate 1[field.1.2.840.113635.100.6.2.6] exists "
+    requirement+="and certificate leaf[field.1.2.840.113635.100.6.1.13] exists "
+    requirement+="and certificate leaf[subject.OU] = \"${expected_team}\""
+    codesign -v -R="$requirement" "$bundle" >/dev/null 2>&1 || return 1
+    return 0
 }
 
 log_info "Verifying bundle identity and signature..."
 if ! verify_bundle "$APP_BUNDLE"; then
-    if codesign -dvvv "$APP_BUNDLE" 2>&1 | grep -q 'Authority=Developer ID Application:'; then
-        log_error "Developer ID releases require FRAMES_EXPECTED_TEAM_ID to be set to the publisher's 10-character team ID."
+    if ! codesign -dvvv "$APP_BUNDLE" 2>&1 | grep -q 'Signature=adhoc'; then
+        log_error "This release is not ad-hoc signed. Set FRAMES_EXPECTED_TEAM_ID to the publisher's 10-character team ID and retry."
     fi
     log_error "Downloaded bundle failed identity/signature verification. Nothing was changed."
     exit 1
