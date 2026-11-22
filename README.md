@@ -46,7 +46,21 @@ Install Frames directly on your Mac with a single command — the installer veri
 
 > **What this does**: Fetches the latest release and its published `SHA256SUMS.txt`, verifies the archive checksum, the Developer ID code signature and the Frames bundle identifier, installs `Frames.app` into `/Applications`, and launches Frames. Installation is aborted if any check fails. Set `FRAMES_EXPECTED_TEAM_ID=<team-id>` to additionally pin the exact signing team, e.g. `FRAMES_EXPECTED_TEAM_ID=ABCDE12345 /bin/bash -c "$(curl -fsSL .../install.sh)"`.
 
-> **Unsigned releases**: When no Apple Developer ID is configured, releases are ad-hoc signed and not notarized. The one-line installer above still refuses them. The in-app updater can install them after an explicit “unsigned build” warning, and the manual steps in `UNSIGNED_BUILD.txt` remove the Gatekeeper quarantine attribute. Upgrading from v1.9.5 or earlier requires one manual install because those builds still contain the old strict updater.
+> **Unsigned releases**: When no Apple Developer ID is configured, releases are ad-hoc signed and not notarized. The one-line installer above still refuses them. The in-app updater can install them after an explicit “unsigned build” warning, and the manual steps in `UNSIGNED_BUILD.txt` remove the Gatekeeper quarantine attribute.
+
+### Upgrading from v1.9.4 or v1.9.5 (one-time migration)
+
+Those two versions contain the old strict Developer ID updater and fail with `OSStatus -67050` when updating to an unsigned release. Because that check runs inside the already-installed app, no server-side or OTA-only change can bypass it. Run the **one-time migration installer** once:
+
+Double-click `Frames-migrate.command` from the latest release, or run:
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/whoavidwivedi/frames/main/scripts/migrate.command)"
+```
+
+It downloads the latest release, verifies the published SHA-256 checksum, bundle identifier, and signature, replaces `Frames.app` with an automatic rollback on failure, clears the Gatekeeper quarantine attribute, and relaunches Frames. After that, all future in-app updates work normally with an explicit unsigned-build warning.
+
+The strict one-line installer above is unchanged and still refuses unsigned builds; use it only when a Developer ID–signed release is available.
 
 ---
 
