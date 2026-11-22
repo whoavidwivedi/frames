@@ -60,6 +60,8 @@ Double-click `Frames-migrate.command` from the latest release, or run:
 
 It downloads the latest release, verifies the published SHA-256 checksum, bundle identifier, and signature, replaces `Frames.app` with an automatic rollback on failure, clears the Gatekeeper quarantine attribute, and relaunches Frames. After that, all future in-app updates work normally with an explicit unsigned-build warning.
 
+If a future release is Developer ID–signed, set `FRAMES_EXPECTED_TEAM_ID` to the publisher's 10-character Apple team ID before running the migration script so the signing identity is pinned: `FRAMES_EXPECTED_TEAM_ID=ABCDE12345 /bin/bash -c "$(curl -fsSL .../migrate.command)"`.
+
 The strict one-line installer above is unchanged and still refuses unsigned builds; use it only when a Developer ID–signed release is available.
 
 ---
