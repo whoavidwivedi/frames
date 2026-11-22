@@ -109,10 +109,20 @@ REPO="whoavidwivedi/frames"
 API_URL="https://api.github.com/repos/${REPO}/releases/latest"
 
 log_info "Fetching latest Frames release..."
-LATEST_JSON=$(curl -fsSL --proto '=https' --proto-redir '=https' \
-    -H "Accept: application/vnd.github.v3+json" \
-    -H "User-Agent: Frames-Migration/1.0" \
-    "$API_URL" 2>/dev/null || true)
+CURL_HEADERS=(-H "Accept: application/vnd.github.v3+json" -H "User-Agent: Frames-Migration/1.0")
+# An optional token raises GitHub's API rate limit. CI supplies GITHUB_TOKEN;
+# local users normally do not need one.
+if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+    CURL_HEADERS+=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
+fi
+
+LATEST_JSON=""
+for attempt in 1 2 3; do
+    LATEST_JSON=$(curl -fsSL --proto '=https' --proto-redir '=https' \
+        "${CURL_HEADERS[@]}" "$API_URL" 2>/dev/null || true)
+    [[ -n "$LATEST_JSON" ]] && break
+    sleep 2
+done
 
 if [[ -z "$LATEST_JSON" ]]; then
     log_error "Unable to reach GitHub. Check your internet connection and try again."
