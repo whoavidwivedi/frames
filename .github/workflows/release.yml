@@ -138,6 +138,9 @@ jobs:
             unsigned-build warning; it clears the quarantine attribute for you.
           - scripts/install.sh still requires a Developer ID signature and will
             refuse this build.
+          - Upgrading from v1.9.4 or v1.9.5: run Frames-migrate.command from this
+            release once. It verifies the checksum, bundle identity, and
+            signature before replacing the app, with rollback on failure.
           - To install manually: unzip Frames-v*-macOS.zip, move the extracted
             frames.app to /Applications/Frames.app, then remove the quarantine
             attribute:
@@ -154,6 +157,8 @@ jobs:
           APP="build/DerivedData/Build/Products/Release/frames.app"
           mkdir -p dist
           ditto -c -k --keepParent "$APP" "dist/Frames-v${VERSION}-macOS.zip"
+          cp scripts/migrate.command dist/Frames-migrate.command
+          chmod +x dist/Frames-migrate.command
           cd dist
           shasum -a 256 *.zip > SHA256SUMS.txt
           cat SHA256SUMS.txt
@@ -161,13 +166,27 @@ jobs:
       - name: Prepare release notes body
         run: |
           BODY_FILE="$RUNNER_TEMP/frames-release-body.md"
+          TAG="${{ steps.version.outputs.tag }}"
           if [ "${{ steps.signing.outputs.mode }}" = "unsigned" ]; then
             cat > "$BODY_FILE" <<'EOF'
           > [!WARNING]
           > **Unsigned build.** No Apple Developer ID credentials are configured, so this ZIP is ad-hoc signed but neither Developer ID signed nor notarized. Frames' in-app updater can install it after an explicit warning; `scripts/install.sh` still requires a Developer ID signature. See `UNSIGNED_BUILD.txt` for manual installation. Signed releases resume automatically once the secrets are configured.
-          >
-          > **Upgrading from v1.9.5 or earlier:** install this ZIP manually once. Those older builds still contain the previous strict Developer ID updater and will continue to show `OSStatus -67050`. After this release is installed, future unsigned OTA updates work with an explicit warning.
+
+          ### Upgrading from v1.9.4 or v1.9.5 (fixes OSStatus -67050)
+
+          Those versions contain the old strict Developer ID updater and cannot install this release from inside the app. Run the **one-time migration installer** once instead:
+
+          1. Download `Frames-migrate.command` from this release, or run:
+             ```bash
+             /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/whoavidwivedi/frames/main/scripts/migrate.command)"
+             ```
+          2. It verifies the published SHA-256 checksum, bundle identifier, and signature before replacing `Frames.app`.
+          3. After it finishes, all future unsigned OTA updates work from inside Frames with an explicit warning.
+
+          Direct asset link: https://github.com/whoavidwivedi/frames/releases/download/__TAG__/Frames-migrate.command
           EOF
+            sed "s|__TAG__|${TAG}|g" "$BODY_FILE" > "${BODY_FILE}.tmp"
+            mv "${BODY_FILE}.tmp" "$BODY_FILE"
           else
             : > "$BODY_FILE"
           fi
@@ -183,4 +202,5 @@ jobs:
             dist/*.zip
             dist/SHA256SUMS.txt
             dist/UNSIGNED_BUILD.txt
+            dist/Frames-migrate.command
           generate_release_notes: true
