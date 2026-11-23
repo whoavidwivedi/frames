@@ -12,7 +12,7 @@ Please read our [Code of Conduct](CODE_OF_CONDUCT.md) and [Security Policy](SECU
 2. **Liquid Glass & Shadcn Theme System**: All components adhere to the design system in `ShadcnTheme.swift` (`base-luma`/`neutral`). Avoid ad-hoc inline gradients, random drop shadows, or un-tokenized paddings.
 3. **Flawless Window Management**: Native macOS interaction semantics — double-click window bars zoom/fill, button bounding boxes pass full hit tests, and live resizes use fluid spring physics without constraint recursion.
 4. **Zero-Flake Automated Testing**: Any new subsystem, parser, command, or workflow must come with automated unit and integration tests added to `FramesTestSuite.swift`.
-5. **Zero Compiler Warnings**: All code must build cleanly with **0 errors and 0 warnings** under Swift 6 strict concurrency checking.
+5. **Zero Compiler Warnings**: All code must build cleanly with **0 errors and 0 warnings** under the project's configured Swift language mode and concurrency checking.
 
 ---
 
@@ -32,7 +32,7 @@ Please read our [Code of Conduct](CODE_OF_CONDUCT.md) and [Security Policy](SECU
   ```
 - **Running the Test Suite**:
   ```bash
-  # Execute the 458+ automated tests directly via headless CLI flag
+  # Execute the Frames automated test suites directly via headless CLI flag
   build/DerivedData/Build/Products/Debug/frames.app/Contents/MacOS/frames --run-tests
   ```
 
