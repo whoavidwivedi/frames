@@ -30,7 +30,7 @@
 
 **Frames** is an ultra-fast, zero-bloat video player and media management dashboard built from the ground up for macOS and Apple Silicon, supporting all M-series hardware from M1 to the latest (M1, M1 Pro, M1 Max, M1 Ultra, M2, M2 Pro, M2 Max, M2 Ultra, M3, M3 Pro, M3 Max, M4, M4 Pro, M4 Max, and beyond).
 
-Traditional desktop video players are often weighed down by multi-hundred-megabyte Electron wrappers or legacy codebases dating back decades. Frames is written in pure **Swift 6 and SwiftUI**, leveraging Apple Silicon's dedicated **VideoToolbox** media decoders and Unified Memory architecture to deliver fluid 60fps / 120fps playback, buttery timeline scrubbing, and sub-second cold starts with minimal battery drain.
+Traditional desktop video players are often weighed down by multi-hundred-megabyte Electron wrappers or legacy codebases dating back decades. Frames is written in pure **Swift and SwiftUI**, leveraging Apple Silicon's dedicated **VideoToolbox** media decoders and Unified Memory architecture to deliver fluid 60fps / 120fps playback, buttery timeline scrubbing, and sub-second cold starts with minimal battery drain.
 
 The user interface adheres strictly to the **shadcn `base-luma`/`neutral`** (preset `b1VlK05Q`, with pointer cursor) design language: matte charcoal dark surfaces (`oklch(0.145 0 0)` / `#0a0a0a`), subtle border contours (`oklch(1 0 0 / 10%)`), crisp monochromatic neutral highlights (`oklch(0.985 0 0)` / `#fafafa`), and smooth pill-radius controls.
 
@@ -168,7 +168,7 @@ build/DerivedData/Build/Products/Debug/frames.app/Contents/MacOS/frames --run-te
   ✔ PASS: WebVTT Timing
   ✔ PASS: WebVTT Text
 
-... (34 comprehensive test suites) ...
+... (comprehensive automated test suites) ...
 
 [33] Testing Timestamp Jump Parser & Expression Engine...
   ✔ PASS: TimeJumpParser MM:SS Parse (1:23 -> 83s)

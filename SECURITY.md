@@ -6,10 +6,8 @@ We release patches and security improvements for the latest minor version of Fra
 
 | Version | Supported          |
 | :------ | :----------------- |
-| 1.3.x   | :white_check_mark: |
-| 1.2.x   | :x:                |
-| 1.1.x   | :x:                |
-| < 1.1.0 | :x:                |
+| 1.9.x   | :white_check_mark: |
+| < 1.9.0 | :x:                |
 
 ---
 

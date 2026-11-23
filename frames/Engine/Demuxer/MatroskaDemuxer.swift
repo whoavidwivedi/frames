@@ -1398,7 +1398,7 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
                             if let text = String(data: pkt.data, encoding: .utf8) {
                                 let clean = SubtitleParser.cleanSubtitleCueText(text)
                                 if !clean.isEmpty {
-                                    let dur = (pkt.duration ?? 0) > 0 ? pkt.duration! : 3.0
+                                    let dur = (pkt.duration ?? 0) > 0 ? (pkt.duration ?? 0) : 3.0
                                     result[pkt.trackNumber, default: []].append(SubtitleCue(startTime: pkt.pts, endTime: pkt.pts + dur, text: clean))
                                 }
                             }
@@ -1427,7 +1427,7 @@ nonisolated public final class MatroskaDemuxer: @unchecked Sendable, MediaDemuxe
                                 if let text = String(data: pkt.data, encoding: .utf8) {
                                     let clean = SubtitleParser.cleanSubtitleCueText(text)
                                     if !clean.isEmpty {
-                                        let dur = (pkt.duration ?? 0) > 0 ? pkt.duration! : 3.0
+                                        let dur = (pkt.duration ?? 0) > 0 ? (pkt.duration ?? 0) : 3.0
                                         result[pkt.trackNumber, default: []].append(SubtitleCue(startTime: pkt.pts, endTime: pkt.pts + dur, text: clean))
                                     }
                                 }

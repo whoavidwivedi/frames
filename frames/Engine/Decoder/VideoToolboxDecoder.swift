@@ -264,7 +264,7 @@ nonisolated public final class VideoToolboxDecoder: @unchecked Sendable {
         )
         if propStatus == noErr, let isHW = isHW {
             if CFGetTypeID(isHW) == CFBooleanGetTypeID() {
-                self.isHardwareAccelerated = CFBooleanGetValue((isHW as! CFBoolean))
+                self.isHardwareAccelerated = isHW as? Bool ?? false
             } else if let b = isHW as? Bool {
                 self.isHardwareAccelerated = b
             } else {

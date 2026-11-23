@@ -48,5 +48,9 @@
 	</array>
 	<key>FramesDeveloperTeamID</key>
 	<string>$(FRAMES_DEVELOPER_TEAM_ID)</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Frames uses the device microphone to capture speech for live captions.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Frames uses on-device speech recognition to transcribe spoken dialogue into captions.</string>
 </dict>
 </plist>

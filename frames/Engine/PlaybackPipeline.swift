@@ -1563,7 +1563,7 @@ public final class PlaybackPipeline: ObservableObject {
                             if let text = String(data: packet.data, encoding: .utf8) {
                                 let clean = SubtitleParser.cleanSubtitleCueText(text)
                                 if !clean.isEmpty {
-                                    let dur = (packet.duration ?? 0) > 0 ? packet.duration! : 3.0
+                                    let dur = (packet.duration ?? 0) > 0 ? (packet.duration ?? 0) : 3.0
                                     let cue = SubtitleCue(startTime: packet.pts, endTime: packet.pts + dur, text: clean)
                                     if let onSubCue = onSubCue {
                                         Task { @MainActor in
@@ -1658,7 +1658,7 @@ public final class PlaybackPipeline: ObservableObject {
                             if let text = String(data: packet.data, encoding: .utf8) {
                                 let clean = SubtitleParser.cleanSubtitleCueText(text)
                                 if !clean.isEmpty {
-                                    let dur = (packet.duration ?? 0) > 0 ? packet.duration! : 3.0
+                                    let dur = (packet.duration ?? 0) > 0 ? (packet.duration ?? 0) : 3.0
                                     let cue = SubtitleCue(startTime: packet.pts, endTime: packet.pts + dur, text: clean)
                                     if let onSubCue = onSubCue {
                                         Task { @MainActor in
