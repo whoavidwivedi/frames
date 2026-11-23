@@ -148,7 +148,10 @@ public final class UpdateManager: NSObject {
     public func fetchRelease(for channel: UpdateChannel) async throws -> GitHubRelease {
         if channel == .beta {
             let releases = try await fetchAllReleases()
-            guard let release = releases.first(where: { !($0.draft ?? false) }) else {
+            let nonDraftReleases = releases.filter { !($0.draft ?? false) }
+            // Prefer the newest prerelease when one is published; otherwise
+            // fall back to the latest stable release.
+            guard let release = nonDraftReleases.first(where: { $0.prerelease ?? false }) ?? nonDraftReleases.first else {
                 // If no specific beta release, fallback to latest stable
                 return try await fetchLatestRelease()
             }
