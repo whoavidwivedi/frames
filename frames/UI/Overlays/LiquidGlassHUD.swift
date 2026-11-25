@@ -143,7 +143,11 @@ public struct LiquidGlassHUD: View {
         let isNarrow = windowManager.isCompact || windowManager.isQuarterScreen
 
         VStack(alignment: .trailing, spacing: 8) {
-            // MARK: - Anchored Speed Sheet (Audio & Subtitles live in the side cluster)
+            if engine.activeInspectorSheet == .audio {
+                AudioSelectorPanel(engine: engine)
+            } else if engine.activeInspectorSheet == .subtitles {
+                SubtitleSelectorPanel(engine: engine)
+            }
             if engine.activeInspectorSheet == .speed {
                 HStack {
                     Spacer(minLength: 0)
@@ -173,6 +177,15 @@ public struct LiquidGlassHUD: View {
                     }
 
                     utilityDivider
+                    Menu {
+                        Button("Audio Tracks…") { toggleInspector(.audio) }
+                        Button("Subtitles…") { toggleInspector(.subtitles) }
+                    } label: {
+                        Image(systemName: "captions.bubble")
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                    .accessibilityLabel("Audio and subtitles")
                     rateButton()
                     circleButton(
                         id: "pip",
