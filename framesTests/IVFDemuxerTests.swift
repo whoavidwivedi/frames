@@ -19,3 +19,19 @@ final class IVFDemuxerTests: XCTestCase {
         }
     }
 }
+
+extension IVFDemuxerTests {
+    func testMain10AndSDRRemainDistinct() throws {
+        let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("Fixtures")
+        let source = try MP4Demuxer(url: fixtures.appendingPathComponent("uhd-main10.mp4"))
+        defer { source.close() }
+        let video = try XCTUnwrap(source.videoTracks.first)
+        XCTAssertEqual(video.pixelWidth, 3840)
+        XCTAssertEqual(video.pixelHeight, 2160)
+        XCTAssertEqual(video.bitsPerChannel, 10)
+        XCTAssertTrue(video.isHDR)
+        let sdr = DemuxedTrack(trackNumber: 1, type: .video, codecID: "hvc1",
+                               bitsPerChannel: 10, colorPrimaries: 9, transferCharacteristics: 1)
+        XCTAssertFalse(sdr.isHDR)
+    }
+}

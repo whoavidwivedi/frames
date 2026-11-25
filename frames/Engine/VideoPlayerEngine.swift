@@ -1058,15 +1058,13 @@ public final class VideoPlayerEngine {
                 let fourCC = subType.fourCCString
                 meta.codec = friendlyCodecName(fourCC)
 
-                let isHW = VTIsHardwareDecodeSupported(subType)
-                meta.isHardwareAccelerated = isHW
-                meta.decoderImplementationName = isHW ? "AVFoundation (Apple Silicon Hardware Engine)" : "AVFoundation (Software Fallback)"
-
-                // Inspect color primaries
+                // AVPlayer manages its decoder. Codec capabilities alone cannot identify the active session.
+                meta.isHardwareAccelerated = false
+                meta.decoderImplementationName = "AVFoundation (system managed)"
+                meta.isHDR = VideoMetadata.usesHDRTransfer(desc)
                 if let extensions = CMFormatDescriptionGetExtensions(desc) as? [String: Any] {
                     if let primaries = extensions[kCVImageBufferColorPrimariesKey as String] as? String {
                         meta.colorPrimaries = friendlyColorPrimaries(primaries)
-                        meta.isHDR = primaries.contains("2020") || extensions[kCVImageBufferTransferFunctionKey as String] as? String == (kCVImageBufferTransferFunction_SMPTE_ST_2084_PQ as String)
                     }
                 }
             }

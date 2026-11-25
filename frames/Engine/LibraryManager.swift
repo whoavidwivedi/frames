@@ -707,7 +707,7 @@ public final class LibraryManager {
         let asset = AVURLAsset(url: url)
         var dur: Double = 0.0
         var res = "HD"
-        let isHDR = false
+        var isHDR = false
         var fileSize: Int64 = 0
 
         if let values = try? url.resourceValues(forKeys: [.fileSizeKey]), let size = values.fileSize {
@@ -719,6 +719,9 @@ public final class LibraryManager {
         }
 
         if let tracks = try? await asset.loadTracks(withMediaType: .video), let track = tracks.first {
+            if let descriptions = try? await track.load(.formatDescriptions) {
+                isHDR = descriptions.contains(where: VideoMetadata.usesHDRTransfer)
+            }
             if let size = try? await track.load(.naturalSize) {
                 let maxDim = max(size.width, size.height)
                 if maxDim >= 3800 {
