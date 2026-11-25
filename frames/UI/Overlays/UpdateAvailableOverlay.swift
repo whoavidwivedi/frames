@@ -13,7 +13,7 @@ public struct UpdateAvailableOverlay: View {
     @State private var isHoveringGitHub = false
     @State private var isHoveringSkip = false
 
-    private let accent = Color(red: 249 / 255.0, green: 115 / 255.0, blue: 22 / 255.0)
+    private let accent = ShadcnTheme.actionTint
 
     public init(
         update: AppUpdateInfo,
@@ -112,52 +112,25 @@ public struct UpdateAvailableOverlay: View {
 
     private var hero: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                channelBadge
+            Text("Frames \(update.version.displayString)")
+                .font(.largeTitle.weight(.semibold))
+                .foregroundStyle(ShadcnTheme.foreground)
+                .accessibilityAddTraits(.isHeader)
 
+            HStack(spacing: 12) {
+                metaItem(icon: "arrow.down.circle", text: update.asset.formattedSize)
                 if let date = update.publishedDate {
                     Text(date.formatted(date: .abbreviated, time: .omitted))
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(ShadcnTheme.foregroundMuted)
+                        .font(.callout)
+                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                }
+                if update.isPrerelease {
+                    Text("Beta")
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(accent)
                 }
             }
-
-            Text("Frames \(update.version.displayString)")
-                .font(.system(size: 34, weight: .semibold))
-                .foregroundStyle(ShadcnTheme.foreground)
-
-            Text("A new version is available. You're currently running v\(manager.currentVersion.displayString).")
-                .font(.system(size: 13))
-                .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            HStack(spacing: 16) {
-                metaItem(icon: "arrow.down.circle", text: update.asset.formattedSize)
-                metaItem(icon: "cpu", text: "Apple Silicon (ARM64)")
-                metaItem(icon: "shippingbox", text: update.asset.name)
-            }
-            .padding(.top, 2)
         }
-    }
-
-    private var channelBadge: some View {
-        HStack(spacing: 3) {
-            Image(systemName: update.isPrerelease ? "flame.fill" : "checkmark.shield.fill")
-                .font(.system(size: 8))
-            Text(update.isPrerelease ? "BETA" : "STABLE")
-                .font(.system(size: 9, weight: .bold))
-        }
-        .foregroundStyle(update.isPrerelease ? accent : Color.green)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 2.5)
-        .background(
-            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                .fill((update.isPrerelease ? Color.orange : Color.green).opacity(0.12))
-                .overlay(
-                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                        .strokeBorder((update.isPrerelease ? Color.orange : Color.green).opacity(0.25), lineWidth: 1)
-                )
-        )
     }
 
     private func metaItem(icon: String, text: String) -> some View {

@@ -114,37 +114,33 @@ func dynamicColor(
     })
 }
 
-// MARK: - Shadcn Design Tokens: Preset `b1VlK05Q` (base-luma + neutral theme + pointer, dual-mode)
+// Shared Frames surfaces and action colors.
 public enum ShadcnTheme {
-    // MARK: - Background Surfaces (Neutral Base)
-    /// Light: oklch(1 0 0) -> #ffffff | Dark: oklch(0.145 0 0) -> #0a0a0a
-    public static let background: Color = dynamicColor(
-        light: (1.0, 1.0, 1.0, 1.0),
-        dark: (0.039, 0.039, 0.039, 1.0)
+    public static let actionTint = dynamicColor(
+        light: (0.24, 0.28, 0.72, 1),
+        dark: (0.73, 0.76, 1, 1)
     )
 
-    /// Light: oklch(1 0 0) -> #ffffff | Dark: oklch(0.205 0 0) -> #171717
-    public static let card: Color = dynamicColor(
-        light: (1.0, 1.0, 1.0, 1.0),
-        dark: (0.091, 0.091, 0.091, 1.0)
+    public static let background = dynamicColor(
+        light: (0.966, 0.969, 0.978, 1),
+        dark: (0.064, 0.068, 0.086, 1)
     )
 
-    /// Light: oklch(0.97 0 0) -> #f5f5f5 | Dark: oklch(0.24 0 0) -> #202020
-    public static let cardHover: Color = dynamicColor(
-        light: (0.961, 0.961, 0.961, 1.0),
-        dark: (0.125, 0.125, 0.125, 1.0)
+    public static let card = dynamicColor(
+        light: (1, 1, 1, 1),
+        dark: (0.101, 0.107, 0.135, 1)
     )
 
-    /// Light: oklch(1 0 0) -> #ffffff | Dark: oklch(0.205 0 0) -> #171717
-    public static let popover: Color = dynamicColor(
-        light: (1.0, 1.0, 1.0, 1.0),
-        dark: (0.091, 0.091, 0.091, 1.0)
+    public static let cardHover = dynamicColor(
+        light: (0.906, 0.918, 0.968, 1),
+        dark: (0.156, 0.169, 0.218, 1)
     )
 
-    /// Light: oklch(0.985 0 0) -> #fafafa | Dark: oklch(0.205 0 0) -> #171717
-    public static let sidebar: Color = dynamicColor(
-        light: (0.98, 0.98, 0.98, 1.0),
-        dark: (0.091, 0.091, 0.091, 1.0)
+    public static let popover = card
+
+    public static let sidebar = dynamicColor(
+        light: (0.926, 0.933, 0.956, 1),
+        dark: (0.082, 0.088, 0.112, 1)
     )
 
     // MARK: - Foreground & Typography

@@ -232,72 +232,76 @@ extension EnvironmentValues {
 }
 
 public struct SettingsView: View {
+    private enum Section: String, CaseIterable, Identifiable {
+        case general = "General"
+        case playback = "Playback"
+        case audio = "Audio"
+        case subtitles = "Subtitles"
+        case about = "About"
+
+        var id: Self { self }
+    }
+
+    @State private var selection: Section = .general
     @State private var windowManager = WindowManager.shared
 
     public init() {}
 
     public var body: some View {
         GeometryReader { proxy in
-            let isSplit = windowManager.isSplitScreen || windowManager.isQuarterScreen || windowManager.isCompact
-            let isCompact = isSplit || proxy.size.width < 620
+            let isCompact = windowManager.isSplitScreen || windowManager.isQuarterScreen
+                || windowManager.isCompact || proxy.size.width < 620
 
-            ScrollView(.vertical, showsIndicators: true) {
-                VStack(alignment: .leading, spacing: 28) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Settings")
-                            .font(.system(size: 24, weight: .semibold))
-                            .foregroundStyle(ShadcnTheme.foreground)
-                        Text("Playback, audio, subtitles, and app preferences.")
-                            .font(.system(size: 11))
-                            .foregroundStyle(ShadcnTheme.foregroundSecondary)
+            VStack(spacing: 0) {
+                navigation
+                Divider()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text(selection.rawValue)
+                            .font(.title2.weight(.semibold))
+                            .accessibilityAddTraits(.isHeader)
+                        sectionContent
                     }
-                    .padding(.top, 4)
-
-                    categorySection("General") {
-                        GeneralSettingsTab()
-                    }
-
-                    categorySection("Playback") {
-                        PlaybackSettingsTab()
-                    }
-
-                    categorySection("Audio") {
-                        AudioSettingsTab()
-                    }
-
-                    categorySection("Subtitles") {
-                        SubtitlesSettingsTab()
-                    }
-
-                    categorySection("About") {
-                        AboutSettingsTab()
-                    }
+                    .frame(maxWidth: 740, alignment: .leading)
+                    .padding(isCompact ? 16 : 24)
+                    .frame(maxWidth: .infinity)
                 }
-                .padding(.horizontal, isCompact ? 14 : 24)
-                .padding(.vertical, isCompact ? 16 : 24)
-                .frame(maxWidth: 820)
-                .frame(maxWidth: .infinity)
+                .id(selection)
+                .environment(\.settingsCompact, isCompact)
             }
-            .defaultScrollAnchor(.top)
-            .environment(\.settingsCompact, isCompact)
         }
         .background(ShadcnTheme.background)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func categorySection<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Rectangle()
-                .fill(ShadcnTheme.borderSubtle)
-                .frame(height: 1)
-                .padding(.bottom, 18)
+    private var navigation: some View {
+        ViewThatFits(in: .horizontal) {
+            sectionPicker.pickerStyle(.segmented).fixedSize(horizontal: true, vertical: false)
+            sectionPicker.pickerStyle(.menu)
+        }
+        .labelsHidden()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(ShadcnTheme.sidebar)
+    }
 
-            Text(title)
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(ShadcnTheme.foreground)
-                .padding(.bottom, 12)
+    private var sectionPicker: some View {
+        Picker("Settings section", selection: $selection) {
+            ForEach(Section.allCases) { section in
+                Text(section.rawValue).tag(section)
+            }
+        }
+    }
 
-            content()
+    @ViewBuilder
+    private var sectionContent: some View {
+        switch selection {
+        case .general: GeneralSettingsTab()
+        case .playback: PlaybackSettingsTab()
+        case .audio: AudioSettingsTab()
+        case .subtitles: SubtitlesSettingsTab()
+        case .about: AboutSettingsTab()
         }
     }
 }
