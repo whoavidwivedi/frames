@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-// Returns 0 = matroska, 1 = mp4, -1 = unknown
+// Returns 0 = matroska, 1 = mp4, 2 = ivf, 3 = avi, -1 = unknown
 int frames_probe_container_type(const char *path);
 
 // Zero-copy-ish fast memcpy for hot paths (uses restrict + prefetch hints)

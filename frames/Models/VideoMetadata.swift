@@ -1,7 +1,15 @@
 import Foundation
 import CoreGraphics
+import CoreVideo
+import CoreMedia
 
 public struct VideoMetadata: Sendable, Equatable {
+    nonisolated static func usesHDRTransfer(_ description: CMFormatDescription) -> Bool {
+        let transfer = CMFormatDescriptionGetExtension(description, extensionKey: kCVImageBufferTransferFunctionKey) as? String
+        return transfer == kCVImageBufferTransferFunction_SMPTE_ST_2084_PQ as String
+            || transfer == kCVImageBufferTransferFunction_ITU_R_2100_HLG as String
+    }
+
     public var title: String
     public var duration: Double
     public var naturalSize: CGSize

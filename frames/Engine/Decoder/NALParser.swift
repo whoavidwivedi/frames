@@ -87,16 +87,16 @@ nonisolated public enum NALParser {
             var ppsList: [Data] = []
             
             for _ in 0..<numArrays {
-                guard offset + 3 <= data.count else { break }
+                guard offset + 3 <= data.count else { return nil }
                 let nalType = base[offset] & 0x3F
                 let numNalus = Int(UInt16(base[offset + 1]) << 8 | UInt16(base[offset + 2]))
                 offset += 3
                 
                 for _ in 0..<numNalus {
-                    guard offset + 2 <= data.count else { break }
+                    guard offset + 2 <= data.count else { return nil }
                     let nalLen = Int(UInt16(base[offset]) << 8 | UInt16(base[offset + 1]))
                     offset += 2
-                    guard offset + nalLen <= data.count else { break }
+                    guard offset + nalLen <= data.count else { return nil }
                     let nalData = Data(bytes: base + offset, count: nalLen)
                     offset += nalLen
                     
@@ -119,6 +119,26 @@ nonisolated public enum NALParser {
     
     // MARK: - Annex-B Parameter Scanner (Fallback for raw streams)
     
+    /// Parameter sets in avc3/hev1 samples can travel inside the first sample.
+    static func lengthPrefixedUnits(in data: Data, headerSize: Int) -> [Data] {
+        guard [1, 2, 4].contains(headerSize) else { return [] }
+        return data.withUnsafeBytes { bytes in
+            var units: [Data] = []
+            var offset = 0
+            while bytes.count - offset >= headerSize {
+                var length = 0
+                for _ in 0..<headerSize {
+                    length = (length << 8) | Int(bytes[offset])
+                    offset += 1
+                }
+                guard length > 0, length <= bytes.count - offset, units.count < 128 else { return [] }
+                units.append(Data(bytes[offset..<(offset + length)]))
+                offset += length
+            }
+            return offset == bytes.count ? units : []
+        }
+    }
+
     /// Determines whether the packet data starts with an Annex-B 3 or 4 byte start code.
     public static func isAnnexB(_ data: Data) -> Bool {
         let count = data.count
@@ -276,9 +296,9 @@ nonisolated public enum NALParser {
     }
 
     /// Creates a CMVideoFormatDescription for H.264 from SPS & PPS parameter sets.
-    public static func createH264FormatDescription(sps: [Data], pps: [Data]) -> CMVideoFormatDescription? {
+    public static func createH264FormatDescription(sps: [Data], pps: [Data], nalLengthSize: Int = 4) -> CMVideoFormatDescription? {
         let allSets = sps + pps
-        guard !allSets.isEmpty else { return nil }
+        guard !sps.isEmpty, !pps.isEmpty, allSets.count <= 128, [1, 2, 4].contains(nalLengthSize) else { return nil }
         
         var formatDesc: CMVideoFormatDescription?
         let status = withParameterPointers(sets: allSets) { ptrs, sizes in
@@ -287,7 +307,7 @@ nonisolated public enum NALParser {
                 parameterSetCount: ptrs.count,
                 parameterSetPointers: ptrs,
                 parameterSetSizes: sizes,
-                nalUnitHeaderLength: 4,
+                nalUnitHeaderLength: Int32(nalLengthSize),
                 formatDescriptionOut: &formatDesc
             )
         }
@@ -296,9 +316,9 @@ nonisolated public enum NALParser {
     }
     
     /// Creates a CMVideoFormatDescription for HEVC from VPS, SPS, & PPS parameter sets.
-    public static func createHEVCFormatDescription(vps: [Data], sps: [Data], pps: [Data]) -> CMVideoFormatDescription? {
+    public static func createHEVCFormatDescription(vps: [Data], sps: [Data], pps: [Data], nalLengthSize: Int = 4) -> CMVideoFormatDescription? {
         let allSets = vps + sps + pps
-        guard !allSets.isEmpty else { return nil }
+        guard !sps.isEmpty, !pps.isEmpty, allSets.count <= 128, [1, 2, 4].contains(nalLengthSize) else { return nil }
         
         var formatDesc: CMVideoFormatDescription?
         let status = withParameterPointers(sets: allSets) { ptrs, sizes in
@@ -307,7 +327,7 @@ nonisolated public enum NALParser {
                 parameterSetCount: ptrs.count,
                 parameterSetPointers: ptrs,
                 parameterSetSizes: sizes,
-                nalUnitHeaderLength: 4,
+                nalUnitHeaderLength: Int32(nalLengthSize),
                 extensions: nil,
                 formatDescriptionOut: &formatDesc
             )

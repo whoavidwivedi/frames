@@ -3,48 +3,49 @@ import SwiftUI
 public struct CustomScrubber: View {
     @Bindable var engine: VideoPlayerEngine
 
-    @State private var scrubProgress: Double = 0.0
-    @State private var isDragging: Bool = false
-    @State private var wasPlayingBeforeScrub: Bool = false
+    @State private var scrubProgress: Double?
+    @State private var wasPlayingBeforeScrub = false
 
     public init(engine: VideoPlayerEngine) {
         self.engine = engine
     }
 
     public var body: some View {
-        let duration = engine.duration > 0 ? engine.duration : 1.0
+        let clock = engine.clockStore
+        let duration = clock.duration
+        let canSeek = duration.isFinite && duration > 0
+        let position = canSeek ? min(max(clock.currentTime / duration, 0), 1) : 0
+        let progress = scrubProgress ?? position
 
-        // Default macOS slider look; the clock store drives it between scrubs.
         Slider(
             value: Binding(
-                get: {
-                    if isDragging || engine.isScrubbing {
-                        return min(max(scrubProgress, 0), 1)
-                    }
-                    return min(max(engine.clockStore.currentTime / duration, 0), 1)
-                },
-                set: {
-                    scrubProgress = $0
-                    engine.seek(to: $0 * duration, exact: false)
+                get: { progress },
+                set: { newValue in
+                    guard canSeek else { return }
+                    let isDragging = scrubProgress != nil
+                    if isDragging { scrubProgress = newValue }
+                    engine.seek(to: newValue * duration, exact: !isDragging)
                 }
             ),
             in: 0...1,
             onEditingChanged: { editing in
+                guard canSeek else { return }
                 if editing {
-                    isDragging = true
+                    scrubProgress = position
                     wasPlayingBeforeScrub = engine.isPlaying
-                    if engine.isPlaying { engine.pause() }
+                    if wasPlayingBeforeScrub { engine.pause() }
                     engine.isScrubbing = true
-                } else {
-                    engine.seek(to: min(max(scrubProgress, 0), 1) * duration, exact: true)
+                } else if let target = scrubProgress {
+                    engine.seek(to: target * duration, exact: true)
                     engine.endScrubbing()
                     if wasPlayingBeforeScrub { engine.play() }
-                    isDragging = false
+                    scrubProgress = nil
                 }
             }
         )
         .controlSize(.small)
-        .accessibilityLabel("Playback progress")
-        .accessibilityValue("\(TimeFormatting.format(seconds: engine.clockStore.currentTime)) of \(TimeFormatting.format(seconds: duration))")
+        .disabled(!canSeek)
+        .accessibilityLabel("Playback position")
+        .accessibilityValue("\(TimeFormatting.format(seconds: progress * duration)) of \(TimeFormatting.format(seconds: duration))")
     }
 }

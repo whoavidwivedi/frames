@@ -33,7 +33,7 @@ Please read our [Code of Conduct](CODE_OF_CONDUCT.md) and [Security Policy](SECU
 - **Running the Test Suite**:
   ```bash
   # Execute the Frames automated test suites directly via headless CLI flag
-  build/DerivedData/Build/Products/Debug/frames.app/Contents/MacOS/frames --run-tests
+  xcodebuild -project frames.xcodeproj -scheme frames -destination "platform=macOS,arch=arm64" CODE_SIGNING_ALLOWED=NO test
   ```
 
 ---
@@ -57,7 +57,7 @@ We follow conventional commit specifications:
    git checkout -b feat/your-feature-name
    ```
 2. Implement your changes maintaining high code quality, Swift 6 idioms, and documentation integrity.
-3. Add unit test assertions in `frames/Tests/FramesTestSuite.swift`.
-4. Run `frames --run-tests` and verify all tests pass with **0 failures and 0 warnings**.
+3. Add unit test assertions in `framesTests/`.
+4. Run the XCTest scheme and relevant regression checks in [the engineering guide](AGENTS.md).
 5. Push your branch and open a Pull Request using `gh pr create` or the GitHub Web UI.
 6. Ensure CI passes on `macos-15` before requesting review.

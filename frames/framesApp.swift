@@ -29,7 +29,6 @@ struct framesApp: App {
     @State private var engine = VideoPlayerEngine()
 
     init() {
-        _ = GoogleSansFontManager.registerIfNeeded()
         UserDefaults.standard.register(defaults: [
             "NSQuitAlwaysKeepsWindows": false,
             "ApplePersistenceIgnoreState": true
@@ -41,7 +40,7 @@ struct framesApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView(engine: engine)
-                .font(.googleSans(13))
+                .font(.system(size: 13))
                 .onOpenURL { url in
                     NotificationCenter.default.post(name: .openVideoNotification, object: url)
                 }

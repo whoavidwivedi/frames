@@ -5,6 +5,9 @@ import AppKit
 @MainActor
 struct ContentView: View {
     var engine: VideoPlayerEngine
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
+    @State private var pointerOverTransport = false
     @State private var library = LibraryManager.shared
     @State private var themeManager = ThemeManager.shared
     @State private var windowManager = WindowManager.shared
@@ -29,7 +32,242 @@ struct ContentView: View {
         self.engine = VideoPlayerEngine()
     }
 
-    var body: some View {
+    @ViewBuilder
+    private var videoSurface: some View {
+        // Direct Hardware Video Surface (Zero-Copy Metal 3 HDR or AVPlayerLayer)
+        if PictureInPictureManager.shared.isPictureInPicture {
+            VStack(spacing: 16) {
+                Image(systemName: "pip.enter")
+                    .font(.system(size: 42, weight: .light))
+                    .foregroundStyle(Color.white.opacity(0.70))
+
+                Text("Playing in Picture-in-Picture")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Color.white)
+
+                Text(engine.metadata.title.isEmpty ? (engine.currentURL?.deletingPathExtension().lastPathComponent ?? "Current Media") : engine.metadata.title)
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundStyle(Color.white.opacity(0.55))
+                    .lineLimit(1)
+
+                Button {
+                    PictureInPictureManager.shared.exitPictureInPicture()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "pip.exit")
+                            .font(.system(size: 12, weight: .semibold))
+                        Text("Restore to Window")
+                            .font(.system(size: 13, weight: .medium))
+                    }
+                    .foregroundStyle(Color.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color.white.opacity(0.16))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.24), lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+                .pointingHand()
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.black)
+        } else if engine.isNativePipelineActive {
+            MetalVideoCanvasView(
+                renderer: engine.nativePipeline.renderer,
+                isPlaying: engine.isPlaying,
+                videoFrameRate: engine.metadata.frameRate > 0 ? engine.metadata.frameRate : 60.0,
+                isDecoupledFullscreen: WindowManager.shared.isAnyFullscreen
+            ) {
+                engine.nativePipeline.nextFrameForDisplay()
+            }
+            .ignoresSafeArea()
+            .contentShape(Rectangle())
+            .onTapGesture(count: 2) {
+                toggleFullscreen()
+            }
+            .onTapGesture(count: 1) {
+                engine.togglePlayPause()
+                resetControlsTimer()
+            }
+        } else {
+            VideoCanvasView(
+                player: engine.player,
+                onSingleClick: {
+                    engine.togglePlayPause()
+                    resetControlsTimer()
+                },
+                onDoubleClick: {
+                    toggleFullscreen()
+                }
+            )
+            .ignoresSafeArea()
+        }
+    }
+
+    @ViewBuilder
+    private var windowOverlays: some View {
+        // Subtitle Display (unmounted when empty to decouple overlay for direct hardware scanout)
+        if !engine.activeSubtitleText.isEmpty {
+            SubtitleOverlayView(
+                text: engine.activeSubtitleText
+            )
+            .padding(.bottom, engine.controlsVisible ? 92 : 24)
+        }
+
+        // Top window drag & title bar management strip (when controls hidden in windowed mode)
+        if !engine.controlsVisible && !WindowManager.shared.isAnyFullscreen {
+            VStack {
+                Color.clear
+                    .frame(height: 38)
+                    .macOSDefaultTitleBar()
+                Spacer()
+            }
+        }
+
+        // Dismiss Active Inspector Sheets on outside click (Transparent, NO BLACK CURTAIN).
+        // Kept below the controls so panel rows stay clickable.
+        if engine.activeInspectorSheet != nil {
+            Color.clear
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    withAnimation(.fluidQuick) {
+                        engine.activeInspectorSheet = nil
+                    }
+                }
+        }
+    }
+
+    @ViewBuilder
+    private var transportOverlays: some View {
+        // Docked Top Bar (Title, format, badges, return to dashboard)
+        if engine.controlsVisible {
+            VStack(spacing: 0) {
+                TopBarOverlay(engine: engine) {
+                    returnToDashboard()
+                }
+                Spacer()
+            }
+            .transition(
+                .asymmetric(
+                    insertion: .opacity.combined(with: .offset(y: -8)),
+                    removal: .opacity
+                )
+            )
+        }
+
+        // Tier 1: thin always-on progress line (fades out when the full controls appear)
+        if !engine.controlsVisible && !windowManager.isAnyFullscreen {
+            VStack(spacing: 0) {
+                Spacer()
+                PlayerProgressLine(engine: engine)
+            }
+            .allowsHitTesting(false)
+        }
+
+        // Docked Bottom Control Bar (Scrubber, Playback, Audio, Subtitles, Rate, PiP, Fullscreen)
+        if engine.controlsVisible {
+            VStack(spacing: 0) {
+                Spacer()
+                LiquidGlassHUD(engine: engine)
+                    .onHover { hovering in
+                        pointerOverTransport = hovering
+                        resetControlsTimer()
+                    }
+            }
+            .transition(
+                .asymmetric(
+                    insertion: .opacity.combined(with: .offset(y: 8)),
+                    removal: .opacity
+                )
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var statusOverlays: some View {
+        // Top-anchored Hardware Stats Panel (when active)
+        if engine.activeInspectorSheet == .stats {
+            VStack {
+                HStack {
+                    Spacer()
+                    HardwareStatsPanel(engine: engine)
+                        .padding(.top, engine.controlsVisible ? 58 : 16)
+                        .padding(.trailing, 16)
+                }
+                Spacer()
+            }
+            .transition(
+                .asymmetric(
+                    insertion: .opacity.combined(with: .scale(scale: 0.94)),
+                    removal: .opacity.combined(with: .scale(scale: 0.96))
+                )
+            )
+            .zIndex(60)
+        }
+
+        // Transient volume readout (top-right, fades after adjustment)
+        VolumeReadout(engine: engine)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+            .padding(.top, 58)
+            .padding(.trailing, 16)
+            .zIndex(70)
+
+        // Transient watched/total time readout (top right, fades after T)
+        TimeReadout(engine: engine)
+            .zIndex(66)
+
+        // Buffering Indicator
+        if engine.isBuffering {
+            ProgressView()
+                .progressViewStyle(.circular)
+                .scaleEffect(1.4)
+                .tint(.white)
+                .padding(20)
+                .background(ShadcnTheme.card.opacity(0.8))
+                .clipShape(Circle())
+        }
+
+        if let playbackError = engine.playbackError {
+            VStack(spacing: 12) {
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.title2)
+                    .foregroundStyle(ShadcnTheme.foreground)
+                Text("Can’t play this media")
+                    .font(.headline)
+                Text(playbackError)
+                    .font(.caption)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(ShadcnTheme.foregroundSecondary)
+
+                ShadcnButton(
+                    "Back to Dashboard",
+                    icon: "chevron.left",
+                    variant: .secondary,
+                    size: .sm
+                ) {
+                    returnToDashboard()
+                }
+                .padding(.top, 4)
+            }
+            .foregroundStyle(ShadcnTheme.foreground)
+            .padding(20)
+            .frame(maxWidth: 380)
+            .background(ShadcnTheme.card.opacity(0.95))
+            .clipShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusLg, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: ShadcnTheme.radiusLg, style: .continuous)
+                    .strokeBorder(ShadcnTheme.border, lineWidth: 1)
+            )
+        }
+    }
+
+    private var sceneContent: some View {
         ZStack {
             ShadcnTheme.background.ignoresSafeArea()
 
@@ -43,255 +281,10 @@ struct ContentView: View {
             } else {
                 // Active Video Player Surface
                 ZStack {
-                    // Direct Hardware Video Surface (Zero-Copy Metal 3 HDR or AVPlayerLayer)
-                    if PictureInPictureManager.shared.isPictureInPicture {
-                        VStack(spacing: 16) {
-                            Image(systemName: "pip.enter")
-                                .font(.system(size: 42, weight: .light))
-                                .foregroundStyle(Color.white.opacity(0.70))
-
-                            Text("Playing in Picture-in-Picture")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(Color.white)
-
-                            Text(engine.metadata.title.isEmpty ? (engine.currentURL?.deletingPathExtension().lastPathComponent ?? "Current Media") : engine.metadata.title)
-                                .font(.system(size: 13, weight: .regular))
-                                .foregroundStyle(Color.white.opacity(0.55))
-                                .lineLimit(1)
-
-                            Button {
-                                PictureInPictureManager.shared.exitPictureInPicture()
-                            } label: {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "pip.exit")
-                                        .font(.system(size: 12, weight: .semibold))
-                                    Text("Restore to Window")
-                                        .font(.system(size: 13, weight: .medium))
-                                }
-                                .foregroundStyle(Color.white)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                        .fill(Color.white.opacity(0.16))
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                        .strokeBorder(Color.white.opacity(0.24), lineWidth: 1)
-                                )
-                            }
-                            .buttonStyle(.plain)
-                            .pointingHand()
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color.black)
-                    } else if engine.isNativePipelineActive {
-                        MetalVideoCanvasView(
-                            renderer: engine.nativePipeline.renderer,
-                            isPlaying: engine.isPlaying,
-                            videoFrameRate: engine.metadata.frameRate > 0 ? engine.metadata.frameRate : 60.0,
-                            isDecoupledFullscreen: WindowManager.shared.isAnyFullscreen
-                        ) {
-                            engine.nativePipeline.nextFrameForDisplay()
-                        }
-                        .ignoresSafeArea()
-                        .contentShape(Rectangle())
-                        .onTapGesture(count: 2) {
-                            toggleFullscreen()
-                        }
-                        .onTapGesture(count: 1) {
-                            engine.togglePlayPause()
-                            resetControlsTimer()
-                        }
-                    } else {
-                        VideoCanvasView(
-                            player: engine.player,
-                            onSingleClick: {
-                                engine.togglePlayPause()
-                                resetControlsTimer()
-                            },
-                            onDoubleClick: {
-                                toggleFullscreen()
-                            }
-                        )
-                        .ignoresSafeArea()
-                    }
-
-                    // Always-available close control (top-right), even when the full chrome is hidden
-                    VStack {
-                        HStack {
-                            Spacer()
-                            Button {
-                                returnToDashboard()
-                            } label: {
-                                Image(systemName: "xmark")
-                                    .font(.system(size: 11, weight: .bold))
-                                    .foregroundStyle(Color.white)
-                                    .frame(width: 26, height: 26)
-                                    .background(Circle().fill(Color.black.opacity(0.55)))
-                                    .overlay(Circle().strokeBorder(Color.white.opacity(0.2), lineWidth: 1))
-                            }
-                            .buttonStyle(.plain)
-                            .pointingHand()
-                            .help("Close (Esc)")
-                            .padding(.top, 12)
-                            .padding(.trailing, 12)
-                        }
-                        Spacer()
-                    }
-                    .zIndex(55)
-
-                    // Subtitle Display (unmounted when empty to decouple overlay for direct hardware scanout)
-                    if !engine.activeSubtitleText.isEmpty {
-                        SubtitleOverlayView(
-                            text: engine.activeSubtitleText
-                        )
-                        .padding(.bottom, engine.controlsVisible ? 84 : 24)
-                    }
-
-                    // Top window drag & title bar management strip (when controls hidden in windowed mode)
-                    if !engine.controlsVisible && !WindowManager.shared.isAnyFullscreen {
-                        VStack {
-                            Color.clear
-                                .frame(height: 38)
-                                .macOSDefaultTitleBar()
-                            Spacer()
-                        }
-                    }
-
-                    // Dismiss Active Inspector Sheets on outside click (Transparent, NO BLACK CURTAIN).
-                    // Kept below the controls so panel rows stay clickable.
-                    if engine.activeInspectorSheet != nil {
-                        Color.clear
-                            .ignoresSafeArea()
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                withAnimation(.fluidQuick) {
-                                    engine.activeInspectorSheet = nil
-                                }
-                            }
-                    }
-
-                    // Docked Top Bar (Title, format, badges, return to dashboard)
-                    if engine.controlsVisible {
-                        VStack(spacing: 0) {
-                            TopBarOverlay(engine: engine) {
-                                returnToDashboard()
-                            }
-                            Spacer()
-                        }
-                        .transition(
-                            .asymmetric(
-                                insertion: .opacity.combined(with: .offset(y: -8)),
-                                removal: .opacity
-                            )
-                        )
-                    }
-
-                    // Mid-left audio & subtitle cluster (panels open beside it)
-                    if engine.controlsVisible {
-                        PlayerSideControls(engine: engine)
-                            .transition(.opacity)
-                    }
-
-                    // Tier 1: thin always-on progress line (fades out when the full controls appear)
-                    if engine.currentURL != nil {
-                        VStack(spacing: 0) {
-                            Spacer()
-                            PlayerProgressLine(engine: engine)
-                        }
-                        .opacity(engine.controlsVisible ? 0 : 1)
-                        .allowsHitTesting(false)
-                    }
-
-                    // Docked Bottom Control Bar (Scrubber, Playback, Audio, Subtitles, Rate, PiP, Fullscreen)
-                    if engine.controlsVisible {
-                        VStack(spacing: 0) {
-                            Spacer()
-                            LiquidGlassHUD(engine: engine)
-                        }
-                        .transition(
-                            .asymmetric(
-                                insertion: .opacity.combined(with: .offset(y: 8)),
-                                removal: .opacity
-                            )
-                        )
-                    }
-
-                    // Top-anchored Hardware Stats Panel (when active)
-                    if engine.activeInspectorSheet == .stats {
-                        VStack {
-                            HStack {
-                                Spacer()
-                                HardwareStatsPanel(engine: engine)
-                                    .padding(.top, engine.controlsVisible ? 58 : 16)
-                                    .padding(.trailing, 16)
-                            }
-                            Spacer()
-                        }
-                        .transition(
-                            .asymmetric(
-                                insertion: .opacity.combined(with: .scale(scale: 0.94)),
-                                removal: .opacity.combined(with: .scale(scale: 0.96))
-                            )
-                        )
-                        .zIndex(60)
-                    }
-
-                    // Transient volume readout (top-right, fades after adjustment)
-                    VolumeReadout(engine: engine)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                        .padding(.top, 58)
-                        .padding(.trailing, 16)
-                        .zIndex(70)
-
-                    // Transient watched/total time readout (top right, fades after T)
-                    TimeReadout(engine: engine)
-                        .zIndex(66)
-
-                    // Buffering Indicator
-                    if engine.isBuffering {
-                        ProgressView()
-                            .progressViewStyle(.circular)
-                            .scaleEffect(1.4)
-                            .tint(.white)
-                            .padding(20)
-                            .background(ShadcnTheme.card.opacity(0.8))
-                            .clipShape(Circle())
-                    }
-
-                    if let playbackError = engine.playbackError {
-                        VStack(spacing: 12) {
-                            Image(systemName: "exclamationmark.triangle")
-                                .font(.title2)
-                                .foregroundStyle(ShadcnTheme.foreground)
-                            Text("Can’t play this media")
-                                .font(.headline)
-                            Text(playbackError)
-                                .font(.caption)
-                                .multilineTextAlignment(.center)
-                                .foregroundStyle(ShadcnTheme.foregroundSecondary)
-
-                            ShadcnButton(
-                                "Back to Dashboard",
-                                icon: "chevron.left",
-                                variant: .secondary,
-                                size: .sm
-                            ) {
-                                returnToDashboard()
-                            }
-                            .padding(.top, 4)
-                        }
-                        .foregroundStyle(ShadcnTheme.foreground)
-                        .padding(20)
-                        .frame(maxWidth: 380)
-                        .background(ShadcnTheme.card.opacity(0.95))
-                        .clipShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusLg, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusLg, style: .continuous)
-                                .strokeBorder(ShadcnTheme.border, lineWidth: 1)
-                        )
-                    }
+                    videoSurface
+                    windowOverlays
+                    transportOverlays
+                    statusOverlays
                 }
                 .background(Color.black.ignoresSafeArea())
                 .onContinuousHover { _ in
@@ -417,12 +410,26 @@ struct ContentView: View {
             }
 
         }
+    }
+
+    private var windowContent: some View {
+        sceneContent
         .frame(minWidth: 460, minHeight: 320)
         .background(HostWindowAccessor(window: $hostWindow))
         .animation(.fluidQuick, value: engine.currentURL != nil)
         .animation(.fluidQuick, value: engine.controlsVisible)
         .animation(.fluidOverlay, value: settings.isSettingsPresented)
         .animation(.fluidOverlay, value: updateManager.isUpdatePromptPresented)
+        .transaction { transaction in
+            if reduceMotion {
+                transaction.animation = nil
+                transaction.disablesAnimations = true
+            }
+        }
+    }
+
+    private var playbackContent: some View {
+        windowContent
         .onChange(of: engine.controlsVisible) { _, visible in
             if !visible && engine.isPlaying {
                 NSCursor.setHiddenUntilMouseMoves(true)
@@ -441,12 +448,22 @@ struct ContentView: View {
                 }
             }
         }
+        .onChange(of: engine.activeInspectorSheet) { _, _ in resetControlsTimer() }
+        .onChange(of: voiceOverEnabled) { _, _ in resetControlsTimer() }
+        .onDisappear {
+            hideControlsTimer?.invalidate()
+            hideControlsTimer = nil
+        }
         .onChange(of: engine.metadata.title) { _, _ in
             updateWindowRepresentation(for: engine.currentURL)
         }
         .onChange(of: engine.currentURL) { _, newURL in
             updateWindowRepresentation(for: newURL)
         }
+    }
+
+    private var eventContent: some View {
+        playbackContent
         .onAppear {
             keyboardHandler = KeyboardHandler(engine: engine)
             // The engine is shared by every window, so this closure must not capture a
@@ -483,6 +500,10 @@ struct ContentView: View {
             guard isActiveWindow else { return }
             openFileDialog()
         }
+    }
+
+    var body: some View {
+        eventContent
         .onDrop(of: [.fileURL], isTargeted: $isTargetedForDrop) { providers in
             guard let provider = providers.first else { return false }
             _ = provider.loadObject(ofClass: URL.self) { url, _ in
@@ -497,7 +518,7 @@ struct ContentView: View {
         .task {
             // Delayed background check so startup is instant and non-blocking
             if SettingsManager.shared.automaticallyCheckForUpdates {
-                try? await Task.sleep(nanoseconds: 2_500_000_000)
+                do { try await Task.sleep(for: .seconds(2.5)) } catch { return }
                 updateManager.checkForUpdates(manual: false)
             }
         }
@@ -625,10 +646,10 @@ struct ContentView: View {
         hideControlsTimer?.invalidate()
 
         // Only auto-hide if currently playing, not ended, and no inspector sheet is open
-        if engine.isPlaying && !engine.hasEnded && engine.activeInspectorSheet == nil {
+        if shouldHideControls {
             hideControlsTimer = Timer.scheduledTimer(withTimeInterval: 2.5, repeats: false) { _ in
                 Task { @MainActor in
-                    if engine.isPlaying && !engine.hasEnded && engine.activeInspectorSheet == nil && !engine.isScrubbing {
+                    if shouldHideControls {
                         withAnimation(.fluidQuick) {
                             engine.controlsVisible = false
                         }
@@ -637,6 +658,11 @@ struct ContentView: View {
                 }
             }
         }
+    }
+
+    private var shouldHideControls: Bool {
+        engine.isPlaying && !engine.hasEnded && !engine.isScrubbing && engine.activeInspectorSheet == nil
+            && !voiceOverEnabled && !pointerOverTransport
     }
 
     private func toggleFullscreen() {
@@ -661,9 +687,11 @@ struct ContentView: View {
     }
 }
 
+#if DEBUG
 #Preview {
     ContentView()
 }
+#endif
 
 private struct HostWindowAccessor: NSViewRepresentable {
     @Binding var window: NSWindow?

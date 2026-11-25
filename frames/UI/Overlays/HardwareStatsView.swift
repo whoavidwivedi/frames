@@ -31,7 +31,7 @@ public struct HardwareStatsPanel: View {
                 row(label: "Architecture", value: "\(metrics.activeCores) cores (ARM64)")
                 row(label: "Memory Footprint", value: String(format: "%.1f MB", metrics.memoryFootprintMB))
                 row(label: "Decoder Engine", value: engine.metadata.decoderDescription)
-                row(label: "HW Acceleration", value: engine.metadata.isHardwareAccelerated ? "Verified (Apple Silicon ASIC)" : "Software / Emulated")
+                row(label: "HW Acceleration", value: engine.isNativePipelineActive ? (engine.metadata.isHardwareAccelerated ? "Hardware" : "Software") : "System managed")
             }
 
             Rectangle()

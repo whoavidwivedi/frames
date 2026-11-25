@@ -158,7 +158,7 @@ nonisolated public struct DemuxedTrack: Sendable, Identifiable {
 
     public var isHDR: Bool {
         // BT.2020 Primaries (9) and SMPTE ST 2084 PQ (16) or ARIB STD-B67 HLG (18)
-        transferCharacteristics == 16 || transferCharacteristics == 18 || bitsPerChannel > 8
+        transferCharacteristics == 16 || transferCharacteristics == 18
     }
 
     public var estimatedFPS: Double? {

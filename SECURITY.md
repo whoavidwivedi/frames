@@ -6,8 +6,8 @@ We release patches and security improvements for the latest minor version of Fra
 
 | Version | Supported          |
 | :------ | :----------------- |
-| 1.9.x   | :white_check_mark: |
-| < 1.9.0 | :x:                |
+| 2.0.x   | :white_check_mark: |
+| < 2.0.0 | :x:                |
 
 ---
 
@@ -16,7 +16,7 @@ We release patches and security improvements for the latest minor version of Fra
 Frames is engineered with strict Apple Silicon memory and execution boundaries:
 - **Zero Legacy Dynamic Code Injection**: Swift compiled with strict memory safety checks and the Hardened Runtime enabled for distributed builds.
 - **Metal 3 Direct IOSurface Pipeline**: Decoded video frames reside in hardware-allocated `IOSurface` unified memory buffers without intermediate unsanitized user-space heap manipulations.
-- **OTA Verification**: In-app updates and the command-line installer verify the published SHA-256 checksum and require a valid Developer ID Application signature (all architectures and nested code) before installation. Unsigned, ad-hoc signed, or checksum-mismatched packages are rejected.
+- In-app updates verify release checksums and bundle identity. Releases without an Apple Developer ID use ad-hoc signing and require explicit consent. Checksums verify integrity. Developer ID signatures additionally authenticate the publisher.
 
 ---
 

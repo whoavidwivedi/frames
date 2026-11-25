@@ -576,55 +576,39 @@ public final class PlaybackPipeline: ObservableObject {
     @Published public private(set) var activeSubtitleTrackNumber: UInt64?
     public var onSubtitleCue: (@MainActor @Sendable (SubtitleCue) -> Void)?
 
+    public var selectedVideoTrack: DemuxedTrack? { videoDecoder?.track }
+
     public enum ContainerType: Sendable {
-        case matroska
-        case mp4
+        case matroska, mp4, ivf, avi, unknown
     }
 
     public nonisolated static func probeContainerType(at url: URL) -> ContainerType {
-        // Native C++ probe (fast path)
-        let result = url.path.withCString { frames_probe_container_type($0) }
-        if result == 0 { return .matroska }
-        if result == 1 { return .mp4 }
-        // Swift fallback
-        let ext = url.pathExtension.lowercased()
-        if ["mp4", "mov", "m4v", "m4a", "3gp", "3g2"].contains(ext) {
-            return .mp4
-        }
-        return .matroska
-    }
-
-    // MARK: - Container Verification & Probing
-
-    /// Determines whether the native pipeline (MatroskaDemuxer or MP4Demuxer) can demux this container.
-    public static func isSupportedContainer(at url: URL) -> Bool {
-        // 1. Sniff magic bytes for EBML or ISO BMFF signatures
-        if url.isFileURL,
-           let values = try? url.resourceValues(forKeys: [.isRegularFileKey]),
-           values.isRegularFile == true,
-           let handle = try? FileHandle(forReadingFrom: url) {
-            defer { try? handle.close() }
-            let header = handle.readData(ofLength: 16)
-            if header.count >= 4 {
-                // EBML Header: 0x1A 0x45 0xDF 0xA3
-                if header[0] == 0x1A && header[1] == 0x45 && header[2] == 0xDF && header[3] == 0xA3 {
-                    return true
-                }
-                // ISO BMFF: bytes 4..<8 are 'ftyp', 'moov', 'wide', 'mdat', 'free', 'skip', 'styp'
-                if header.count >= 8 {
-                    let fourCC = String(decoding: header[4..<8], as: UTF8.self)
-                    if ["ftyp", "moov", "wide", "mdat", "free", "skip", "styp"].contains(fourCC) {
-                        return true
-                    }
-                }
+        guard url.isFileURL else { return .unknown }
+        // Existing regular files are identified by their header. Check the file
+        // type first to avoid blocking on FIFOs or devices dropped on the app.
+        if let values = try? url.resourceValues(forKeys: [.isRegularFileKey]) {
+            guard values.isRegularFile == true else { return .unknown }
+            switch url.path.withCString({ frames_probe_container_type($0) }) {
+            case 0: return .matroska
+            case 1: return .mp4
+            case 2: return .ivf
+            case 3: return .avi
+            default: break
             }
         }
-
-        // 2. Check known container extensions
-        let ext = url.pathExtension.lowercased()
-        return ["mkv", "webm", "mka", "mp4", "mov", "m4v", "m4a", "3gp", "3g2"].contains(ext)
+        switch url.pathExtension.lowercased() {
+        case "mkv", "webm", "mka": return .matroska
+        case "mp4", "mov", "m4v", "m4a", "3gp", "3g2": return .mp4
+        case "ivf": return .ivf
+        case "avi": return .avi
+        default: return .unknown
+        }
     }
-    
+
+    public static func isSupportedContainer(at url: URL) -> Bool {
+        probeContainerType(at: url) != .unknown
+    }
+
     // Decoded Frame Ring Buffer & Scrub Frame Cache
     public let frameQueue = FrameQueue(maxCount: 18)
     private let scrubCache = ScrubFrameCache(maxCapacity: 24)
@@ -707,14 +691,20 @@ public final class PlaybackPipeline: ObservableObject {
 
     public enum PlaybackLoadError: LocalizedError {
         case demuxFailed(Error)
-        case decoderUnavailable
+        case decoderUnavailable(String)
+        case unsupportedContainer
+        case audioUnavailable
 
         public var errorDescription: String? {
             switch self {
             case .demuxFailed(let error):
                 return "Failed to demux container: \(error.localizedDescription)"
-            case .decoderUnavailable:
-                return "Failed to initialize VideoToolbox hardware decoder"
+            case .decoderUnavailable(let codecs):
+                return "VideoToolbox could not open the video track (\(codecs)) on this Mac."
+            case .unsupportedContainer:
+                return "Frames could not identify the media container."
+            case .audioUnavailable:
+                return "Core Audio could not open an audio track in this file."
             }
         }
     }
@@ -732,37 +722,50 @@ public final class PlaybackPipeline: ObservableObject {
         let containerType = probeContainerType(at: url)
         let demuxer: any MediaDemuxer
         do {
-            if containerType == .mp4 {
-                do {
-                    demuxer = try MP4Demuxer(url: url)
-                } catch {
-                    demuxer = try MatroskaDemuxer(url: url)
-                }
-            } else {
-                do {
-                    demuxer = try MatroskaDemuxer(url: url)
-                } catch {
-                    demuxer = try MP4Demuxer(url: url)
-                }
+            switch containerType {
+            case .mp4: demuxer = try MP4Demuxer(url: url)
+            case .matroska: demuxer = try MatroskaDemuxer(url: url)
+            case .avi: demuxer = try AVIDemuxer(url: url)
+            case .ivf: demuxer = try IVFDemuxer(url: url)
+            case .unknown: throw PlaybackLoadError.unsupportedContainer
             }
         } catch {
             throw PlaybackLoadError.demuxFailed(error)
         }
 
-        guard let videoTrack = demuxer.videoTracks.first,
-              let decoder = VideoToolboxDecoder(track: videoTrack) else {
-            throw PlaybackLoadError.decoderUnavailable
+        let decoder = try demuxer.videoTracks.lazy.compactMap { track -> VideoToolboxDecoder? in
+            guard let candidate = VideoToolboxDecoder(track: track) else { return nil }
+            if candidate.hasSession { return candidate }
+            // AVC/HEVC may carry parameter sets in-band. Validate a bounded
+            // prefix and rewind before exposing this pipeline to the player.
+            defer { demuxer.seek(to: 0) }
+            var bytesRead = 0
+            for _ in 0..<128 where bytesRead < 16 * 1024 * 1024 {
+                guard let packet = try demuxer.nextPacket() else { break }
+                bytesRead += packet.data.count
+                if packet.trackNumber == track.trackNumber, candidate.bootstrap(from: packet) { return candidate }
+            }
+            return nil
+        }.first
+        guard let decoder else {
+            let codecs = demuxer.videoTracks.map(\.codecID).joined(separator: ", ")
+            demuxer.close()
+            throw PlaybackLoadError.decoderUnavailable(codecs.isEmpty ? "no video track" : codecs)
         }
 
-        let audioTrack = preferredAudioTrack(in: demuxer, pref: pref)
-        let audioEngine: AudioEngineBridge? = audioTrack.flatMap {
-            AudioEngineBridge(track: $0, initialRate: playbackRate)
+        let preferred = preferredAudioTrack(in: demuxer, pref: pref)
+        let candidates = [preferred].compactMap { $0 } + demuxer.audioTracks.filter { $0.trackNumber != preferred?.trackNumber }
+        let audioEngine = candidates.lazy.compactMap { AudioEngineBridge(track: $0, initialRate: playbackRate) }.first
+        if !candidates.isEmpty && audioEngine == nil {
+            decoder.invalidate()
+            demuxer.close()
+            throw PlaybackLoadError.audioUnavailable
         }
         return PreparedPlayback(
             demuxer: demuxer,
             decoder: decoder,
             audioEngine: audioEngine,
-            audioTrackNumber: audioTrack?.trackNumber
+            audioTrackNumber: audioEngine?.track.trackNumber
         )
     }
 
@@ -840,7 +843,7 @@ public final class PlaybackPipeline: ObservableObject {
 
     private func install(_ prepared: PreparedPlayback, url: URL) -> Bool {
         let demuxer = prepared.demuxer
-        let videoTrack = demuxer.videoTracks.first
+        let videoTrack = prepared.decoder.track
 
         // Defensive: callers normally stop first, but never let a previous
         // decoder write into the stores that are about to be cleared.
@@ -857,7 +860,7 @@ public final class PlaybackPipeline: ObservableObject {
         scrubTask?.cancel()
         scrubTask = nil
         scrubGeneration &+= 1
-        frameQueue.removeAll()
+        frameQueue.reset(forSeek: 0)
         scrubCache.clear()
         scrubCacheGate.setEnabled(false)
         packetChunkBuffer.removeAll()
@@ -875,7 +878,7 @@ public final class PlaybackPipeline: ObservableObject {
         self.videoDecoder = prepared.decoder
 
         // Resolution-aware scrub cache scaling
-        if let videoTrack {
+        do {
             let trackWidth = videoTrack.pixelWidth > 0 ? videoTrack.pixelWidth : videoTrack.displayWidth
             let trackHeight = videoTrack.pixelHeight > 0 ? videoTrack.pixelHeight : videoTrack.displayHeight
             if trackWidth > 0 && trackHeight > 0 {
@@ -898,7 +901,7 @@ public final class PlaybackPipeline: ObservableObject {
         }
 
         let isNetworkOrNAS = url.path.hasPrefix("/Volumes/") || url.scheme == "smb" || url.scheme == "afp" || url.scheme == "nfs"
-        let estBitrate = (demuxer.duration > 0 && demuxer.fileSize > 0) ? (Double(demuxer.fileSize * 8) / demuxer.duration) : 0.0
+        let estBitrate = (demuxer.duration > 0 && demuxer.fileSize > 0) ? ((Double(demuxer.fileSize) * 8) / demuxer.duration) : 0.0
         self.frameQueue.configureBuffering(isNetworkOrNAS: isNetworkOrNAS, bitrate: estBitrate)
         self.packetChunkBuffer.setCapacity(isNetworkOrNAS || estBitrate > 30_000_000 ? 256 : 128)
 
@@ -907,12 +910,8 @@ public final class PlaybackPipeline: ObservableObject {
         let cacheGate = self.scrubCacheGate
         prepared.decoder.setFrameHandler { frame in
             decoderGate.performIfOpen {
-                let w = CVPixelBufferGetWidth(frame.pixelBuffer)
-                let h = CVPixelBufferGetHeight(frame.pixelBuffer)
-                if w > 0 && h > 0 {
-                    cache.updateCapacity(forWidth: w, height: h)
-                }
                 if cacheGate.isEnabled {
+                    cache.updateCapacity(forWidth: CVPixelBufferGetWidth(frame.pixelBuffer), height: CVPixelBufferGetHeight(frame.pixelBuffer))
                     cache.insert(buffer: frame.pixelBuffer, pts: frame.pts)
                 }
                 q.enqueue(frame)
@@ -1140,6 +1139,8 @@ public final class PlaybackPipeline: ObservableObject {
         resetClockTracker()
 
         let subsystems = PlaybackSubsystems(audioEngine: audioEngine, videoDecoder: videoDecoder, demuxer: demuxer)
+        routing.updateAudio(engine: nil, trackNumber: nil)
+        activeAudioTrackNumber = nil
         audioEngine = nil
         videoDecoder = nil
         demuxer = nil
@@ -1698,6 +1699,7 @@ public final class PlaybackPipeline: ObservableObject {
                     }
                     if packetBuffer.isEmpty && q.count == 0 {
                         Task { @MainActor [weak self] in
+                            guard token.isCurrent(generation), !controller.isCancelled else { return }
                             self?.markPlaybackEnded()
                         }
                         break

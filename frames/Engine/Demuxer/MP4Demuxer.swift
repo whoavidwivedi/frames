@@ -788,6 +788,14 @@ nonisolated public final class MP4Demuxer: @unchecked Sendable, MediaDemuxer {
                     switch box.type {
                     case .avcC, .hvcC, .av1C, .vpcC:
                         result.codecPrivate = box.payload
+                        if box.type == .hvcC, box.payload.count >= 23, box.payload.first == 1 {
+                            result.bitsPerChannel = 8 + Int(box.payload[17] & 7)
+                        } else if box.type == .vpcC, box.payload.count >= 12, box.payload.first == 1 {
+                            result.bitsPerChannel = Int(box.payload[6] >> 4)
+                        } else if box.type == .av1C, box.payload.count >= 4, box.payload.first == 0x81 {
+                            let flags = box.payload[2]
+                            result.bitsPerChannel = flags & 0x40 == 0 ? 8 : (flags & 0x20 == 0 ? 10 : 12)
+                        }
                     case .colr:
                         if box.payload.count >= 11 {
                             let colorTypeVal = box.payload.withUnsafeBytes { $0.loadUnaligned(as: UInt32.self).bigEndian }

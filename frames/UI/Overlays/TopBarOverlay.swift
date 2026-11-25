@@ -74,6 +74,10 @@ public struct TopBarOverlay: View {
             ZStack {
                 titleBadge
                     .padding(.horizontal, trafficLightSpacer + 48)
+                HStack {
+                    Spacer()
+                    closeButton.padding(.trailing, 12)
+                }
 
             }
             .frame(maxWidth: .infinity)

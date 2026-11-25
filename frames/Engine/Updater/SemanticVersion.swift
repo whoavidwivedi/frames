@@ -37,28 +37,34 @@ public struct SemanticVersion: Comparable, Equatable, Hashable, Sendable, Custom
             clean = String(clean.dropFirst())
         }
 
-        // Split off build metadata (e.g. +build.123)
-        if let plusIdx = clean.firstIndex(of: "+") {
-            clean = String(clean[..<plusIdx])
+        // Legacy releases also used short forms such as v1 and v1.2.
+        let metadata = clean.split(separator: "+", maxSplits: 1, omittingEmptySubsequences: false)
+        guard let version = metadata.first,
+              metadata.count == 1 || Self.validIdentifiers(metadata[1], allowLeadingZeros: true) else { return nil }
+        let pieces = version.split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false)
+        guard let core = pieces.first,
+              pieces.count == 1 || Self.validIdentifiers(pieces[1], allowLeadingZeros: false) else { return nil }
+        let parts = core.split(separator: ".", omittingEmptySubsequences: false)
+        guard (1...3).contains(parts.count) else { return nil }
+        let numbers = parts.compactMap { part -> Int? in
+            guard !part.isEmpty, part == "0" || part.first != "0",
+                  part.utf8.allSatisfy({ (48...57).contains($0) }) else { return nil }
+            return Int(part)
         }
+        guard numbers.count == parts.count else { return nil }
+        major = numbers[0]
+        minor = numbers.count > 1 ? numbers[1] : 0
+        patch = numbers.count > 2 ? numbers[2] : 0
+        prerelease = pieces.count == 2 ? String(pieces[1]) : nil
+    }
 
-        // Split off pre-release (e.g. -beta.1)
-        var pre: String? = nil
-        if let hyphenIdx = clean.firstIndex(of: "-") {
-            pre = String(clean[clean.index(after: hyphenIdx)...])
-            clean = String(clean[..<hyphenIdx])
+    private static func validIdentifiers(_ value: Substring, allowLeadingZeros: Bool) -> Bool {
+        !value.isEmpty && value.split(separator: ".", omittingEmptySubsequences: false).allSatisfy { identifier in
+            let bytes = identifier.utf8
+            return !bytes.isEmpty && bytes.allSatisfy { byte in
+                (48...57).contains(byte) || (65...90).contains(byte) || (97...122).contains(byte) || byte == 45
+            } && (allowLeadingZeros || identifier.count == 1 || identifier.first != "0" || !identifier.allSatisfy(\.isNumber))
         }
-
-        let parts = clean.split(separator: ".")
-        guard !parts.isEmpty else { return nil }
-
-        let parsedParts = parts.compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
-        guard parsedParts.count == parts.count else { return nil }
-
-        self.major = parsedParts[0]
-        self.minor = parsedParts.count > 1 ? parsedParts[1] : 0
-        self.patch = parsedParts.count > 2 ? parsedParts[2] : 0
-        self.prerelease = pre
     }
 
     public var displayString: String {
@@ -101,8 +107,24 @@ public struct SemanticVersion: Comparable, Equatable, Hashable, Sendable, Custom
         case (nil, .some):
             return false
         case let (l?, r?):
-            return l.localizedStandardCompare(r) == .orderedAscending
+            let left = l.split(separator: ".")
+            let right = r.split(separator: ".")
+            for (a, b) in zip(left, right) where a != b {
+                let numericA = a.allSatisfy(\.isNumber)
+                let numericB = b.allSatisfy(\.isNumber)
+                if numericA != numericB { return numericA }
+                if numericA && a.count != b.count { return a.count < b.count }
+                return a.utf8.lexicographicallyPrecedes(b.utf8)
+            }
+            return left.count < right.count
         }
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(major)
+        hasher.combine(minor)
+        hasher.combine(patch)
+        hasher.combine(prerelease)
     }
 
     public static func == (lhs: SemanticVersion, rhs: SemanticVersion) -> Bool {
