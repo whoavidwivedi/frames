@@ -35,7 +35,8 @@ nonisolated public final class VideoToolboxDecoder: @unchecked Sendable {
     private var formatDescription: CMVideoFormatDescription?
     public let track: DemuxedTrack
     public let is10Bit: Bool
-    public let isAnnexBStream: Bool
+    private let nalLengthSize: Int?
+    public var isAnnexBStream: Bool { nalLengthSize == nil }
     public private(set) var isHardwareAccelerated: Bool = false
     public private(set) var decoderImplementationName: String = "VideoToolbox"
     
@@ -52,24 +53,30 @@ nonisolated public final class VideoToolboxDecoder: @unchecked Sendable {
         self.track = track
         self.onFrameDecoded = onFrame
         
-        // Determine bit depth from track metadata (10-bit HDR vs 8-bit SDR)
-        self.is10Bit = track.bitsPerChannel > 8
-        
-        if let priv = track.codecPrivate,
-           (NALParser.parseAVCDecoderConfigurationRecord(priv) != nil ||
-            NALParser.parseHEVCDecoderConfigurationRecord(priv) != nil) {
-            self.isAnnexBStream = false
+        // Codec configuration specifies the packet framing. A length-prefixed
+        // sample can begin 00 00 01 xx, which looks exactly like a start code.
+        if track.isH264, let data = track.codecPrivate {
+            nalLengthSize = NALParser.parseAVCDecoderConfigurationRecord(data)?.nalLengthSize
+        } else if track.isHEVC, let data = track.codecPrivate {
+            nalLengthSize = NALParser.parseHEVCDecoderConfigurationRecord(data)?.nalLengthSize
         } else {
-            self.isAnnexBStream = true
+            nalLengthSize = nil
         }
-        
-        // Build format description from track codec and private data if available upfront
+        let config = track.codecPrivate
+        let hevc10Bit = track.isHEVC && (config?.count ?? 0) >= 23 && config?.first == 1
+            && ((config![config!.startIndex + 17] & 7) > 0)
+        self.is10Bit = track.bitsPerChannel > 8 || track.isHDR || hevc10Bit || track.isProRes
+
         if let desc = Self.createFormatDescription(for: track) {
             self.formatDescription = desc
-            _ = setupDecompressionSession(with: desc)
+            guard setupDecompressionSession(with: desc) else { return nil }
+        } else if !track.isH264 && !track.isHEVC {
+            return nil
         }
     }
-    
+
+    var hasSession: Bool { frameLock.withLock { session != nil } }
+
     deinit {
         invalidate()
     }
@@ -114,83 +121,80 @@ nonisolated public final class VideoToolboxDecoder: @unchecked Sendable {
     
     // MARK: - Format Description Creation
     
-    private static func createFormatDescription(for track: DemuxedTrack) -> CMVideoFormatDescription? {
-        let width = Int32(track.pixelWidth > 0 ? track.pixelWidth : 1920)
-        let height = Int32(track.pixelHeight > 0 ? track.pixelHeight : 1080)
-        
-        if track.isH264 {
-            if let priv = track.codecPrivate,
-               let parsed = NALParser.parseAVCDecoderConfigurationRecord(priv) {
-                return NALParser.createH264FormatDescription(sps: parsed.sps, pps: parsed.pps)
-            } else if let priv = track.codecPrivate {
-                let nals = NALParser.extractAnnexBNALUnits(from: priv)
-                let sps = nals.filter { ($0.first ?? 0) & 0x1F == 7 }
-                let pps = nals.filter { ($0.first ?? 0) & 0x1F == 8 }
-                return NALParser.createH264FormatDescription(sps: sps, pps: pps)
+    static func createFormatDescription(for track: DemuxedTrack) -> CMVideoFormatDescription? {
+        if track.isH264, let data = track.codecPrivate {
+            if let config = NALParser.parseAVCDecoderConfigurationRecord(data) {
+                return NALParser.createH264FormatDescription(sps: config.sps, pps: config.pps, nalLengthSize: config.nalLengthSize)
             }
-            return nil
-        } else if track.isHEVC {
-            if let priv = track.codecPrivate,
-               let parsed = NALParser.parseHEVCDecoderConfigurationRecord(priv) {
-                return NALParser.createHEVCFormatDescription(vps: parsed.vps, sps: parsed.sps, pps: parsed.pps)
-            } else if let priv = track.codecPrivate {
-                let nals = NALParser.extractAnnexBNALUnits(from: priv)
-                let vps = nals.filter { (($0.first ?? 0) >> 1) & 0x3F == 32 }
-                let sps = nals.filter { (($0.first ?? 0) >> 1) & 0x3F == 33 }
-                let pps = nals.filter { (($0.first ?? 0) >> 1) & 0x3F == 34 }
-                return NALParser.createHEVCFormatDescription(vps: vps, sps: sps, pps: pps)
-            }
-            return nil
-        } else if track.isVP9 {
-            var desc: CMVideoFormatDescription?
-            let status = CMVideoFormatDescriptionCreate(
-                allocator: kCFAllocatorDefault,
-                codecType: kCMVideoCodecType_VP9,
-                width: width,
-                height: height,
-                extensions: nil,
-                formatDescriptionOut: &desc
-            )
-            return status == noErr ? desc : nil
-        } else if track.isAV1 {
-            var desc: CMVideoFormatDescription?
-            let status = CMVideoFormatDescriptionCreate(
-                allocator: kCFAllocatorDefault,
-                codecType: kCMVideoCodecType_AV1,
-                width: width,
-                height: height,
-                extensions: nil,
-                formatDescriptionOut: &desc
-            )
-            return status == noErr ? desc : nil
-        } else if track.isProRes {
-            var desc: CMVideoFormatDescription?
-            let codecType: CMVideoCodecType
-            if track.codecID.contains("4444") {
-                codecType = kCMVideoCodecType_AppleProRes4444
-            } else if track.codecID.contains("HQ") {
-                codecType = kCMVideoCodecType_AppleProRes422HQ
-            } else if track.codecID.contains("LT") {
-                codecType = kCMVideoCodecType_AppleProRes422LT
-            } else if track.codecID.contains("PROXY") {
-                codecType = kCMVideoCodecType_AppleProRes422Proxy
-            } else {
-                codecType = kCMVideoCodecType_AppleProRes422
-            }
-            let status = CMVideoFormatDescriptionCreate(
-                allocator: kCFAllocatorDefault,
-                codecType: codecType,
-                width: width,
-                height: height,
-                extensions: nil,
-                formatDescriptionOut: &desc
-            )
-            return status == noErr ? desc : nil
+            return parameterSetDescription(track: track, units: NALParser.extractAnnexBNALUnits(from: data), lengthSize: 4)
         }
-        
-        return nil
+        if track.isHEVC, let data = track.codecPrivate {
+            if let config = NALParser.parseHEVCDecoderConfigurationRecord(data) {
+                return NALParser.createHEVCFormatDescription(vps: config.vps, sps: config.sps, pps: config.pps,
+                                                             nalLengthSize: config.nalLengthSize)
+            }
+            return parameterSetDescription(track: track, units: NALParser.extractAnnexBNALUnits(from: data), lengthSize: 4)
+        }
+
+        guard let width = Int32(exactly: track.pixelWidth), width > 0,
+              let height = Int32(exactly: track.pixelHeight), height > 0 else { return nil }
+        let codec: CMVideoCodecType
+        var atoms = [String: Data]()
+        if track.isVP9 {
+            codec = kCMVideoCodecType_VP9
+            if let config = track.codecPrivate, config.count >= 12, config.prefix(4) == Data([1, 0, 0, 0]) {
+                atoms["vpcC"] = config
+            }
+        } else if track.isAV1 {
+            codec = kCMVideoCodecType_AV1
+            if let config = track.codecPrivate, config.count >= 4, config.first == 0x81 {
+                atoms["av1C"] = config
+            }
+        } else {
+            switch track.codecID {
+            case "jpeg", "V_MJPEG": codec = kCMVideoCodecType_JPEG
+            case "dmb1": codec = kCMVideoCodecType_JPEG_OpenDML
+            case "ap4x", "V_PRORES/4444XQ": codec = kCMVideoCodecType_AppleProRes4444XQ
+            case "ap4h", "V_PRORES/4444": codec = kCMVideoCodecType_AppleProRes4444
+            case "apch", "V_PRORES/422HQ": codec = kCMVideoCodecType_AppleProRes422HQ
+            case "apcs", "V_PRORES/422LT": codec = kCMVideoCodecType_AppleProRes422LT
+            case "apco", "V_PRORES/422PROXY": codec = kCMVideoCodecType_AppleProRes422Proxy
+            case "apcn", "V_PRORES/422", "V_PRORES": codec = kCMVideoCodecType_AppleProRes422
+            default: return nil
+            }
+        }
+        let extensions = [kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms: atoms] as CFDictionary
+        var desc: CMVideoFormatDescription?
+        let status = CMVideoFormatDescriptionCreate(allocator: kCFAllocatorDefault, codecType: codec,
+                                                    width: width, height: height, extensions: atoms.isEmpty ? nil : extensions,
+                                                    formatDescriptionOut: &desc)
+        return status == noErr ? desc : nil
     }
-    
+
+    private static func parameterSetDescription(track: DemuxedTrack, units: [Data], lengthSize: Int) -> CMVideoFormatDescription? {
+        if track.isH264 {
+            let sps = units.filter { ($0.first ?? 0) & 31 == 7 }
+            let pps = units.filter { ($0.first ?? 0) & 31 == 8 }
+            return NALParser.createH264FormatDescription(sps: sps, pps: pps, nalLengthSize: lengthSize)
+        }
+        let vps = units.filter { (($0.first ?? 0) >> 1) & 63 == 32 }
+        let sps = units.filter { (($0.first ?? 0) >> 1) & 63 == 33 }
+        let pps = units.filter { (($0.first ?? 0) >> 1) & 63 == 34 }
+        return NALParser.createHEVCFormatDescription(vps: vps, sps: sps, pps: pps, nalLengthSize: lengthSize)
+    }
+
+    /// Some transport streams carry parameter sets in the first access unit.
+    func bootstrap(from packet: DemuxedPacket) -> Bool {
+        guard track.isH264 || track.isHEVC else { return false }
+        let units = nalLengthSize.map { NALParser.lengthPrefixedUnits(in: packet.data, headerSize: $0) }
+            ?? NALParser.extractAnnexBNALUnits(from: packet.data)
+        guard let desc = Self.parameterSetDescription(track: track, units: units, lengthSize: nalLengthSize ?? 4) else { return false }
+        return frameLock.withLock {
+            formatDescription = desc
+            return setupDecompressionSession(with: desc)
+        }
+    }
+
     // MARK: - Session Setup
     
     private func setupDecompressionSession(with formatDesc: CMVideoFormatDescription) -> Bool {
@@ -205,35 +209,19 @@ nonisolated public final class VideoToolboxDecoder: @unchecked Sendable {
             kCVPixelBufferOpenGLCompatibilityKey: false
         ]
         
-        var decoderSpecification: [CFString: Any] = [
-            kVTVideoDecoderSpecification_EnableHardwareAcceleratedVideoDecoder: true
-        ]
-        let hwPref = UserDefaults.standard.object(forKey: SettingsManager.hardwareAccelerationKey) as? Bool ?? true
-        if hwPref {
-            decoderSpecification[kVTVideoDecoderSpecification_RequireHardwareAcceleratedVideoDecoder] = true
+        let codec = CMFormatDescriptionGetMediaSubType(formatDesc)
+        if codec == kCMVideoCodecType_VP9 || codec == kCMVideoCodecType_AV1 {
+            VTRegisterSupplementalVideoDecoderIfAvailable(codec)
         }
-
-        var status = VTDecompressionSessionCreate(
+        let preferHardware = UserDefaults.standard.object(forKey: SettingsManager.hardwareAccelerationKey) as? Bool ?? true
+        let specification = [kVTVideoDecoderSpecification_EnableHardwareAcceleratedVideoDecoder: preferHardware]
+        let status = VTDecompressionSessionCreate(
             allocator: kCFAllocatorDefault,
             formatDescription: formatDesc,
-            decoderSpecification: decoderSpecification as CFDictionary,
+            decoderSpecification: specification as CFDictionary,
             imageBufferAttributes: destinationPixelBufferAttributes as CFDictionary,
             decompressionSessionOut: &session
         )
-        
-        // Fallback to enable-only if require returns an error
-        if status != noErr {
-            let fallbackSpec: [CFString: Any] = [
-                kVTVideoDecoderSpecification_EnableHardwareAcceleratedVideoDecoder: true
-            ]
-            status = VTDecompressionSessionCreate(
-                allocator: kCFAllocatorDefault,
-                formatDescription: formatDesc,
-                decoderSpecification: fallbackSpec as CFDictionary,
-                imageBufferAttributes: destinationPixelBufferAttributes as CFDictionary,
-                decompressionSessionOut: &session
-            )
-        }
 
         guard status == noErr, let session = session else {
             self.isHardwareAccelerated = false
@@ -335,51 +323,15 @@ nonisolated public final class VideoToolboxDecoder: @unchecked Sendable {
     /// Feeds an elementary demuxed video packet into the VideoToolbox hardware decoder.
     public func decode(packet: DemuxedPacket, doNotOutput: Bool = false) -> Bool {
         return autoreleasepool {
-            // Dynamic Parameter Set Bootstrap if formatDescription was not in container headers
+            if !hasSession && !bootstrap(from: packet) { return false }
             frameLock.lock()
-            let needsBootstrap = (formatDescription == nil || session == nil)
-            frameLock.unlock()
-            
-            if needsBootstrap {
-                if track.isH264 {
-                    let nals = NALParser.extractAnnexBNALUnits(from: packet.data)
-                    let sps = nals.filter { ($0.first ?? 0) & 0x1F == 7 }
-                    let pps = nals.filter { ($0.first ?? 0) & 0x1F == 8 }
-                    if !sps.isEmpty && !pps.isEmpty, let desc = NALParser.createH264FormatDescription(sps: sps, pps: pps) {
-                        frameLock.lock()
-                        self.formatDescription = desc
-                        _ = setupDecompressionSession(with: desc)
-                        frameLock.unlock()
-                    }
-                } else if track.isHEVC {
-                    let nals = NALParser.extractAnnexBNALUnits(from: packet.data)
-                    let vps = nals.filter { (($0.first ?? 0) >> 1) & 0x3F == 32 }
-                    let sps = nals.filter { (($0.first ?? 0) >> 1) & 0x3F == 33 }
-                    let pps = nals.filter { (($0.first ?? 0) >> 1) & 0x3F == 34 }
-                    if !sps.isEmpty && !pps.isEmpty, let desc = NALParser.createHEVCFormatDescription(vps: vps, sps: sps, pps: pps) {
-                        frameLock.lock()
-                        self.formatDescription = desc
-                        _ = setupDecompressionSession(with: desc)
-                        frameLock.unlock()
-                    }
-                }
-            }
-            
-            frameLock.lock()
-            let currentSession = self.session
             let currentFormatDesc = self.formatDescription
             frameLock.unlock()
-            
-            guard let session = currentSession, let formatDesc = currentFormatDesc else { return false }
-            
-            // Video Translation Layer: Convert Annex-B to AVCC/HVCC length-prefixed format for VideoToolbox
-            let payload: Data
-            if (track.isH264 || track.isHEVC) && NALParser.isAnnexB(packet.data) {
-                payload = NALParser.convertAnnexBToAVCC(packet.data)
-            } else {
-                payload = packet.data
-            }
-            
+            guard let formatDesc = currentFormatDesc else { return false }
+
+            let payload = (track.isH264 || track.isHEVC) && isAnnexBStream
+                ? NALParser.convertAnnexBToAVCC(packet.data) : packet.data
+
             // Wrap packet raw payload in an optimized zero-copy CMBlockBuffer backed directly by CFData
             guard let bb = VideoToolboxDecoder.createBlockBuffer(from: payload) else { return false }
             

@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 import SwiftUI
 import AppKit
 import CryptoKit
@@ -54,6 +55,9 @@ public final class UpdateManager: NSObject {
     }
 
     public func setChannel(_ channel: UpdateChannel, checkImmediately: Bool = false) {
+        if case .readyToRestart = status { return }
+        cancelDownload()
+        activeCheckTask?.cancel()
         updateChannel = channel
         availableUpdate = nil
         status = .idle
@@ -73,6 +77,8 @@ public final class UpdateManager: NSObject {
     public private(set) var totalBytes: Int64 = 0
     public private(set) var lastCheckedDate: Date? = nil
 
+    private var activeCheckTask: Task<Void, Never>?
+    private var downloadID: UUID?
     private var activeDownloadTask: Task<Void, Never>? = nil
 
     // User preferences
@@ -89,11 +95,11 @@ public final class UpdateManager: NSObject {
     }
 
     public var currentVersionString: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.9.6"
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.0.0"
     }
 
     public var currentVersion: SemanticVersion {
-        SemanticVersion(string: currentVersionString) ?? SemanticVersion(major: 1, minor: 9, patch: 6)
+        SemanticVersion(string: currentVersionString) ?? SemanticVersion(major: 2)
     }
 
     public var hasUpdate: Bool {
@@ -104,7 +110,6 @@ public final class UpdateManager: NSObject {
 
     private override init() {
         super.init()
-        Self.cleanupStaleUpdateDirectories()
     }
 
     // MARK: - Update Checking
@@ -116,22 +121,22 @@ public final class UpdateManager: NSObject {
         if case .checking = status { return }
         if case .downloading = status { return }
         if case .extracting = status { return }
+        if case .readyToRestart = status { return }
 
         status = .checking
         if manual {
             manualCheckNotice = nil
         }
 
-        Task {
+        let channel = updateChannel
+        activeCheckTask = Task {
             do {
-                // Keep the checking state visible long enough for the spinner to render.
-                if manual {
-                    try? await Task.sleep(nanoseconds: 700_000_000)
-                }
-                let release = try await self.fetchRelease(for: self.updateChannel)
+                let release = try await self.fetchRelease(for: channel)
+                try Task.checkCancellation()
                 self.lastCheckedDate = Date()
                 self.processRelease(release, manual: manual)
             } catch {
+                guard !Task.isCancelled else { return }
                 self.status = .error(message: error.localizedDescription)
                 if manual {
                     self.manualCheckNotice = ManualCheckNotice(
@@ -213,6 +218,8 @@ public final class UpdateManager: NSObject {
 
     /// Evaluates a fetched release against the local version.
     public func processRelease(_ release: GitHubRelease, manual: Bool) {
+        availableUpdate = nil
+        isUpdatePromptPresented = false
         guard let releaseVersion = SemanticVersion(string: release.tagName) else {
             self.status = .idle
             if manual {
@@ -227,15 +234,14 @@ public final class UpdateManager: NSObject {
 
         // Compare semantic version
         if releaseVersion > currentVersion {
-            // Find appropriate payload asset: prefer .zip containing macOS bundle, then .dmg
-            let asset = release.assets.first(where: { $0.isZipPayload }) ?? release.assets.first(where: { $0.isDmgPayload })
-
-            guard let matchedAsset = asset else {
+            let archiveName = "Frames-\(release.tagName)-macOS.zip"
+            guard let matchedAsset = release.assets.first(where: { $0.name == archiveName }),
+                  let checksumAsset = release.assets.first(where: { $0.name == "SHA256SUMS.txt" }) else {
                 self.status = .idle
                 if manual {
                     self.manualCheckNotice = ManualCheckNotice(
                         title: "Update Available",
-                        message: "Frames \(release.tagName) is available on GitHub, but no macOS installation package was found."
+                        message: "Frames \(release.tagName) is on GitHub. Its verified macOS ZIP is unavailable."
                     )
                 }
                 return
@@ -247,8 +253,7 @@ public final class UpdateManager: NSObject {
                 publishedDate = isoFormatter.date(from: pubStr)
             }
 
-            let releasePageURL = release.htmlUrl != nil ? URL(string: release.htmlUrl!) : nil
-            let checksumAsset = release.assets.first(where: { $0.isChecksumManifest })
+            let releasePageURL = URL(string: "https://github.com/\(repositoryOwner)/\(repositoryName)/releases/tag/\(release.tagName)")
 
             let update = AppUpdateInfo(
                 tagName: release.tagName,
@@ -315,6 +320,8 @@ public final class UpdateManager: NSObject {
     }
 
     public func cancelDownload() {
+        if case .readyToRestart = status { return }
+        downloadID = nil
         activeDownloadTask?.cancel()
         activeDownloadTask = nil
         if let update = availableUpdate {
@@ -331,12 +338,13 @@ public final class UpdateManager: NSObject {
 
     /// Initiates downloading, verification, bundle replacement, and relaunch.
     public func startUpdateAndRestart() {
+        guard activeDownloadTask == nil else { return }
         guard let update = availableUpdate,
               let assetDownloadURL = URL(string: update.asset.browserDownloadUrl),
               let manifestAsset = update.checksumManifestAsset,
               let manifestURL = URL(string: manifestAsset.browserDownloadUrl),
-              Self.isSecureHTTPS(assetDownloadURL),
-              Self.isSecureHTTPS(manifestURL) else {
+              assetDownloadURL.absoluteString == "https://github.com/\(repositoryOwner)/\(repositoryName)/releases/download/\(update.tagName)/\(update.asset.name)",
+              manifestURL.absoluteString == "https://github.com/\(repositoryOwner)/\(repositoryName)/releases/download/\(update.tagName)/SHA256SUMS.txt" else {
             status = .error(message: "The update package is missing a verifiable HTTPS download URL or SHA-256 manifest. Refusing to install.")
             return
         }
@@ -346,25 +354,33 @@ public final class UpdateManager: NSObject {
         totalBytes = update.asset.size
         status = .downloading(progress: 0.0, bytesWritten: 0, totalBytes: totalBytes)
 
+        let id = UUID()
+        downloadID = id
         activeDownloadTask = Task { [weak self] in
-            guard let self = self else { return }
+            guard let self else { return }
+            defer {
+                if downloadID == id {
+                    activeDownloadTask = nil
+                    downloadID = nil
+                }
+            }
             do {
-                let downloader = OTAAssetDownloader()
-                downloader.onProgress = { [weak self] progress, written, total in
+                let downloader = OTAAssetDownloader { [weak self] progress, written, total in
                     Task { @MainActor [weak self] in
-                        guard let self = self else { return }
+                        guard let self, self.downloadID == id, case .downloading = self.status else { return }
                         self.downloadProgress = progress
                         self.downloadedBytes = written
                         self.totalBytes = total
                         self.status = .downloading(progress: progress, bytesWritten: written, totalBytes: total)
                     }
                 }
-
-                let downloadedArchiveURL = try await downloader.download(from: assetDownloadURL)
-
+                let (downloadedArchiveURL, response) = try await URLSession.shared.download(from: assetDownloadURL, delegate: downloader)
+                defer { try? FileManager.default.removeItem(at: downloadedArchiveURL) }
                 try Task.checkCancellation()
+                guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+                    throw Self.updateError(code: -1, message: "The release archive download failed.")
+                }
 
-                // Authenticate the archive before it is opened by any extractor.
                 self.status = .extracting
                 try await Self.verifyArchive(downloadedArchiveURL, against: update.asset.name, manifestURL: manifestURL)
 
@@ -374,9 +390,11 @@ public final class UpdateManager: NSObject {
                     .appendingPathComponent("FramesUpdate_\(UUID().uuidString)")
                 try FileManager.default.createDirectory(at: extractDir, withIntermediateDirectories: true)
 
+                defer { try? FileManager.default.removeItem(at: extractDir) }
+
                 // Native extraction via /usr/bin/ditto (preserves macOS bundle metadata & permissions)
                 try await Self.extractArchive(at: downloadedArchiveURL, to: extractDir)
-                try? FileManager.default.removeItem(at: downloadedArchiveURL)
+                try Task.checkCancellation()
 
                 // Locate application bundle in extracted directory
                 guard let newAppBundleURL = Self.findAppBundle(in: extractDir) else {
@@ -390,10 +408,9 @@ public final class UpdateManager: NSObject {
                 // Structural integrity is always required. Signed releases use the
                 // strict Developer ID policy; ad-hoc releases require explicit
                 // consent and remain unsigned after installation.
-                try Self.verifyAppBundle(at: newAppBundleURL)
+                try Self.verifyAppBundle(at: newAppBundleURL, expectedVersion: update.version)
                 let downloadedPolicy = Self.signaturePolicy(for: newAppBundleURL)
                 let installedPolicy = Self.signaturePolicy(for: Bundle.main.bundleURL)
-                var isUnsignedInstall = false
 
                 switch downloadedPolicy {
                 case .developerID:
@@ -419,7 +436,6 @@ public final class UpdateManager: NSObject {
                         self.totalBytes = 0
                         return
                     }
-                    isUnsignedInstall = true
                 case .invalid:
                     throw Self.updateError(
                         code: -19,
@@ -433,18 +449,12 @@ public final class UpdateManager: NSObject {
                 let targetAppURL = Self.resolveTargetAppURL()
 
                 // Swap the bundle and launch the new instance without generating shell code.
-                try Self.executeRelaunchHelper(
-                    newAppURL: newAppBundleURL,
-                    targetAppURL: targetAppURL,
-                    currentPID: ProcessInfo.processInfo.processIdentifier,
-                    removeQuarantine: isUnsignedInstall
-                )
+                try await Self.replaceAndLaunch(newAppURL: newAppBundleURL, targetAppURL: targetAppURL)
 
                 // Terminate current instance cleanly
                 NSApp.terminate(nil)
-            } catch is CancellationError {
-                // Cancelled by user
             } catch {
+                guard !Task.isCancelled, downloadID == id else { return }
                 self.status = .error(message: error.localizedDescription)
             }
         }
@@ -452,161 +462,81 @@ public final class UpdateManager: NSObject {
 
     // MARK: - Archive & Bundle Helper Routines
 
-    public static func extractArchive(at zipURL: URL, to destDir: URL) async throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
-        process.arguments = ["-xk", zipURL.path, destDir.path]
-
-        let pipe = Pipe()
-        process.standardError = pipe
-
-        try process.run()
-        process.waitUntilExit()
-
-        if process.terminationStatus != 0 {
-            let errorData = pipe.fileHandleForReading.readDataToEndOfFile()
-            let errorString = String(data: errorData, encoding: .utf8) ?? "Unknown extraction error"
-            throw NSError(domain: "FramesUpdate", code: Int(process.terminationStatus), userInfo: [NSLocalizedDescriptionKey: "Failed to extract update package: \(errorString)"])
-        }
+    nonisolated public static func extractArchive(at zipURL: URL, to destDir: URL) async throws {
+        try await Task.detached(priority: .utility) {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+            process.arguments = ["-xk", zipURL.path, destDir.path]
+            try process.run()
+            process.waitUntilExit()
+            guard process.terminationStatus == 0 else {
+                throw updateError(code: -2, message: "The downloaded ZIP could not be extracted.")
+            }
+        }.value
     }
 
     public static func findAppBundle(in directory: URL) -> URL? {
-        let fileManager = FileManager.default
-
-        // Only the expected bundle name is accepted. Archive-derived names are
-        // untrusted and must never influence a path used for installation.
-        func expectedApp(in dir: URL) -> URL? {
-            guard let contents = try? fileManager.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else {
-                return nil
-            }
-            return contents.first { candidate in
-                candidate.pathExtension.lowercased() == "app"
-                    && candidate.deletingPathExtension().lastPathComponent.lowercased() == "frames"
-            }
-        }
-
-        if let direct = expectedApp(in: directory) { return direct }
-
-        if let subdirs = try? fileManager.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) {
-            for sub in subdirs {
-                var isDir: ObjCBool = false
-                if fileManager.fileExists(atPath: sub.path, isDirectory: &isDir), isDir.boolValue,
-                   let nested = expectedApp(in: sub) {
-                    return nested
-                }
-            }
-        }
-
-        return nil
-    }
-
-    public static func verifyAppBundle(at bundleURL: URL) throws {
-        let fileManager = FileManager.default
-        let infoPlist = bundleURL.appendingPathComponent("Contents/Info.plist")
-        guard fileManager.fileExists(atPath: infoPlist.path) else {
-            throw NSError(domain: "FramesUpdate", code: -3, userInfo: [NSLocalizedDescriptionKey: "Downloaded bundle is missing Info.plist."])
-        }
-
-        let macosDir = bundleURL.appendingPathComponent("Contents/MacOS")
-        guard fileManager.fileExists(atPath: macosDir.path) else {
-            throw NSError(domain: "FramesUpdate", code: -4, userInfo: [NSLocalizedDescriptionKey: "Downloaded bundle is missing MacOS binary directory."])
-        }
-
-        let binaries = (try? fileManager.contentsOfDirectory(at: macosDir, includingPropertiesForKeys: nil)) ?? []
-        guard !binaries.isEmpty else {
-            throw NSError(domain: "FramesUpdate", code: -5, userInfo: [NSLocalizedDescriptionKey: "Downloaded bundle does not contain any executable binary."])
+        let keys: Set<URLResourceKey> = [.isDirectoryKey, .isSymbolicLinkKey]
+        let contents = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: Array(keys))
+        return contents?.first { item in
+            let values = try? item.resourceValues(forKeys: keys)
+            return item.lastPathComponent.lowercased() == "frames.app" && values?.isDirectory == true && values?.isSymbolicLink == false
         }
     }
 
-    public static func resolveTargetAppURL() -> URL {
-        let currentBundle = Bundle.main.bundleURL
-        let standardized = currentBundle.standardizedFileURL.path
-        let applicationsRoot = "/Applications/"
-        let userApplicationsRoot = NSHomeDirectory() + "/Applications/"
-
-        if standardized.hasPrefix(applicationsRoot) || standardized.hasPrefix(userApplicationsRoot) {
-            return currentBundle
+    public static func verifyAppBundle(at bundleURL: URL, expectedVersion: SemanticVersion? = nil) throws {
+        guard let bundle = Bundle(url: bundleURL), bundle.bundleIdentifier == "whoavidwivedi.frames",
+              let executable = bundle.executableURL, FileManager.default.isExecutableFile(atPath: executable.path) else {
+            throw updateError(code: -3, message: "The release does not contain a valid Frames application.")
         }
-
-        // Development builds update themselves. They must never implicitly
-        // replace an application in /Applications.
-        return currentBundle
+        if let expectedVersion {
+            guard let raw = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
+                  SemanticVersion(string: raw) == expectedVersion else {
+                throw updateError(code: -4, message: "The downloaded application version differs from its release tag.")
+            }
+        }
     }
 
-    /// Replaces the installed bundle and relaunches it without constructing a
-    /// shell script from external input. All paths are validated and FileManager
-    /// APIs are used, so archive-derived names cannot become shell commands.
-    public static func executeRelaunchHelper(
-        newAppURL: URL,
-        targetAppURL: URL,
-        currentPID: Int32,
-        removeQuarantine: Bool = false
-    ) throws {
-        let fileManager = FileManager.default
+    public static func resolveTargetAppURL() -> URL { Bundle.main.bundleURL }
 
-        guard newAppURL.pathExtension.lowercased() == "app",
-              targetAppURL.pathExtension.lowercased() == "app",
-              newAppURL.lastPathComponent.lowercased() == "frames.app",
-              targetAppURL.lastPathComponent.lowercased() == "frames.app" else {
-            throw updateError(code: -6, message: "Update paths failed validation.")
+    /// Stage the entire replacement on the installation volume. APFS exchanges
+    /// both directory entries atomically, including during rollback.
+    private static func replaceAndLaunch(newAppURL: URL, targetAppURL: URL) async throws {
+        let fm = FileManager.default
+        let parent = targetAppURL.deletingLastPathComponent()
+        guard targetAppURL.standardizedFileURL == Bundle.main.bundleURL.standardizedFileURL,
+              targetAppURL.pathExtension.lowercased() == "app" else {
+            throw updateError(code: -7, message: "The current application could not be located.")
         }
-
-        let targetPath = targetAppURL.standardizedFileURL.path
-        let currentPath = Bundle.main.bundleURL.standardizedFileURL.path
-        let isInstalledLocation = targetPath.hasPrefix("/Applications/")
-            || targetPath.hasPrefix(NSHomeDirectory() + "/Applications/")
-        guard isInstalledLocation || targetPath == currentPath else {
-            throw updateError(code: -7, message: "Update target is outside the allowed application directories.")
-        }
-
-        guard fileManager.fileExists(atPath: newAppURL.path) else {
-            throw updateError(code: -8, message: "Staged update bundle is missing.")
-        }
-
-        let backupURL = fileManager.temporaryDirectory
-            .appendingPathComponent("FramesUpdateBackup_\(UUID().uuidString).app")
-
-        // Unsigned builds are launched by `/usr/bin/open` after the swap. Without
-        // this, Gatekeeper can block the freshly downloaded ad-hoc bundle even
-        // though the user explicitly accepted the unsigned update.
-        if removeQuarantine {
-            try Self.removeQuarantineAttribute(at: newAppURL)
-        }
-
-        if fileManager.fileExists(atPath: targetPath) {
-            try fileManager.moveItem(atPath: targetPath, toPath: backupURL.path)
-        }
-
+        let stage = parent.appendingPathComponent(".FramesUpdate-\(UUID().uuidString)", isDirectory: true)
         do {
-            try fileManager.copyItem(at: newAppURL, to: targetAppURL)
+            try fm.createDirectory(at: stage, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
         } catch {
-            // Restore the previous installation if the new bundle could not be copied.
-            if fileManager.fileExists(atPath: backupURL.path) && !fileManager.fileExists(atPath: targetPath) {
-                try? fileManager.moveItem(atPath: backupURL.path, toPath: targetPath)
-            }
-            throw error
+            throw updateError(code: -8, message: "Move Frames to a writable Applications folder and try again.")
         }
-
-        // Launch the replacement via an explicit argv array; no shell is involved.
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        process.arguments = ["-n", targetAppURL.path]
-        try process.run()
-
-        // The staging and backup directories are removed on the next launch by
-        // `cleanupStaleUpdateDirectories()` so the old bundle can finish exiting.
+        let backup = stage.appendingPathComponent("Frames.app")
+        var retainBackup = false
+        defer { if !retainBackup { try? fm.removeItem(at: stage) } }
+        try fm.copyItem(at: newAppURL, to: backup)
+        try exchangeBundles(at: backup, and: targetAppURL)
+        do {
+            let config = NSWorkspace.OpenConfiguration()
+            config.createsNewApplicationInstance = true
+            _ = try await NSWorkspace.shared.openApplication(at: targetAppURL, configuration: config)
+        } catch {
+            do {
+                try exchangeBundles(at: backup, and: targetAppURL)
+            } catch {
+                retainBackup = true
+                throw updateError(code: -26, message: "The new version could not launch. Your previous installation is at \(backup.path).")
+            }
+            throw updateError(code: -25, message: "macOS could not launch the update. Your previous installation was restored. You can also install this release from GitHub.")
+        }
     }
 
-    /// Removes update staging directories left by a previous relaunch.
-    public static func cleanupStaleUpdateDirectories() {
-        let fileManager = FileManager.default
-        let temp = fileManager.temporaryDirectory
-        guard let contents = try? fileManager.contentsOfDirectory(at: temp, includingPropertiesForKeys: nil) else {
-            return
-        }
-        for item in contents where item.lastPathComponent.hasPrefix("FramesUpdate_")
-            || item.lastPathComponent.hasPrefix("FramesUpdateBackup_") {
-            try? fileManager.removeItem(at: item)
+    nonisolated static func exchangeBundles(at first: URL, and second: URL) throws {
+        guard renamex_np(first.path, second.path, UInt32(RENAME_SWAP)) == 0 else {
+            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
         }
     }
 
@@ -691,59 +621,22 @@ public final class UpdateManager: NSObject {
 
         Only continue if you trust the Frames GitHub release.
         """
-        alert.addButton(withTitle: "Install Anyway")
         alert.addButton(withTitle: "Cancel")
-        return alert.runModal() == .alertFirstButtonReturn
+        alert.addButton(withTitle: "Install Update")
+        return alert.runModal() == .alertSecondButtonReturn
     }
 
-    /// Mirrors the manual-install step documented for unsigned releases so the
-    /// relaunched bundle does not trigger a Gatekeeper quarantine warning.
-    private static func removeQuarantineAttribute(at url: URL) throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/xattr")
-        process.arguments = ["-dr", "com.apple.quarantine", url.path]
-
-        let errorPipe = Pipe()
-        process.standardError = errorPipe
-
-        do {
-            try process.run()
-        } catch {
-            throw updateError(
-                code: -22,
-                message: "Unable to clear quarantine from the unsigned update: \(error.localizedDescription)"
-            )
-        }
-
-        process.waitUntilExit()
-        if process.terminationStatus != 0 {
-            let data = errorPipe.fileHandleForReading.readDataToEndOfFile()
-            let detail = String(data: data, encoding: .utf8)?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                ?? "unknown error"
-            // Some macOS versions report a missing attribute as an error. That
-            // is the desired end state, so only genuine failures should abort.
-            let attributeAlreadyAbsent = detail.localizedCaseInsensitiveContains("No such xattr")
-            guard attributeAlreadyAbsent else {
-                throw updateError(
-                    code: -23,
-                    message: "Unable to clear quarantine from the unsigned update: \(detail)"
-                )
-            }
-        }
-    }
-
-    private static func updateError(code: Int, message: String) -> NSError {
+    nonisolated private static func updateError(code: Int, message: String) -> NSError {
         NSError(domain: "FramesUpdate", code: code, userInfo: [NSLocalizedDescriptionKey: message])
     }
 
-    private static func isSecureHTTPS(_ url: URL) -> Bool {
+    nonisolated private static func isSecureHTTPS(_ url: URL) -> Bool {
         url.scheme?.lowercased() == "https"
     }
 
     /// Fetches the published SHA-256 manifest and verifies the downloaded archive
     /// before any extraction occurs.
-    public static func verifyArchive(_ archiveURL: URL, against assetName: String, manifestURL: URL) async throws {
+    nonisolated public static func verifyArchive(_ archiveURL: URL, against assetName: String, manifestURL: URL) async throws {
         guard isSecureHTTPS(manifestURL) else {
             throw updateError(code: -9, message: "Checksum manifest URL is not HTTPS.")
         }
@@ -772,23 +665,18 @@ public final class UpdateManager: NSObject {
 
     /// Parses a `shasum` compatible manifest. Only the file name and a 64-character
     /// hex digest are consumed; no path from the manifest is used for file access.
-    public static func expectedChecksum(from manifest: String, for fileName: String) -> String? {
-        let target = (fileName as NSString).lastPathComponent
-        for line in manifest.split(whereSeparator: \.isNewline) {
+    nonisolated public static func expectedChecksum(from manifest: String, for fileName: String) -> String? {
+        let matches = manifest.split(whereSeparator: \.isNewline).compactMap { line -> String? in
             let fields = line.split(whereSeparator: \.isWhitespace)
-            guard fields.count >= 2 else { continue }
-            let digest = String(fields[0]).lowercased()
-            let name = (String(fields[1]) as NSString).lastPathComponent
-            guard name == target,
-                  digest.count == 64,
-                  digest.allSatisfy({ $0.isHexDigit }) else { continue }
-            return digest
+            guard fields.count == 2, fields[1] == fileName || fields[1] == "*\(fileName)" else { return nil }
+            let digest = fields[0].lowercased()
+            return digest.utf8.count == 64 && digest.allSatisfy { $0.isASCII && $0.isHexDigit } ? digest : nil
         }
-        return nil
+        return matches.count == 1 ? matches[0] : nil
     }
 
     /// Streams the file through SHA-256 so large archives are not loaded into memory.
-    public static func sha256Hex(of fileURL: URL) throws -> String {
+    nonisolated public static func sha256Hex(of fileURL: URL) throws -> String {
         let handle = try FileHandle(forReadingFrom: fileURL)
         defer { try? handle.close() }
         var hasher = SHA256()
@@ -849,55 +737,25 @@ public final class UpdateManager: NSObject {
 
 // MARK: - OTA Asset Downloader (Streaming Progress)
 
-final class OTAAssetDownloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
-    var onProgress: ((Double, Int64, Int64) -> Void)?
-    private var continuation: CheckedContinuation<URL, Error>?
-    private var downloadedFileURL: URL?
+private final class OTAAssetDownloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
+    let progress: @Sendable (Double, Int64, Int64) -> Void
 
-    func download(from url: URL) async throws -> URL {
-        return try await withCheckedThrowingContinuation { continuation in
-            self.continuation = continuation
-
-            let config = URLSessionConfiguration.default
-            config.timeoutIntervalForRequest = 60
-            config.timeoutIntervalForResource = 300
-            let session = URLSession(configuration: config, delegate: self, delegateQueue: nil)
-
-            let task = session.downloadTask(with: url)
-            task.resume()
-        }
+    init(progress: @escaping @Sendable (Double, Int64, Int64) -> Void) {
+        self.progress = progress
     }
 
-    func urlSession(
+    nonisolated func urlSession(
         _ session: URLSession,
         downloadTask: URLSessionDownloadTask,
         didWriteData bytesWritten: Int64,
         totalBytesWritten: Int64,
         totalBytesExpectedToWrite: Int64
     ) {
-        let expected = totalBytesExpectedToWrite > 0 ? totalBytesExpectedToWrite : (downloadTask.response?.expectedContentLength ?? -1)
-        let progress = expected > 0 ? Double(totalBytesWritten) / Double(expected) : 0.0
-        onProgress?(progress, totalBytesWritten, expected)
+        let total = totalBytesExpectedToWrite
+        progress(total > 0 ? Double(totalBytesWritten) / Double(total) : 0, totalBytesWritten, total)
     }
 
-    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
-        do {
-            let tempDir = FileManager.default.temporaryDirectory
-            let targetURL = tempDir.appendingPathComponent("FramesAsset_\(UUID().uuidString).zip")
-            try FileManager.default.copyItem(at: location, to: targetURL)
-            self.downloadedFileURL = targetURL
-            continuation?.resume(returning: targetURL)
-            continuation = nil
-        } catch {
-            continuation?.resume(throwing: error)
-            continuation = nil
-        }
-    }
-
-    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        if let error = error {
-            continuation?.resume(throwing: error)
-            continuation = nil
-        }
+    nonisolated func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
+        // The async download API delivers the file URL to the awaiting task.
     }
 }

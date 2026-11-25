@@ -111,7 +111,7 @@ public final class VideoPlayerEngine {
             guard oldValue != playbackRate else { return }
             let clamped = max(0.25, min(playbackRate, 4.0))
             player.defaultRate = clamped
-            if isPlaying {
+            if isPlaying && !isNativePipelineActive {
                 player.rate = clamped
             }
             lastSyncTime = currentTime
@@ -277,7 +277,15 @@ public final class VideoPlayerEngine {
         loadGeneration &+= 1
         let generation = loadGeneration
         clearPlayerItemObservers()
+        seekGeneration &+= 1
+        isSeekInProgress = false
+        chaseTime = .zero
         isScrubbing = false
+        player.pause()
+        player.replaceCurrentItem(with: nil)
+        isPlaying = false
+        metadata = VideoMetadata()
+        nativePipeline.renderer?.preferredAspectRatio = nil
 
         if isNativePipelineActive {
             nativePipeline.stopDeferringHeavyTeardown()
@@ -313,12 +321,12 @@ public final class VideoPlayerEngine {
             return
         }
 
-        loadAVPlayerPipeline(url: url, initialSeekTime: initialSeekTime, generation: generation)
+        loadAVPlayerPipeline(url: url, initialSeekTime: initialSeekTime, generation: generation, autoPlay: autoPlay)
     }
 
     /// Secondary fallback pipeline leveraging AVFoundation for streaming protocols
     /// and formats outside of Frames' native binary demuxer suite.
-    private func loadAVPlayerPipeline(url: URL, initialSeekTime: Double?, generation: UInt, autoPlay: Bool = true) {
+    private func loadAVPlayerPipeline(url: URL, initialSeekTime: Double?, generation: UInt, autoPlay: Bool, nativeError: String? = nil) {
         self.isNativePipelineActive = false
 
         let asset = AVURLAsset(url: url)
@@ -330,7 +338,7 @@ public final class VideoPlayerEngine {
             ? .monoStereoAndMultichannel
             : []
 
-        observePlayerItem(playerItem)
+        observePlayerItem(playerItem, generation: generation, nativeError: nativeError)
         player.replaceCurrentItem(with: playerItem)
         player.defaultRate = playbackRate
         player.volume = volume
@@ -761,12 +769,12 @@ public final class VideoPlayerEngine {
         }
     }
 
-    private func observePlayerItem(_ item: AVPlayerItem) {
+    private func observePlayerItem(_ item: AVPlayerItem, generation: UInt, nativeError: String?) {
         clearPlayerItemObservers()
 
         statusObserver = item.observe(\.status, options: [.new]) { [weak self] playerItem, _ in
             Task { @MainActor [weak self] in
-                guard let self = self, !self.isNativePipelineActive else { return }
+                guard let self, self.loadGeneration == generation, self.player.currentItem === playerItem else { return }
                 if playerItem.status == .readyToPlay {
                     let d = playerItem.duration.seconds
                     if !d.isNaN && !d.isInfinite && d > 0 {
@@ -801,15 +809,9 @@ public final class VideoPlayerEngine {
                         }
                     }
                 } else if playerItem.status == .failed {
-                    guard self.player.currentItem === playerItem else { return }
-                    if let url = self.currentURL, self.canFallbackToNativePipeline(for: url) {
-                        let resumeTime = (self.currentTime > 0) ? self.currentTime : self.pendingInitialSeekTime
-                        self.startNativePipeline(url: url, initialSeekTime: resumeTime)
-                        return
-                    }
-                    self.isBuffering = false
+                    self.updateBufferingStatus(false)
                     self.isPlaying = false
-                    self.playbackError = playerItem.error?.localizedDescription ?? "macOS cannot decode this media on this Mac."
+                    self.playbackError = nativeError ?? playerItem.error?.localizedDescription ?? "macOS cannot decode this media on this Mac."
                 }
             }
         }
@@ -818,7 +820,7 @@ public final class VideoPlayerEngine {
             Task { @MainActor [weak self] in
                 // A queued AVPlayer notification must not overwrite the state of
                 // the native pipeline that took over from AVFoundation.
-                guard let self = self, !self.isNativePipelineActive else { return }
+                guard let self, self.loadGeneration == generation, self.player.currentItem === item, item.status != .failed else { return }
                 self.isPlaying = (p.timeControlStatus == .playing)
                 self.updateBufferingStatus(p.timeControlStatus == .waitingToPlayAtSpecifiedRate)
             }
@@ -830,7 +832,8 @@ public final class VideoPlayerEngine {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.markPlaybackEnded()
+                guard let self, self.loadGeneration == generation, self.player.currentItem === item else { return }
+                self.markPlaybackEnded()
             }
         }
     }
@@ -846,10 +849,6 @@ public final class VideoPlayerEngine {
             NotificationCenter.default.removeObserver(endObserver)
         }
         itemDidPlayToEndObserver = nil
-    }
-
-    private func canFallbackToNativePipeline(for url: URL) -> Bool {
-        return PlaybackPipeline.isSupportedContainer(at: url)
     }
 
     public func canUseNativePipeline(for url: URL) -> Bool {
@@ -892,9 +891,12 @@ public final class VideoPlayerEngine {
             guard success else {
                 // Milestone 2 Fallback: Gracefully fall back to AVFoundation
                 // if the native demuxer encounters an unsupported track layout or codec.
+                let reason: String?
+                if case .error(let message) = self.nativePipeline.state { reason = message } else { reason = nil }
                 self.nativePipeline.stopDeferringHeavyTeardown()
                 self.isNativePipelineActive = false
-                self.loadAVPlayerPipeline(url: url, initialSeekTime: initialSeekTime, generation: generation, autoPlay: autoPlay)
+                self.loadAVPlayerPipeline(url: url, initialSeekTime: initialSeekTime, generation: generation,
+                                          autoPlay: autoPlay, nativeError: reason)
                 return
             }
 
@@ -921,7 +923,7 @@ public final class VideoPlayerEngine {
                 ))
             }
             self.availableAudioTracks = audios
-            if let preferred = self.findPreferredAudioTrack(in: audios) {
+            if let preferred = audios.first(where: { $0.trackNumber == self.nativePipeline.activeAudioTrackNumber }) {
                 self.selectedAudioTrack = preferred
                 if let tNum = preferred.trackNumber {
                     self.nativePipeline.selectAudioTrack(trackNumber: tNum)
@@ -951,7 +953,7 @@ public final class VideoPlayerEngine {
             self.selectedSubtitleTrack = SubtitleTrack.off
 
             // Inspect video metadata from demuxer
-            if let vTrack = self.nativePipeline.demuxer?.videoTracks.first {
+            if let vTrack = self.nativePipeline.selectedVideoTrack {
                 self.metadata.naturalSize = CGSize(width: vTrack.displayWidth, height: vTrack.displayHeight)
                 if vTrack.displayWidth > 0 && vTrack.displayHeight > 0 {
                     self.nativePipeline.renderer?.preferredAspectRatio = Float(vTrack.displayWidth) / Float(vTrack.displayHeight)
@@ -1148,7 +1150,7 @@ public final class VideoPlayerEngine {
 
         guard loadGeneration == generation, player.currentItem === item else { return }
         self.availableAudioTracks = audios
-        if let preferred = self.findPreferredAudioTrack(in: audios) {
+        if let preferred = audios.first(where: { $0.trackNumber == self.nativePipeline.activeAudioTrackNumber }) {
             self.selectedAudioTrack = preferred
             self.selectAudioTrack(preferred)
         } else {

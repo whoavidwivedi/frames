@@ -11,6 +11,7 @@ import Foundation
 import AppKit
 import Darwin
 import Metal
+import VideoToolbox
 
 public final class AppleSiliconMetrics: @unchecked Sendable {
     public static let shared = AppleSiliconMetrics()
@@ -73,8 +74,8 @@ public final class AppleSiliconMetrics: @unchecked Sendable {
     /// Hardware ProRes / ProRes RAW dual decode/encode media engines (M1 Pro/Max/Ultra and all M2, M3, M4 chips).
     public let supportsHardwareProRes: Bool
 
-    /// Hardware HEVC (H.265) 10-bit HDR / Dolby Vision ASIC decode/encode (all Apple Silicon M-series).
-    public let supportsHardwareHEVC10Bit: Bool
+    /// Hardware HEVC decoder availability. Individual profiles are negotiated when opening a track.
+    public let supportsHardwareHEVC: Bool
 
     /// Hardware H.264 / AVC ASIC decode/encode (all Apple Silicon M-series).
     public let supportsHardwareH264: Bool
@@ -155,42 +156,11 @@ public final class AppleSiliconMetrics: @unchecked Sendable {
             self.gpuFamilyName = "Integrated GPU"
         }
 
-        // Hardware AV1 ASIC Decoding: M3, M4, M5+ or Metal Apple9 family on ARM64
-        var av1Supported = false
-        if isArm {
-            switch self.generation {
-            case .m3, .m4, .m5:
-                av1Supported = true
-            case .appleSilicon:
-                if let dev = MTLCreateSystemDefaultDevice(), dev.supportsFamily(.apple9) {
-                    av1Supported = true
-                }
-            default:
-                break
-            }
-        }
-        self.supportsHardwareAV1Decode = av1Supported
-
-        // Hardware ProRes ASIC Decoding/Encoding:
-        // Available on M1 Pro/Max/Ultra and standard across all M2, M3, M4, and M5 chips
-        var proResSupported = false
-        if isArm {
-            switch self.generation {
-            case .m2, .m3, .m4, .m5:
-                proResSupported = true
-            case .m1:
-                proResSupported = (self.tier == .pro || self.tier == .max || self.tier == .ultra)
-            case .appleSilicon:
-                proResSupported = true
-            case .intel:
-                proResSupported = false
-            }
-        }
-        self.supportsHardwareProRes = proResSupported
-
-        // H.264 & HEVC 10-bit hardware decode/encode is natively built into all Apple Silicon M-series
-        self.supportsHardwareHEVC10Bit = isArm
-        self.supportsHardwareH264 = isArm
+        // Ask the media framework itself. A model-name guess also misreports virtual machines.
+        self.supportsHardwareAV1Decode = VTIsHardwareDecodeSupported(kCMVideoCodecType_AV1)
+        self.supportsHardwareProRes = VTIsHardwareDecodeSupported(kCMVideoCodecType_AppleProRes422)
+        self.supportsHardwareHEVC = VTIsHardwareDecodeSupported(kCMVideoCodecType_HEVC)
+        self.supportsHardwareH264 = VTIsHardwareDecodeSupported(kCMVideoCodecType_H264)
     }
 
     // MARK: - Dynamic Memory & Cache Scaling
@@ -219,7 +189,7 @@ public final class AppleSiliconMetrics: @unchecked Sendable {
     public var hardwareSummary: String {
         var engines: [String] = []
         if supportsHardwareH264 { engines.append("H.264") }
-        if supportsHardwareHEVC10Bit { engines.append("HEVC 10-bit") }
+        if supportsHardwareHEVC { engines.append("HEVC") }
         if supportsHardwareProRes { engines.append("ProRes") }
         if supportsHardwareAV1Decode { engines.append("AV1 HW") }
         let enginesStr = engines.isEmpty ? "Software" : engines.joined(separator: ", ")

@@ -1571,6 +1571,11 @@ public enum FramesTestSuite {
         let vEmpty = SemanticVersion(string: "")
         assertTest("SemVer Empty String Guard", condition: vEmpty == nil)
 
+        assertTest("SemVer Rejects Empty and Extra Components", condition: ["1..2", "1.2.3.4", "1.0.0-", "1.0.0-beta.01"].allSatisfy { SemanticVersion(string: $0) == nil })
+        assertTest("SemVer Hash Uses Normalized Components", condition: Set(["v2", "2.0", "2.0.0+ci.20"].compactMap(SemanticVersion.init(string:))).count == 1)
+        let orderedPrereleases = ["2.0.0-1", "2.0.0-alpha", "2.0.0-beta.2", "2.0.0-beta.11", "2.0.0"].compactMap(SemanticVersion.init(string:))
+        assertTest("SemVer Prerelease Uses Numeric and ASCII Ordering", condition: orderedPrereleases.count == 5 && orderedPrereleases.reversed().sorted() == orderedPrereleases)
+
         // 2. SemVer Comparison & Ordering
         let v1_1_0 = SemanticVersion(string: "1.1.0")!
         let v1_2_0 = SemanticVersion(string: "1.2.0")!
@@ -1588,47 +1593,48 @@ public enum FramesTestSuite {
         assertTest("SemVer Collection Sorting", condition: sorted == [v1_1_0, v1_2_0, v1_10_0, v2_0_0])
 
         // 3. GitHub API Decoding
+        let futureTag = "v\(UpdateManager.shared.currentVersion.major + 1).0.0"
         let sampleJSON = """
         {
-          "tag_name": "v2.0.0",
-          "name": "Frames v2.0.0 - Next Gen Major Update",
+          "tag_name": "\(futureTag)",
+          "name": "Frames \(futureTag) - Next Gen Major Update",
           "body": "## What's New\\n- Faster seeking\\n- Liquid Glass polish",
-          "html_url": "https://github.com/whoavidwivedi/frames/releases/tag/v2.0.0",
+          "html_url": "https://github.com/whoavidwivedi/frames/releases/tag/\(futureTag)",
           "published_at": "2026-11-05T00:00:00Z",
           "assets": [
             {
               "id": 101,
-              "name": "Frames-v2.0.0-macOS.zip",
-              "browser_download_url": "https://github.com/whoavidwivedi/frames/releases/download/v2.0.0/Frames-v2.0.0-macOS.zip",
+              "name": "Frames-\(futureTag)-macOS.zip",
+              "browser_download_url": "https://github.com/whoavidwivedi/frames/releases/download/\(futureTag)/Frames-\(futureTag)-macOS.zip",
               "size": 2500000,
               "content_type": "application/zip"
             },
             {
               "id": 102,
-              "name": "Frames-v2.0.0-AppleSilicon.dmg",
-              "browser_download_url": "https://github.com/whoavidwivedi/frames/releases/download/v2.0.0/Frames-v2.0.0-AppleSilicon.dmg",
+              "name": "SHA256SUMS.txt",
+              "browser_download_url": "https://github.com/whoavidwivedi/frames/releases/download/\(futureTag)/SHA256SUMS.txt",
               "size": 2800000,
-              "content_type": "application/x-apple-diskimage"
+              "content_type": "text/plain"
             }
           ]
         }
         """
         let decodedRelease = try? JSONDecoder().decode(GitHubRelease.self, from: sampleJSON.data(using: .utf8)!)
-        assertTest("GitHub Release JSON Decoded", condition: decodedRelease != nil && decodedRelease?.tagName == "v2.0.0")
+        assertTest("GitHub Release JSON Decoded", condition: decodedRelease != nil && decodedRelease?.tagName == futureTag)
         assertTest("GitHub Release Assets Count", condition: decodedRelease?.assets.count == 2)
         let zipAsset = decodedRelease?.assets.first(where: { $0.isZipPayload })
-        assertTest("Zip Asset Identified", condition: zipAsset != nil && zipAsset?.name == "Frames-v2.0.0-macOS.zip")
+        assertTest("Zip Asset Identified", condition: zipAsset != nil && zipAsset?.name == "Frames-\(futureTag)-macOS.zip")
         assertTest("Asset Size Formatted Non-Empty", condition: zipAsset?.formattedSize.isEmpty == false)
 
         // Checksum manifest parsing (update verification)
         let sampleManifest = """
-        abc123  Frames-v2.0.0-macOS.zip
-        \(String(repeating: "a", count: 64))  Frames-v2.0.0-macOS.zip
+        abc123  Frames-\(futureTag)-macOS.zip
+        \(String(repeating: "a", count: 64))  Frames-\(futureTag)-macOS.zip
         \(String(repeating: "b", count: 64))  OtherAsset.zip
         """
         assertTest(
             "Checksum Entry Matches Archive",
-            condition: UpdateManager.expectedChecksum(from: sampleManifest, for: "Frames-v2.0.0-macOS.zip") == String(repeating: "a", count: 64)
+            condition: UpdateManager.expectedChecksum(from: sampleManifest, for: "Frames-\(futureTag)-macOS.zip") == String(repeating: "a", count: 64)
         )
         assertTest(
             "Checksum Entry Rejects Wrong Archive",
@@ -1636,8 +1642,13 @@ public enum FramesTestSuite {
         )
         assertTest(
             "Checksum Entry Rejects Malformed Digest",
-            condition: UpdateManager.expectedChecksum(from: "abc123  Frames-v2.0.0-macOS.zip\n", for: "Frames-v2.0.0-macOS.zip") == nil
+            condition: UpdateManager.expectedChecksum(from: "abc123  Frames-\(futureTag)-macOS.zip\n", for: "Frames-\(futureTag)-macOS.zip") == nil
         )
+
+        let digest = String(repeating: "a", count: 64)
+        assertTest("Checksum Rejects Unrelated Relative Path", condition: UpdateManager.expectedChecksum(from: "\(digest)  nested/Frames.zip", for: "Frames.zip") == nil)
+        assertTest("Checksum Rejects Duplicate Entries", condition: UpdateManager.expectedChecksum(from: "\(digest)  Frames.zip\n\(digest)  Frames.zip", for: "Frames.zip") == nil)
+        assertTest("Checksum Supports Binary Manifest", condition: UpdateManager.expectedChecksum(from: "\(digest) *Frames.zip", for: "Frames.zip") == digest)
 
         // 4. UpdateManager Release Processing
         let updater = UpdateManager.shared
@@ -1648,16 +1659,16 @@ public enum FramesTestSuite {
         if let rel = decodedRelease {
             updater.processRelease(rel, manual: false)
             assertTest("UpdateManager Flags Available Update", condition: updater.hasUpdate)
-            assertTest("UpdateManager Available Version Matches", condition: updater.availableUpdate?.tagName == "v2.0.0")
+            assertTest("UpdateManager Available Version Matches", condition: updater.availableUpdate?.tagName == futureTag)
 
             // Test Skip Version
-            updater.skipVersion("v2.0.0")
-            assertTest("UpdateManager Version Skipped Recorded", condition: updater.isVersionSkipped("v2.0.0"))
+            updater.skipVersion(futureTag)
+            assertTest("UpdateManager Version Skipped Recorded", condition: updater.isVersionSkipped(futureTag))
             // Clean up skipped version
             var skipped = updater.skippedVersions
-            skipped.remove("v2.0.0")
+            skipped.remove(futureTag)
             updater.skippedVersions = skipped
-            assertTest("UpdateManager Version Unskipped", condition: !updater.isVersionSkipped("v2.0.0"))
+            assertTest("UpdateManager Version Unskipped", condition: !updater.isVersionSkipped(futureTag))
         }
 
         // Test process older/same release
@@ -1711,7 +1722,8 @@ public enum FramesTestSuite {
                     name: "Frames-v2.1.0-beta.1-macOS.zip",
                     browserDownloadUrl: "https://example.com/Frames-v2.1.0-beta.1-macOS.zip",
                     size: 15_000_000
-                )
+                ),
+                GitHubReleaseAsset(id: 100000, name: "SHA256SUMS.txt", browserDownloadUrl: "https://example.com/SHA256SUMS.txt", size: 96)
             ]
         )
         updater.processRelease(betaRelease, manual: false)
@@ -1728,15 +1740,12 @@ public enum FramesTestSuite {
         assertTest("Target App Bundle Resolved", condition: resolvedTarget.path.hasSuffix(".app"))
 
         // Verify current bundle integrity
-        var bundleVerificationPassed = false
         do {
-            try UpdateManager.verifyAppBundle(at: Bundle.main.bundleURL)
-            bundleVerificationPassed = true
+            try UpdateManager.verifyAppBundle(at: Bundle.main.bundleURL, expectedVersion: updater.currentVersion)
+            assertTest("Host Bundle Matches Installed Version", condition: true)
         } catch {
-            // Bundle.main.bundleURL might be executable during test invocation
-            bundleVerificationPassed = true
+            assertTest("Host Bundle Matches Installed Version", condition: false)
         }
-        assertTest("Bundle Verification Routine Operable", condition: bundleVerificationPassed)
 
         // Test invalid bundle rejection
         var invalidBundleRejected = false
@@ -1749,6 +1758,22 @@ public enum FramesTestSuite {
         }
         try? FileManager.default.removeItem(at: tempDir)
         assertTest("Invalid Bundle Correctly Rejected", condition: invalidBundleRejected)
+
+        let swapDir = FileManager.default.temporaryDirectory.appendingPathComponent("FramesSwapTest-\(UUID().uuidString)")
+        do {
+            try FileManager.default.createDirectory(at: swapDir, withIntermediateDirectories: false)
+            defer { try? FileManager.default.removeItem(at: swapDir) }
+            let old = swapDir.appendingPathComponent("existing"), new = swapDir.appendingPathComponent("staged")
+            try Data("old".utf8).write(to: old)
+            try Data("new".utf8).write(to: new)
+            try UpdateManager.exchangeBundles(at: old, and: new)
+            let swapped = try Data(contentsOf: old) == Data("new".utf8)
+            try UpdateManager.exchangeBundles(at: old, and: new)
+            let restored = try Data(contentsOf: old) == Data("old".utf8)
+            assertTest("OTA Atomic Exchange and Rollback", condition: swapped && restored)
+        } catch {
+            assertTest("OTA Atomic Exchange and Rollback", condition: false, error.localizedDescription)
+        }
 
         // 5b. Signature policy rejects bundles with no valid signature.
         var adHocPolicyRejectedInvalidBundle = false
@@ -3007,18 +3032,12 @@ public enum FramesTestSuite {
 
         // Build Video Track Sample Table (stbl)
         // a. avcC child box (H.264 SPS & PPS)
-        var avcCPayload = Data()
-        avcCPayload.append(1) // version 1
-        avcCPayload.append(100) // profile High
-        avcCPayload.append(0) // compat
-        avcCPayload.append(40) // level 4.0
-        avcCPayload.append(0xFF) // nalLengthSize = 4 (0xFC | 3)
-        avcCPayload.append(0xE1) // numSPS = 1 (0xE0 | 1)
-        appendUInt16(4, to: &avcCPayload) // SPS length = 4
-        avcCPayload.append(contentsOf: [0x67, 0x64, 0x00, 0x28]) // SPS NAL
-        avcCPayload.append(1) // numPPS = 1
-        appendUInt16(4, to: &avcCPayload) // PPS length = 4
-        avcCPayload.append(contentsOf: [0x68, 0xEE, 0x3C, 0x80]) // PPS NAL
+        // Complete 1080p AVC configuration from the repository's playback fixture.
+        let avcCPayload = Data([
+            0x01, 0x64, 0x00, 0x28, 0xff, 0xe1, 0x00, 0x0c, 0x27, 0x64, 0x00, 0x28,
+            0xac, 0x56, 0x50, 0x1e, 0x00, 0x89, 0xf9, 0x50, 0x01, 0x00, 0x04, 0x28,
+            0xee, 0x3c, 0xb0, 0xfd, 0xf8, 0xf8, 0x00
+        ])
         let avcCBox = makeBox(.avcC, avcCPayload)
 
         // b. colr child box (BT.2020 Primaries, PQ Transfer, Full Range)
@@ -3205,7 +3224,7 @@ public enum FramesTestSuite {
                 // Verify extradata avcC parsing via NALParser
                 if let priv = vTrack.codecPrivate,
                    let parsedAVC = NALParser.parseAVCDecoderConfigurationRecord(priv) {
-                    assertTest("MP4 avcC SPS Parameter Set Extracted", condition: parsedAVC.sps.count == 1 && parsedAVC.sps[0].count == 4)
+                    assertTest("MP4 avcC SPS Parameter Set Extracted", condition: parsedAVC.sps.count == 1 && parsedAVC.sps[0].count == 12)
                     assertTest("MP4 avcC PPS Parameter Set Extracted", condition: parsedAVC.pps.count == 1 && parsedAVC.pps[0].count == 4)
                     assertTest("MP4 avcC NAL Length Size Is 4", condition: parsedAVC.nalLengthSize == 4)
                 } else {

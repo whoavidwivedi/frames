@@ -7,9 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A11100012345678901234567 /* GoogleSansFlex.ttf in Resources */ = {isa = PBXBuildFile; fileRef = B22200022345678901234567 /* GoogleSansFlex.ttf */; };
-		C11100032345678901234567 /* GoogleSansFont.swift in Sources */ = {isa = PBXBuildFile; fileRef = D22200042345678901234567 /* GoogleSansFont.swift */; };
 		0842326DC9FC3AE882B174A1 /* framesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63590F9AD633F762940AB2EC /* framesTests.swift */; };
+		550477BE43104176A1CDC2E9 /* IVFDemuxerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BB2B0E27D384E909A33510E /* IVFDemuxerTests.swift */; };
 		7F3E1A2B4C5D6E7F8091A2B4 /* FramesTestSuite.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49CDD2212CF07B838E59513F /* FramesTestSuite.swift */; };
 		0232F4A238A36D0F37B41026 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 056BD858FB795266DD647D3B /* AppIcon.icns */; };
 		E8C4EF41630A99B17C809543 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8B71FFE2A1D445C057EF475B /* Assets.xcassets */; };
@@ -28,6 +27,8 @@
 		B6693F741CD6CE57B617B0E9 /* MatroskaDemuxer.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACE5F605D892EF1C6A3B3D3F /* MatroskaDemuxer.swift */; };
 		2A3B4C5D6E7F8091A2B3C4D6 /* MediaDemuxer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A2B3C4D5E6F708192A3B4C5 /* MediaDemuxer.swift */; };
 		4C5D6E7F8091A2B3C4D5E6F8 /* MP4Demuxer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B4C5D6E7F8091A2B3C4D5E7 /* MP4Demuxer.swift */; };
+		A1C6577EE0C445D48C5282C5 /* AVIDemuxer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 942DEE41278440A4A2A33731 /* AVIDemuxer.swift */; };
+		61277007A9FC4D99ACF6A5EF /* IVFDemuxer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48EF535BF93C46E08D6F969C /* IVFDemuxer.swift */; };
 		B870E19C222D69CEE77E1D1B /* VideoToolboxEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8B0766AEE618C3FE178896 /* VideoToolboxEncoder.swift */; };
 		F06491E0AC2B826CEE710AAA /* KeyboardHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = C512032DA5E3A32B58036A23 /* KeyboardHandler.swift */; };
 		2BB807C927CCAF86607BE560 /* LibraryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B809D143C17488282B447C8B /* LibraryManager.swift */; };
@@ -94,10 +95,9 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		B22200022345678901234567 /* GoogleSansFlex.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "GoogleSansFlex.ttf"; sourceTree = "<group>"; };
-		D22200042345678901234567 /* GoogleSansFont.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GoogleSansFont.swift"; sourceTree = "<group>"; };
 		95633A08AC47E53810D61789 /* framesTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = framesTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		63590F9AD633F762940AB2EC /* framesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = framesTests.swift; sourceTree = "<group>"; };
+		0BB2B0E27D384E909A33510E /* IVFDemuxerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IVFDemuxerTests.swift; sourceTree = "<group>"; };
 		44969C4B309A2D22006FA09B /* frames.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = frames.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		056BD858FB795266DD647D3B /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = "AppIcon.icns"; sourceTree = "<group>"; };
 		8B71FFE2A1D445C057EF475B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Assets.xcassets"; sourceTree = "<group>"; };
@@ -116,6 +116,8 @@
 		ACE5F605D892EF1C6A3B3D3F /* MatroskaDemuxer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MatroskaDemuxer.swift"; sourceTree = "<group>"; };
 		1A2B3C4D5E6F708192A3B4C5 /* MediaDemuxer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MediaDemuxer.swift"; sourceTree = "<group>"; };
 		3B4C5D6E7F8091A2B3C4D5E7 /* MP4Demuxer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MP4Demuxer.swift"; sourceTree = "<group>"; };
+		942DEE41278440A4A2A33731 /* AVIDemuxer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AVIDemuxer.swift"; sourceTree = "<group>"; };
+		48EF535BF93C46E08D6F969C /* IVFDemuxer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "IVFDemuxer.swift"; sourceTree = "<group>"; };
 		5A8B0766AEE618C3FE178896 /* VideoToolboxEncoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VideoToolboxEncoder.swift"; sourceTree = "<group>"; };
 		C512032DA5E3A32B58036A23 /* KeyboardHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "KeyboardHandler.swift"; sourceTree = "<group>"; };
 		B809D143C17488282B447C8B /* LibraryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryManager.swift"; sourceTree = "<group>"; };
@@ -205,6 +207,7 @@
 			isa = PBXGroup;
 			children = (
 				63590F9AD633F762940AB2EC /* framesTests.swift */,
+				0BB2B0E27D384E909A33510E /* IVFDemuxerTests.swift */,
 				49CDD2212CF07B838E59513F /* FramesTestSuite.swift */,
 			);
 			path = framesTests;
@@ -222,7 +225,6 @@
 		CF5497604C271D84CB4E4DA2 /* frames */ = {
 			isa = PBXGroup;
 			children = (
-				B22200022345678901234567 /* GoogleSansFlex.ttf */,
 				056BD858FB795266DD647D3B /* AppIcon.icns */,
 				8B71FFE2A1D445C057EF475B /* Assets.xcassets */,
 				049A20C1FBCCDE23AF9065FF /* ContentView.swift */,
@@ -288,6 +290,8 @@
 				ACE5F605D892EF1C6A3B3D3F /* MatroskaDemuxer.swift */,
 				1A2B3C4D5E6F708192A3B4C5 /* MediaDemuxer.swift */,
 				3B4C5D6E7F8091A2B3C4D5E7 /* MP4Demuxer.swift */,
+				942DEE41278440A4A2A33731 /* AVIDemuxer.swift */,
+				48EF535BF93C46E08D6F969C /* IVFDemuxer.swift */,
 			);
 			path = "Demuxer";
 			sourceTree = "<group>";
@@ -357,7 +361,6 @@
 		A4A698C105BA79AF70E26EBC /* Components */ = {
 			isa = PBXGroup;
 			children = (
-				D22200042345678901234567 /* GoogleSansFont.swift */,
 				D7F0F376E3171E5B82B3D681 /* CustomScrubber.swift */,
 				59E9E301B1965D9ED550466E /* LiquidGlassStyle.swift */,
 				B9981A90A8E4365A9AD362F1 /* PointerCursor.swift */,
@@ -500,7 +503,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A11100012345678901234567 /* GoogleSansFlex.ttf in Resources */,
 				0232F4A238A36D0F37B41026 /* AppIcon.icns in Resources */,
 				E8C4EF41630A99B17C809543 /* Assets.xcassets in Resources */,
 			);
@@ -528,6 +530,8 @@
 				B6693F741CD6CE57B617B0E9 /* MatroskaDemuxer.swift in Sources */,
 				2A3B4C5D6E7F8091A2B3C4D6 /* MediaDemuxer.swift in Sources */,
 				4C5D6E7F8091A2B3C4D5E6F8 /* MP4Demuxer.swift in Sources */,
+				A1C6577EE0C445D48C5282C5 /* AVIDemuxer.swift in Sources */,
+				61277007A9FC4D99ACF6A5EF /* IVFDemuxer.swift in Sources */,
 				B870E19C222D69CEE77E1D1B /* VideoToolboxEncoder.swift in Sources */,
 				F06491E0AC2B826CEE710AAA /* KeyboardHandler.swift in Sources */,
 				2BB807C927CCAF86607BE560 /* LibraryManager.swift in Sources */,
@@ -556,7 +560,6 @@
 				AA11BB22CC33DD44EE55FF01 /* ShadcnBadge.swift in Sources */,
 				12718C145356E808E0FE8118 /* ShadcnCommand.swift in Sources */,
 				0228E85A8A1C399717EC310C /* ShadcnTheme.swift in Sources */,
-				C11100032345678901234567 /* GoogleSansFont.swift in Sources */,
 				770F21E1E6CB2D1B6762027A /* TimeFormatting.swift in Sources */,
 				C5A487A958D8338CF540EED8 /* TitleBarArea.swift in Sources */,
 				F607699E6E4774725F55BB1B /* UpdateNoticeToast.swift in Sources */,
@@ -590,6 +593,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				0842326DC9FC3AE882B174A1 /* framesTests.swift in Sources */,
+				550477BE43104176A1CDC2E9 /* IVFDemuxerTests.swift in Sources */,
 				7F3E1A2B4C5D6E7F8091A2B4 /* FramesTestSuite.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -730,7 +734,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 62;
+				CURRENT_PROJECT_VERSION = 63;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -742,7 +746,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.9.7;
+				MARKETING_VERSION = 2.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = whoavidwivedi.frames;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -761,7 +765,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 62;
+				CURRENT_PROJECT_VERSION = 63;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -773,7 +777,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.9.7;
+				MARKETING_VERSION = 2.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = whoavidwivedi.frames;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -791,14 +795,14 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 62;
+				CURRENT_PROJECT_VERSION = 63;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.9.7;
+				MARKETING_VERSION = 2.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = whoavidwivedi.framesTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -814,14 +818,14 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 62;
+				CURRENT_PROJECT_VERSION = 63;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.9.7;
+				MARKETING_VERSION = 2.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = whoavidwivedi.framesTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;

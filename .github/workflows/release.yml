@@ -9,11 +9,27 @@ on:
       version:
         description: 'Version tag to release (e.g. 1.2.0)'
         required: true
-        default: '1.2.0'
+      revision:
+        description: 'Optional expected main commit'
+        required: false
+      prerelease:
+        description: 'Mark as prerelease'
+        type: boolean
+        default: false
+      title:
+        description: 'Optional release title'
+        required: false
+      notes:
+        description: 'Optional release notes'
+        required: false
       draft:
         description: 'Publish as draft release'
         type: boolean
         default: false
+
+concurrency:
+  group: publish-frames
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -32,20 +48,41 @@ jobs:
 
       - name: Resolve release version
         id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_REVISION: ${{ inputs.revision }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION="${{ github.ref_name }}"
-          if [ -z "$VERSION" ] || [ "$VERSION" = "main" ]; then
-            VERSION="${{ inputs.version }}"
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
+            [[ "$GITHUB_REF" == refs/heads/main ]] || { echo "::error::Dispatch from main."; exit 1; }
+            [[ -z "$INPUT_REVISION" || "$INPUT_REVISION" == "$GITHUB_SHA" ]] || { echo "::error::main advanced. Recheck the release revision."; exit 1; }
+            VERSION="${INPUT_VERSION#v}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
           fi
-          VERSION="${VERSION#v}"
-          if [ -z "$VERSION" ]; then
-            echo "::error::Could not resolve a release version."
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]
+          git merge-base --is-ancestor HEAD origin/main
+          tag="v$VERSION"
+          if git show-ref --verify --quiet "refs/tags/$tag"; then
+            [[ "$(git rev-parse "$tag^{commit}")" == "$(git rev-parse HEAD)" ]] || { echo "::error::Tag points at a different revision."; exit 1; }
+          fi
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "::error::Release $tag already exists."
             exit 1
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Test release revision
+        run: |
+          xcodebuild -project frames.xcodeproj -scheme frames -configuration Debug \
+            -destination "platform=macOS,arch=arm64" -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO test
 
       - name: Build Release App
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           xcodebuild -project frames.xcodeproj \
             -scheme frames \
@@ -57,7 +94,7 @@ jobs:
             SWIFT_PARALLEL_WHOLE_MODULE_OPTIMIZATION=YES \
             COMPILER_INDEX_STORE_ENABLE=NO \
             CODE_SIGNING_ALLOWED=NO \
-            FRAMES_DEVELOPER_TEAM_ID=${{ secrets.APPLE_TEAM_ID }} \
+            FRAMES_DEVELOPER_TEAM_ID="$APPLE_TEAM_ID" \
             build
 
       - name: Check signing configuration
@@ -75,9 +112,12 @@ jobs:
              [ -n "$MACOS_SIGNING_IDENTITY" ] && [ -n "$APPLE_ID" ] && \
              [ -n "$APPLE_TEAM_ID" ] && [ -n "$APPLE_APP_PASSWORD" ]; then
             echo "mode=signed" >> "$GITHUB_OUTPUT"
+          elif [[ -n "$MACOS_CERTIFICATE$MACOS_CERTIFICATE_PASSWORD$MACOS_SIGNING_IDENTITY$APPLE_ID$APPLE_TEAM_ID$APPLE_APP_PASSWORD" ]]; then
+            echo "::error::Incomplete Developer ID configuration."
+            exit 1
           elif [ "$ALLOW_UNSIGNED" = "true" ]; then
             echo "mode=unsigned" >> "$GITHUB_OUTPUT"
-            echo "::warning::Developer ID secrets are not configured. Publishing an UNSIGNED build because ALLOW_UNSIGNED_RELEASES=true. The in-app updater will ask for confirmation and scripts/install.sh will reject this build; remove that variable once signing secrets are available."
+            echo "::notice::Building an ad-hoc signed release."
           else
             echo "::error::Developer ID signing secrets are not configured. Set ALLOW_UNSIGNED_RELEASES=true to knowingly publish an unverifiable build."
             exit 1
@@ -125,82 +165,37 @@ jobs:
           xcrun stapler staple "$APP"
           spctl -a -vvv "$APP"
 
-      - name: Write unsigned build notice
-        if: steps.signing.outputs.mode == 'unsigned'
+      - name: Package ZIP and installer
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: scripts/package-release.sh build/DerivedData/Build/Products/Release/frames.app "$VERSION" dist
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          MODE: ${{ steps.signing.outputs.mode }}
+          DRAFT: ${{ inputs.draft }}
+          PRERELEASE: ${{ inputs.prerelease }}
+          TITLE: ${{ inputs.title }}
+          NOTES: ${{ inputs.notes }}
         run: |
-          mkdir -p dist
-          cat > dist/UNSIGNED_BUILD.txt <<'EOF'
-          This release is ad-hoc signed but was not signed with a Developer ID
-          or notarized because no Apple Developer credentials are configured
-          for this repository.
-
-          - The in-app OTA updater can install this build after an explicit
-            unsigned-build warning; it clears the quarantine attribute for you.
-          - scripts/install.sh still requires a Developer ID signature and will
-            refuse this build.
-          - Upgrading from v1.9.4 or v1.9.5: run Frames-migrate.command from this
-            release once. It verifies the checksum, bundle identity, and
-            signature before replacing the app, with rollback on failure.
-          - To install manually: unzip Frames-v*-macOS.zip, move the extracted
-            frames.app to /Applications/Frames.app, then remove the quarantine
-            attribute:
-              xattr -dr com.apple.quarantine /Applications/Frames.app
-          - The SHA256SUMS.txt manifest still verifies download integrity only;
-            it is not a code-signing guarantee.
-
-          This notice is removed automatically when signing secrets are configured.
+          set -euo pipefail
+          args=(--target "$GITHUB_SHA" --title "${TITLE:-Frames $TAG}" --generate-notes)
+          assets=("dist/Frames-$TAG-macOS.zip" dist/SHA256SUMS.txt dist/Frames-migrate.command)
+          [[ "$DRAFT" != true ]] || args+=(--draft)
+          if [[ "$PRERELEASE" == true || "$TAG" == *-* ]]; then args+=(--prerelease); fi
+          body="$RUNNER_TEMP/frames-release.md"
+          printf '%s\n' "$NOTES" > "$body"
+          if [[ "$MODE" == unsigned ]]; then
+            cat > dist/UNSIGNED_BUILD.txt <<'EOF'
+          This build is ad-hoc signed. Apple has not verified the publisher or notarized Frames.
+          Download and unzip the macOS ZIP, move Frames to Applications, and open it.
+          If macOS blocks first launch, use System Settings > Privacy & Security > Open Anyway for Frames.
+          The installer and in-app updater verify the SHA-256 checksum and request your consent.
+          Users on 1.9.4 or 1.9.5 can use the Frames-migrate.command installer in this release.
           EOF
-
-      - name: Package ZIP and Checksums
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          APP="build/DerivedData/Build/Products/Release/frames.app"
-          mkdir -p dist
-          ditto -c -k --keepParent "$APP" "dist/Frames-v${VERSION}-macOS.zip"
-          cp scripts/migrate.command dist/Frames-migrate.command
-          chmod +x dist/Frames-migrate.command
-          cd dist
-          shasum -a 256 *.zip > SHA256SUMS.txt
-          cat SHA256SUMS.txt
-
-      - name: Prepare release notes body
-        run: |
-          BODY_FILE="$RUNNER_TEMP/frames-release-body.md"
-          TAG="${{ steps.version.outputs.tag }}"
-          if [ "${{ steps.signing.outputs.mode }}" = "unsigned" ]; then
-            cat > "$BODY_FILE" <<'EOF'
-          > [!WARNING]
-          > **Unsigned build.** No Apple Developer ID credentials are configured, so this ZIP is ad-hoc signed but neither Developer ID signed nor notarized. Frames' in-app updater can install it after an explicit warning; `scripts/install.sh` still requires a Developer ID signature. See `UNSIGNED_BUILD.txt` for manual installation. Signed releases resume automatically once the secrets are configured.
-
-          ### Upgrading from v1.9.4 or v1.9.5 (fixes OSStatus -67050)
-
-          Those versions contain the old strict Developer ID updater and cannot install this release from inside the app. Run the **one-time migration installer** once instead:
-
-          1. Download `Frames-migrate.command` from this release, or run:
-             ```bash
-             /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/whoavidwivedi/frames/main/scripts/migrate.command)"
-             ```
-          2. It verifies the published SHA-256 checksum, bundle identifier, and signature before replacing `Frames.app`.
-          3. After it finishes, all future unsigned OTA updates work from inside Frames with an explicit warning.
-
-          Direct asset link: https://github.com/whoavidwivedi/frames/releases/download/__TAG__/Frames-migrate.command
-          EOF
-            sed "s|__TAG__|${TAG}|g" "$BODY_FILE" > "${BODY_FILE}.tmp"
-            mv "${BODY_FILE}.tmp" "$BODY_FILE"
-          else
-            : > "$BODY_FILE"
+            cat dist/UNSIGNED_BUILD.txt >> "$body"
+            assets+=(dist/UNSIGNED_BUILD.txt)
           fi
-
-      - name: Upload Release Artifacts
-        uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
-        with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          draft: ${{ inputs.draft || false }}
-          body_path: ${{ runner.temp }}/frames-release-body.md
-          files: |
-            dist/*.zip
-            dist/SHA256SUMS.txt
-            dist/UNSIGNED_BUILD.txt
-            dist/Frames-migrate.command
-          generate_release_notes: true
+          gh release create "$TAG" "${assets[@]}" "${args[@]}" --notes-file "$body"

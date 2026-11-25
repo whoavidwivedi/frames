@@ -10,6 +10,8 @@ int frames_probe_container_type(const char *path) {
     size_t n = std::fread(header, 1, 16, f);
     std::fclose(f);
     if (n < 4) return -1;
+    if (std::memcmp(header, "DKIF", 4) == 0) return 2;
+    if (n >= 12 && std::memcmp(header, "RIFF", 4) == 0 && std::memcmp(header + 8, "AVI ", 4) == 0) return 3;
     // EBML Header: 0x1A 0x45 0xDF 0xA3
     if (header[0] == 0x1A && header[1] == 0x45 && header[2] == 0xDF && header[3] == 0xA3) {
         return 0; // matroska

@@ -22,6 +22,7 @@
 				<string>org.matroska.mkv</string>
 				<string>org.webmproject.webm</string>
 				<string>public.webm</string>
+				<string>whoavidwivedi.frames.ivf</string>
 			</array>
 		</dict>
 		<dict>
@@ -40,11 +41,21 @@
 			</array>
 		</dict>
 	</array>
-	<key>ATSApplicationFontsPath</key>
-	<string>.</string>
-	<key>UIAppFonts</key>
+	<key>UTImportedTypeDeclarations</key>
 	<array>
-		<string>GoogleSansFlex.ttf</string>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>whoavidwivedi.frames.ivf</string>
+			<key>UTTypeDescription</key>
+			<string>IVF Video</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.movie</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array><string>ivf</string></array>
+			</dict>
+		</dict>
 	</array>
 	<key>FramesDeveloperTeamID</key>
 	<string>$(FRAMES_DEVELOPER_TEAM_ID)</string>

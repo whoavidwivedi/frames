@@ -22,6 +22,36 @@ final class FramesTests: XCTestCase {
         try await super.tearDown()
     }
 
+    func testPresentationFormatReuseTracksPixelBufferMetadata() throws {
+        func frame(width: Int, matrix: CFString) throws -> CVPixelBuffer {
+            var pixelBuffer: CVPixelBuffer?
+            let result = CVPixelBufferCreate(
+                nil, width, 64, kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange, nil, &pixelBuffer
+            )
+            XCTAssertEqual(result, kCVReturnSuccess)
+            let buffer = try XCTUnwrap(pixelBuffer)
+            CVBufferSetAttachment(buffer, kCVImageBufferYCbCrMatrixKey, matrix, .shouldPropagate)
+            return buffer
+        }
+
+        let first = try frame(width: 64, matrix: kCVImageBufferYCbCrMatrix_ITU_R_709_2)
+        let original = try XCTUnwrap(SampleBufferFactory.makeSampleBuffer(from: first))
+        let format = try XCTUnwrap(CMSampleBufferGetFormatDescription(original))
+        let next = try frame(width: 64, matrix: kCVImageBufferYCbCrMatrix_ITU_R_709_2)
+        let same = try XCTUnwrap(SampleBufferFactory.makeSampleBuffer(from: next, reusing: format))
+        XCTAssertTrue(CMSampleBufferGetFormatDescription(same) === format)
+        XCTAssertTrue(CMSampleBufferGetImageBuffer(same) === next)
+
+        let recolored = try frame(width: 64, matrix: kCVImageBufferYCbCrMatrix_ITU_R_601_4)
+        let larger = try frame(width: 128, matrix: kCVImageBufferYCbCrMatrix_ITU_R_709_2)
+        for changed in [recolored, larger] {
+            let sample = try XCTUnwrap(SampleBufferFactory.makeSampleBuffer(from: changed, reusing: format))
+            let newFormat = try XCTUnwrap(CMSampleBufferGetFormatDescription(sample))
+            XCTAssertFalse(newFormat === format)
+            XCTAssertTrue(CMVideoFormatDescriptionMatchesImageBuffer(newFormat, imageBuffer: changed))
+        }
+    }
+
     // MARK: - Test Media Resolution
 
     /// Resolves the test media asset URL using a prioritized multi-tier search strategy:

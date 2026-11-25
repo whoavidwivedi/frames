@@ -1,233 +1,155 @@
-#!/usr/bin/env bash
+#!/bin/bash
+# Install the official Apple Silicon release using tools shipped with macOS.
 set -euo pipefail
 
-# ==============================================================================
-# Frames macOS Automated Terminal Installer
-# https://github.com/whoavidwivedi/frames
-# ==============================================================================
-# Installs Frames directly to /Applications after verifying the published
-# SHA-256 checksum and the Developer ID code signature, then launches the app.
-# Set FRAMES_EXPECTED_TEAM_ID to additionally pin the exact Developer ID team
-# that signs Frames. The one-line install works without it; setting it provides
-# stricter identity verification once a Developer ID is configured. Unsigned
-# releases are refused here; use the in-app updater or UNSIGNED_BUILD.txt.
-# ==============================================================================
-
-# Colors & Formatting
-BOLD="\033[1m"
-GREEN="\033[32m"
-BLUE="\033[34m"
-YELLOW="\033[33m"
-RED="\033[31m"
-RESET="\033[0m"
-
-log_info() {
-    echo -e "${BLUE}==>${RESET} ${BOLD}$1${RESET}"
+usage() {
+    cat <<'HELP'
+Usage: install.sh [--stable | --beta] [--dry-run] [--allow-adhoc] [--applications-dir=PATH]
+  --applications-dir=PATH  Install in this Applications directory.
+  --dry-run       Download and verify the release without installing or launching.
+  --allow-adhoc   Consent to a release without Apple Developer ID or notarization.
+  --beta          Prefer the most recent published prerelease.
+HELP
 }
+fail() { echo "Frames installer: $*" >&2; exit 1; }
 
-log_success() {
-    echo -e "${GREEN}✔${RESET} ${BOLD}$1${RESET}"
-}
-
-log_warn() {
-    echo -e "${YELLOW}⚠️${RESET}  $1"
-}
-
-log_error() {
-    echo -e "${RED}✖ Error:${RESET} $1" >&2
-}
-
-# 1. Platform & Environment Preflight
-OS="$(uname -s)"
-if [[ "$OS" != "Darwin" ]]; then
-    log_error "Frames is engineered exclusively for macOS. Detected OS: $OS"
-    exit 1
-fi
-
-ARCH="$(uname -m)"
-if [[ "$ARCH" != "arm64" ]]; then
-    log_warn "Detected architecture: $ARCH. Frames is fully optimized for Apple Silicon (M1/M2/M3/M4)."
-fi
-
-CHANNEL="${CHANNEL:-stable}"
+channel="${CHANNEL:-stable}"
+applications_dir=""
+dry_run=false
+allow_adhoc=false
 for arg in "$@"; do
     case "$arg" in
-        --beta|--canary)
-            CHANNEL="beta"
-            ;;
-        --stable)
-            CHANNEL="stable"
-            ;;
-        --channel=*)
-            CHANNEL="${arg#*=}"
-            ;;
+        --stable) channel=stable ;;
+        --beta|--canary) channel=beta ;;
+        --channel=*) channel="${arg#*=}" ;;
+        --dry-run) dry_run=true ;;
+        --applications-dir=/*) applications_dir="${arg#*=}" ;;
+        --allow-adhoc) allow_adhoc=true ;;
+        -h|--help) usage; exit 0 ;;
+        *) fail "Unknown argument: $arg" ;;
     esac
 done
+case "$channel" in stable|beta|canary) ;; *) fail "Unknown channel: $channel" ;; esac
+[[ "$(uname -s)" == Darwin ]] || fail "macOS is required."
+if [[ "$(uname -m)" != arm64 && "$(sysctl -n hw.optional.arm64 2>/dev/null)" != 1 ]]; then
+    fail "An Apple Silicon Mac is required."
+fi
 
-echo ""
-echo -e "${BOLD}┌─────────────────────────────────────────────────────────┐${RESET}"
-echo -e "${BOLD}│                   FRAMES macOS INSTALLER                │${RESET}"
-echo -e "${BOLD}│       Native Apple Silicon Video Player & Dashboard     │${RESET}"
-echo -e "${BOLD}└─────────────────────────────────────────────────────────┘${RESET}"
-echo -e "  Stream: ${BOLD}${CHANNEL}${RESET}"
-echo ""
-
-# 2. Query GitHub Releases API for Version
-if [[ "${CHANNEL}" == "beta" || "${CHANNEL}" == "canary" ]]; then
-    log_info "Fetching latest Frames Beta/Canary release from GitHub..."
-    REPO="whoavidwivedi/frames"
-    LATEST_JSON=$(curl -fsSL -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/${REPO}/releases?per_page=5" 2>/dev/null || true)
-    if [[ -z "${LATEST_JSON}" ]]; then
-        # Fallback to latest endpoint
-        LATEST_JSON=$(curl -fsSL -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null || true)
+scratch="$(mktemp -d -t frames-install)"
+stage=""
+installed=""
+backup=""
+lock=""
+cleanup() {
+    local status=$?
+    if [[ -n "$backup" && -d "$backup" && ! -e "$installed" ]]; then
+        if ! mv "$backup" "$installed"; then
+            echo "Previous installation retained at $backup" >&2
+            stage=""
+        fi
     fi
+    [[ -z "$stage" ]] || rm -rf "$stage"
+    [[ -z "$lock" ]] || rmdir "$lock" || true
+    rm -rf "$scratch"
+    exit "$status"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+repo=whoavidwivedi/frames
+api="https://api.github.com/repos/$repo/releases"
+curl_flags=(-fLsS --retry 2 --proto '=https' --proto-redir '=https')
+headers=(-H 'Accept: application/vnd.github+json')
+if [[ -n "${GITHUB_TOKEN:-}" ]]; then headers+=(-H "Authorization: Bearer $GITHUB_TOKEN"); fi
+if [[ "$channel" == stable ]]; then
+    curl "${curl_flags[@]}" "${headers[@]}" "$api/latest" -o "$scratch/release.json"
 else
-    log_info "Fetching latest Frames Stable release from GitHub..."
-    REPO="whoavidwivedi/frames"
-    LATEST_JSON=$(curl -fsSL -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null || true)
+    curl "${curl_flags[@]}" "${headers[@]}" "$api?per_page=15" -o "$scratch/releases.json"
+    /usr/bin/jq -e 'map(select(.draft != true)) | (map(select(.prerelease))[0] // .[0])' \
+        "$scratch/releases.json" > "$scratch/release.json"
 fi
+tag="$(/usr/bin/jq -er '.tag_name' "$scratch/release.json")"
+[[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || fail "Invalid release tag."
+archive="Frames-$tag-macOS.zip"
+for name in "$archive" SHA256SUMS.txt; do
+    url="https://github.com/$repo/releases/download/$tag/$name"
+    /usr/bin/jq -e --arg name "$name" --arg url "$url" \
+        'any(.assets[]; .name == $name and .browser_download_url == $url)' "$scratch/release.json" > /dev/null \
+        || fail "Release $tag is missing $name."
+    curl "${curl_flags[@]}" "$url" -o "$scratch/$name"
+done
+# Only the exact selected ZIP may satisfy this check. Ignore other release
+# assets; never pass arbitrary filenames from the manifest to a local reader.
+expected="$(awk -v file="$archive" 'NF == 2 && ($2 == file || $2 == "*" file) {print tolower($1)}' "$scratch/SHA256SUMS.txt")"
+[[ "$expected" =~ ^[0-9a-f]{64}$ ]] || fail "Missing or ambiguous SHA-256 for $archive."
+actual="$(shasum -a 256 "$scratch/$archive")"
+[[ "${actual%% *}" == "$expected" ]] || fail "The release archive failed SHA-256 verification."
 
-if [[ -z "${LATEST_JSON}" ]]; then
-    log_error "Unable to connect to GitHub API. Please check your internet connection."
-    exit 1
-fi
-
-TAG_NAME=$(echo "${LATEST_JSON}" | grep '"tag_name":' | head -n 1 | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')
-if [[ -z "${TAG_NAME}" ]]; then
-    log_error "Could not resolve latest release tag from GitHub."
-    exit 1
-fi
-
-# Locate the macOS ZIP asset and its SHA-256 manifest. Both are required;
-# an asset without a published checksum is never installed.
-DOWNLOAD_URL=$(echo "${LATEST_JSON}" | grep -o 'https://[^"]*Frames-[^"]*-macOS\.zip' | head -n 1 || true)
-CHECKSUM_URL=$(echo "${LATEST_JSON}" | grep -o 'https://[^"]*SHA256SUMS\.txt' | head -n 1 || true)
-
-if [[ -z "${DOWNLOAD_URL}" || -z "${CHECKSUM_URL}" ]]; then
-    log_error "Release ${TAG_NAME} does not publish a macOS ZIP and SHA256SUMS.txt. Refusing to install unverified software."
-    exit 1
-fi
-
-log_success "Found latest version: ${BOLD}${TAG_NAME}${RESET}"
-
-# 3. Download Asset to Secure Temporary Directory
-TMP_DIR=$(mktemp -d -t frames_install_XXXXXX)
-trap 'rm -rf "${TMP_DIR}"' EXIT
-
-ARCHIVE_NAME=$(basename "${DOWNLOAD_URL}")
-ARCHIVE_FILE="${TMP_DIR}/${ARCHIVE_NAME}"
-MANIFEST_FILE="${TMP_DIR}/SHA256SUMS.txt"
-
-log_info "Downloading ${TAG_NAME} package..."
-curl -fL --progress-bar "${DOWNLOAD_URL}" -o "${ARCHIVE_FILE}"
-
-log_info "Downloading release checksum manifest..."
-curl -fsSL "${CHECKSUM_URL}" -o "${MANIFEST_FILE}"
-
-log_info "Verifying SHA-256 checksum..."
-if ! (cd "${TMP_DIR}" && shasum -a 256 -c "${MANIFEST_FILE}"); then
-    log_error "Checksum verification failed. The package was not installed."
-    exit 1
-fi
-log_success "Checksum verified."
-
-# 4. Extract Application Bundle
-EXTRACT_DIR="${TMP_DIR}/extracted"
-mkdir -p "${EXTRACT_DIR}"
-
-APP_BUNDLE=""
-if [[ "${ARCHIVE_FILE}" == *.dmg ]]; then
-    log_info "Mounting disk image..."
-    MOUNT_DIR="${TMP_DIR}/mount"
-    mkdir -p "${MOUNT_DIR}"
-    hdiutil attach "${ARCHIVE_FILE}" -nobrowse -mountpoint "${MOUNT_DIR}" -quiet
-    
-    if [[ -d "${MOUNT_DIR}/Frames.app" ]]; then
-        cp -R "${MOUNT_DIR}/Frames.app" "${EXTRACT_DIR}/"
-        APP_BUNDLE="${EXTRACT_DIR}/Frames.app"
-    elif [[ -d "${MOUNT_DIR}/frames.app" ]]; then
-        cp -R "${MOUNT_DIR}/frames.app" "${EXTRACT_DIR}/Frames.app"
-        APP_BUNDLE="${EXTRACT_DIR}/Frames.app"
-    fi
-    hdiutil detach "${MOUNT_DIR}" -quiet 2>/dev/null || true
+ditto -xk "$scratch/$archive" "$scratch/extracted"
+app="$scratch/extracted/frames.app"
+[[ -d "$app" ]] || app="$scratch/extracted/Frames.app"
+plist="$app/Contents/Info.plist"
+[[ -d "$app" && ! -L "$app" && -f "$plist" ]] || fail "The archive is missing Frames.app."
+[[ "$(/usr/bin/plutil -extract CFBundleIdentifier raw "$plist")" == whoavidwivedi.frames ]] || fail "Incorrect bundle identifier."
+version="$(/usr/bin/plutil -extract CFBundleShortVersionString raw "$plist")"
+[[ "$version" == "${tag#v}" ]] || fail "Bundle version $version does not match release $tag."
+codesign --verify --deep --strict -R='identifier "whoavidwivedi.frames"' "$app" || fail "The Frames code signature is invalid."
+signature="$(codesign -dvvv "$app" 2>&1)"
+team="${FRAMES_EXPECTED_TEAM_ID:-}"
+if [[ -n "$team" && ! "$team" =~ ^[A-Z0-9]{10}$ ]]; then fail "Invalid FRAMES_EXPECTED_TEAM_ID."; fi
+if grep -qx 'Signature=adhoc' <<< "$signature"; then
+    [[ -z "$team" ]] || fail "This build cannot satisfy the configured Developer ID team."
+    adhoc=true
 else
-    log_info "Extracting application archive..."
-    ditto -xk "${ARCHIVE_FILE}" "${EXTRACT_DIR}"
-    if [[ -d "${EXTRACT_DIR}/Frames.app" ]]; then
-        APP_BUNDLE="${EXTRACT_DIR}/Frames.app"
-    elif [[ -d "${EXTRACT_DIR}/frames.app" ]]; then
-        mv "${EXTRACT_DIR}/frames.app" "${EXTRACT_DIR}/Frames.app"
-        APP_BUNDLE="${EXTRACT_DIR}/Frames.app"
+    requirement='anchor apple generic and identifier "whoavidwivedi.frames" and certificate 1[field.1.2.840.113635.100.6.2.6] exists and certificate leaf[field.1.2.840.113635.100.6.1.13] exists'
+    if [[ -n "$team" ]]; then requirement+=" and certificate leaf[subject.OU] = \"$team\""; fi
+    codesign --verify --deep --strict -R="$requirement" "$app" || fail "Invalid Developer ID signature."
+    adhoc=false
+fi
+echo "Verified Frames $version ($archive)."
+if "$dry_run"; then exit 0; fi
+
+# Prefer an existing installation, or the user Applications folder on Macs
+# where this account cannot write to /Applications. Never request sudo.
+parent=/Applications
+if [[ -n "$applications_dir" ]]; then
+    parent="$applications_dir"
+    mkdir -p "$parent"
+elif [[ ! -e "$parent/Frames.app" && ( -d "$HOME/Applications/Frames.app" || ! -w "$parent" ) ]]; then
+    parent="$HOME/Applications"
+    mkdir -p "$parent"
+fi
+installed="$parent/Frames.app"
+[[ -w "$parent" ]] || fail "Move Frames to a writable Applications folder and retry."
+mkdir "$parent/.frames-install.lock" 2>/dev/null || fail "Another installation is active or the Applications folder is read-only."
+lock="$parent/.frames-install.lock"
+if [[ -e "$installed" || -L "$installed" ]]; then
+    [[ -d "$installed" && ! -L "$installed" && "$(/usr/bin/plutil -extract CFBundleIdentifier raw "$installed/Contents/Info.plist")" == whoavidwivedi.frames ]] \
+        || fail "The existing destination is not a Frames installation."
+    if "$adhoc" && codesign -dvvv "$installed" 2>&1 | grep '^Authority=' > /dev/null; then
+        fail "A Developer ID installation requires a signed update."
     fi
+    if pgrep -ix frames > /dev/null; then fail "Quit Frames and run the installer again."; fi
 fi
-
-if [[ -z "${APP_BUNDLE}" || ! -d "${APP_BUNDLE}" ]]; then
-    log_error "Expected Frames.app bundle not found inside downloaded package."
-    exit 1
-fi
-
-log_info "Verifying Developer ID code signature..."
-if ! codesign --verify --deep --strict --verbose=2 "${APP_BUNDLE}" >/dev/null 2>&1; then
-    log_error "Downloaded application has an invalid code signature. Installation aborted."
-    exit 1
-fi
-if ! codesign -dvvv "${APP_BUNDLE}" 2>&1 | grep -q 'Authority=Developer ID Application:'; then
-    log_error "Downloaded application is not Developer ID signed. Installation aborted."
-    exit 1
-fi
-# Require the Frames bundle identifier so an unrelated Developer ID-signed app
-# renamed Frames.app cannot be installed as an update.
-BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${APP_BUNDLE}/Contents/Info.plist" 2>/dev/null || true)"
-if [[ "${BUNDLE_ID}" != "whoavidwivedi.frames" ]]; then
-    log_error "Downloaded application is not Frames (unexpected bundle identifier). Installation aborted."
-    exit 1
-fi
-# Pin the signer to Frames' own Developer ID team. An unrelated Developer ID
-# app renamed Frames.app must not be accepted as an update. Set the team ID here
-# (or via FRAMES_EXPECTED_TEAM_ID) when Apple Developer signing is configured.
-EXPECTED_TEAM_ID="${FRAMES_EXPECTED_TEAM_ID:-}"
-if [[ -n "${EXPECTED_TEAM_ID}" ]]; then
-    if ! codesign -dvvv "${APP_BUNDLE}" 2>&1 | grep -q "Authority=Developer ID Application:.*(${EXPECTED_TEAM_ID})"; then
-        log_error "Downloaded application is not signed by the expected Developer ID team. Installation aborted."
-        exit 1
+if "$adhoc" && ! "$allow_adhoc"; then
+    echo "This release is ad-hoc signed. Apple has not verified its publisher or notarized the app."
+    if ! { read -r -p "Install this Frames GitHub release? [y/N] " answer < /dev/tty; } 2>/dev/null; then
+        fail "Use --allow-adhoc to explicitly accept this build in a noninteractive session."
     fi
-    log_success "Developer ID signature and team identity verified."
-else
-    log_warn "FRAMES_EXPECTED_TEAM_ID is not set; the signing team is not pinned. Set it to the publisher's team ID for stricter verification."
-    log_success "Developer ID signature and bundle identity verified."
+    [[ "$answer" == y || "$answer" == Y ]] || fail "Installation cancelled."
 fi
 
-# 5. Install to /Applications
-DEST_APP="/Applications/Frames.app"
-log_info "Installing Frames to ${DEST_APP}..."
-
-# If currently running, gently quit old process
-if pgrep -x "frames" >/dev/null 2>&1 || pgrep -x "Frames" >/dev/null 2>&1; then
-    log_warn "Frames is currently running. Closing running instance for upgrade..."
-    pkill -x "frames" 2>/dev/null || true
-    pkill -x "Frames" 2>/dev/null || true
-    sleep 0.5
+# Finish copying on the destination volume before moving the existing app.
+stage="$(mktemp -d "$parent/.frames-install.XXXXXXXX")"
+ditto "$app" "$stage/Frames.app"
+codesign --verify --deep --strict "$stage/Frames.app"
+if [[ -e "$installed" ]]; then
+    backup="$stage/previous.app"
+    mv "$installed" "$backup"
 fi
-
-# Remove existing installation
-if [[ -d "${DEST_APP}" ]]; then
-    rm -rf "${DEST_APP}"
+mv "$stage/Frames.app" "$installed"
+echo "Installed $installed."
+if "$adhoc"; then
+    echo "If macOS blocks the first launch, use System Settings > Privacy & Security > Open Anyway for Frames."
 fi
-cp -R "${APP_BUNDLE}" "${DEST_APP}"
-
-# 6. Post-install verification
-log_info "Verifying installed application..."
-if ! codesign --verify --deep --strict --verbose=2 "${DEST_APP}" >/dev/null 2>&1; then
-    log_error "Installed application failed signature verification."
-    exit 1
-fi
-log_success "Installation verified: package checksum and Developer ID signature both valid."
-
-# 7. Launch Application
-echo ""
-log_success "🎉 Frames ${TAG_NAME} has been successfully installed to /Applications!"
-echo ""
-log_info "Launching Frames..."
-open -a "${DEST_APP}"
-
-echo -e "${GREEN}Enjoy smooth hardware-accelerated playback on Apple Silicon!${RESET}\n"
+open "$installed" || echo "Open Frames from Finder to finish first launch." >&2

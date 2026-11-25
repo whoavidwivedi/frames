@@ -5,6 +5,9 @@ import AppKit
 @MainActor
 struct ContentView: View {
     var engine: VideoPlayerEngine
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
+    @State private var pointerOverTransport = false
     @State private var library = LibraryManager.shared
     @State private var themeManager = ThemeManager.shared
     @State private var windowManager = WindowManager.shared
@@ -133,7 +136,8 @@ struct ContentView: View {
                             }
                             .buttonStyle(.plain)
                             .pointingHand()
-                            .help("Close (Esc)")
+                            .accessibilityLabel("Close player")
+                            .help("Close player")
                             .padding(.top, 12)
                             .padding(.trailing, 12)
                         }
@@ -146,7 +150,7 @@ struct ContentView: View {
                         SubtitleOverlayView(
                             text: engine.activeSubtitleText
                         )
-                        .padding(.bottom, engine.controlsVisible ? 84 : 24)
+                        .padding(.bottom, engine.controlsVisible ? 92 : 24)
                     }
 
                     // Top window drag & title bar management strip (when controls hidden in windowed mode)
@@ -195,12 +199,11 @@ struct ContentView: View {
                     }
 
                     // Tier 1: thin always-on progress line (fades out when the full controls appear)
-                    if engine.currentURL != nil {
+                    if !engine.controlsVisible && !windowManager.isAnyFullscreen {
                         VStack(spacing: 0) {
                             Spacer()
                             PlayerProgressLine(engine: engine)
                         }
-                        .opacity(engine.controlsVisible ? 0 : 1)
                         .allowsHitTesting(false)
                     }
 
@@ -209,6 +212,10 @@ struct ContentView: View {
                         VStack(spacing: 0) {
                             Spacer()
                             LiquidGlassHUD(engine: engine)
+                                .onHover { hovering in
+                                    pointerOverTransport = hovering
+                                    resetControlsTimer()
+                                }
                         }
                         .transition(
                             .asymmetric(
@@ -423,6 +430,12 @@ struct ContentView: View {
         .animation(.fluidQuick, value: engine.controlsVisible)
         .animation(.fluidOverlay, value: settings.isSettingsPresented)
         .animation(.fluidOverlay, value: updateManager.isUpdatePromptPresented)
+        .transaction { transaction in
+            if reduceMotion {
+                transaction.animation = nil
+                transaction.disablesAnimations = true
+            }
+        }
         .onChange(of: engine.controlsVisible) { _, visible in
             if !visible && engine.isPlaying {
                 NSCursor.setHiddenUntilMouseMoves(true)
@@ -440,6 +453,12 @@ struct ContentView: View {
                     NSCursor.setHiddenUntilMouseMoves(false)
                 }
             }
+        }
+        .onChange(of: engine.activeInspectorSheet) { _, _ in resetControlsTimer() }
+        .onChange(of: voiceOverEnabled) { _, _ in resetControlsTimer() }
+        .onDisappear {
+            hideControlsTimer?.invalidate()
+            hideControlsTimer = nil
         }
         .onChange(of: engine.metadata.title) { _, _ in
             updateWindowRepresentation(for: engine.currentURL)
@@ -497,7 +516,7 @@ struct ContentView: View {
         .task {
             // Delayed background check so startup is instant and non-blocking
             if SettingsManager.shared.automaticallyCheckForUpdates {
-                try? await Task.sleep(nanoseconds: 2_500_000_000)
+                do { try await Task.sleep(for: .seconds(2.5)) } catch { return }
                 updateManager.checkForUpdates(manual: false)
             }
         }
@@ -625,10 +644,10 @@ struct ContentView: View {
         hideControlsTimer?.invalidate()
 
         // Only auto-hide if currently playing, not ended, and no inspector sheet is open
-        if engine.isPlaying && !engine.hasEnded && engine.activeInspectorSheet == nil {
+        if shouldHideControls {
             hideControlsTimer = Timer.scheduledTimer(withTimeInterval: 2.5, repeats: false) { _ in
                 Task { @MainActor in
-                    if engine.isPlaying && !engine.hasEnded && engine.activeInspectorSheet == nil && !engine.isScrubbing {
+                    if shouldHideControls {
                         withAnimation(.fluidQuick) {
                             engine.controlsVisible = false
                         }
@@ -637,6 +656,11 @@ struct ContentView: View {
                 }
             }
         }
+    }
+
+    private var shouldHideControls: Bool {
+        engine.isPlaying && !engine.hasEnded && !engine.isScrubbing && engine.activeInspectorSheet == nil
+            && !voiceOverEnabled && !pointerOverTransport
     }
 
     private func toggleFullscreen() {
@@ -661,9 +685,11 @@ struct ContentView: View {
     }
 }
 
+#if DEBUG
 #Preview {
     ContentView()
 }
+#endif
 
 private struct HostWindowAccessor: NSViewRepresentable {
     @Binding var window: NSWindow?

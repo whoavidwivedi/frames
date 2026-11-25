@@ -130,6 +130,7 @@ public struct VolumeReadout: View {
 
 public struct LiquidGlassHUD: View {
     @Bindable var engine: VideoPlayerEngine
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var windowManager = WindowManager.shared
     @State private var showVolumePopover = false
     @State private var hoveredButton: String? = nil
@@ -156,80 +157,60 @@ public struct LiquidGlassHUD: View {
                 )
             }
 
-            // MARK: - Tier 2: Large centered transport (fades in with the controls)
-            HStack(spacing: 22) {
-                circleButton(
-                    id: "skip_back",
-                    icon: "gobackward.10",
-                    size: 40,
-                    help: "Skip back 10s (← or J)",
-                    accessibilityLabel: "Skip backward 10 seconds"
-                ) {
-                    engine.skip(seconds: -10)
-                }
+            VStack(spacing: 2) {
+                PlaybackTimelineRow(engine: engine)
 
-                playPauseButton()
+                HStack(spacing: 4) {
+                    playPauseButton()
+                    transportSkipButton(forward: false)
+                    transportSkipButton(forward: true)
 
-                circleButton(
-                    id: "skip_fwd",
-                    icon: "goforward.10",
-                    size: 40,
-                    help: "Skip forward 10s (→ or L)",
-                    accessibilityLabel: "Skip forward 10 seconds"
-                ) {
-                    engine.skip(seconds: 10)
-                }
-            }
-            .frame(maxWidth: .infinity)
+                    Spacer(minLength: 4)
 
-            // MARK: - Compact utility pill
-            HStack(spacing: 3) {
-                muteButton(isNarrow: isNarrow)
+                    muteButton(isNarrow: isNarrow)
+                    if !isNarrow {
+                        VolumeButtonGroup(volume: volumeBinding, isMuted: engine.isMuted)
+                    }
 
-                if !isNarrow {
-                    VolumeButtonGroup(volume: volumeBinding, isMuted: engine.isMuted)
-                        .padding(.horizontal, 4)
-                }
-
-                utilityDivider
-
-                rateButton()
-
-                utilityDivider
-
-                circleButton(
-                    id: "pip",
-                    icon: PictureInPictureManager.shared.isPictureInPicture ? "pip.exit" : "pip.enter",
-                    help: PictureInPictureManager.shared.isPictureInPicture ? "Exit Picture in Picture (P)" : "Enter Picture in Picture (P)",
-                    accessibilityLabel: PictureInPictureManager.shared.isPictureInPicture ? "Exit Picture in Picture" : "Enter Picture in Picture"
-                ) {
-                    PictureInPictureManager.shared.toggle(engine: engine)
-                }
-
-                circleButton(
-                    id: "fullscreen",
-                    icon: windowManager.isNativeFullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right",
-                    help: windowManager.isNativeFullscreen ? "Exit Fullscreen (Esc)" : "Enter Fullscreen (F)",
-                    accessibilityLabel: windowManager.isNativeFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"
-                ) {
-                    windowManager.toggleNativeFullscreen()
+                    utilityDivider
+                    rateButton()
+                    circleButton(
+                        id: "pip",
+                        icon: PictureInPictureManager.shared.isPictureInPicture ? "pip.exit" : "pip.enter",
+                        help: "Picture in Picture (P)",
+                        accessibilityLabel: PictureInPictureManager.shared.isPictureInPicture ? "Exit Picture in Picture" : "Enter Picture in Picture"
+                    ) {
+                        PictureInPictureManager.shared.toggle(engine: engine)
+                    }
+                    circleButton(
+                        id: "fullscreen",
+                        icon: windowManager.isAnyFullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right",
+                        help: windowManager.isAnyFullscreen ? "Exit Fullscreen (Esc)" : "Enter Fullscreen (F)",
+                        accessibilityLabel: windowManager.isAnyFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"
+                    ) {
+                        if windowManager.isAnyFullscreen {
+                            windowManager.exitAnyFullscreen()
+                        } else {
+                            windowManager.toggleNativeFullscreen()
+                        }
+                    }
                 }
             }
-            .padding(.horizontal, 5)
-            .padding(.vertical, 4)
-            .background(Capsule(style: .continuous).fill(.ultraThinMaterial))
-            .background(Capsule(style: .continuous).fill(ShadcnTheme.card.opacity(0.55)))
-            .overlay(Capsule(style: .continuous).strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1))
-            .shadow(color: Color.black.opacity(0.25), radius: 10, y: 4)
-            .frame(maxWidth: .infinity)
-
-            // MARK: - Tier 2: Expanded timeline
-            PlaybackTimelineRow(engine: engine)
-                .frame(maxWidth: .infinity)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color(white: 0.075).opacity(reduceTransparency ? 1 : 0.94))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(.white.opacity(0.18), lineWidth: 1)
+                    .allowsHitTesting(false)
+            }
         }
-        .frame(maxWidth: 760)
-        .padding(.horizontal, 20)
-        .padding(.bottom, 16)
+        .frame(maxWidth: 660)
+        .padding(.horizontal, 14)
+        .padding(.bottom, 12)
         .environment(\.colorScheme, .dark)
         .animation(.fluidQuick, value: engine.activeInspectorSheet)
     }
@@ -265,16 +246,33 @@ public struct LiquidGlassHUD: View {
             .padding(.horizontal, 2)
     }
 
-    /// Large centered glass play / pause / replay control.
+    private func transportSkipButton(forward: Bool) -> some View {
+        let seconds = SettingsManager.shared.defaultSkipInterval
+        let direction = forward ? "forward" : "backward"
+        let icon = forward ? "goforward" : "gobackward"
+        let label = "Skip \(direction) \(seconds) seconds"
+        return circleButton(
+            id: icon,
+            icon: [5, 10, 15, 30].contains(seconds) ? "\(icon).\(seconds)" : icon,
+            size: 32,
+            iconSize: 15,
+            help: "\(label) (\(forward ? "→" : "←"))",
+            accessibilityLabel: label
+        ) {
+            engine.skip(seconds: Double(seconds) * (forward ? 1 : -1))
+        }
+    }
+
+    /// Primary transport action.
     private func playPauseButton() -> some View {
         let isHovered = hoveredButton == "play"
         return Button {
             engine.togglePlayPause()
         } label: {
             Image(systemName: engine.isPlaying ? "pause.fill" : (engine.hasEnded ? "arrow.counterclockwise" : "play.fill"))
-                .font(.system(size: 18, weight: .bold))
+                .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(ShadcnTheme.background)
-                .frame(width: 54, height: 54)
+                .frame(width: 34, height: 34)
                 .background(Circle().fill(isHovered ? ShadcnTheme.primaryHighlight : ShadcnTheme.foreground))
                 .overlay(Circle().strokeBorder(Color.white.opacity(isHovered ? 0.40 : 0.15), lineWidth: 1))
                 .shadow(
@@ -391,7 +389,7 @@ public struct LiquidGlassHUD: View {
         }
         .buttonStyle(TactileTransportButtonStyle(scale: 0.92))
         .pointingHand()
-        .accessibilityLabel(engine.isMuted ? "Unmute" : "Mute")
+        .accessibilityLabel(isNarrow ? "Volume controls" : (engine.isMuted ? "Unmute" : "Mute"))
         .accessibilityValue("\(engine.isMuted ? 0 : Int(engine.volume * 100))%")
         .help(isNarrow ? "Volume Slider" : (engine.isMuted ? "Unmute (M)" : "Mute (M)"))
         .onHover { h in
@@ -453,8 +451,7 @@ public struct PlaybackTimelineRow: View {
                 .font(.system(size: 11, weight: .medium, design: .monospaced))
                 .foregroundStyle(ShadcnTheme.foregroundSecondary)
         }
-        .padding(.horizontal, 14)
-        .padding(.top, 9)
+        .accessibilityElement(children: .contain)
     }
 }
 
@@ -708,39 +705,33 @@ public struct TimeReadout: View {
         self.engine = engine
     }
 
-    private static func fmt(_ t: Double) -> String {
-        guard t.isFinite && t >= 0 else { return "0:00" }
-        let total = Int(t.rounded())
-        let h = total / 3600
-        let m = (total % 3600) / 60
-        let s = total % 60
-        if h > 0 { return String(format: "%d:%02d:%02d", h, m, s) }
-        return String(format: "%d:%02d", m, s)
-    }
-
     public var body: some View {
-        // Read the observable clock store: engine.currentTime is backed by an
-        // @ObservationIgnored field and does not invalidate this view while playing.
-        Text("\(Self.fmt(engine.clockStore.currentTime)) / \(Self.fmt(engine.clockStore.duration))")
-            .font(.system(size: 28, weight: .heavy, design: .rounded))
-            .foregroundStyle(.white)
-            .shadow(color: .black.opacity(0.6), radius: 8, y: 4)
-            .padding(.trailing, 24)
-            .padding(.top, 70)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-            .opacity(isVisible ? 1 : 0)
-            .scaleEffect(isVisible ? 1 : 0.85, anchor: .topTrailing)
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
-            .task(id: engine.timeHUDToken) {
-                guard engine.timeHUDToken > 0 else { return }
-                withAnimation(.fluidQuick) { isVisible = true }
-                do {
-                    try await Task.sleep(nanoseconds: 4_000_000_000)
-                } catch {
-                    return
-                }
-                withAnimation(.fluidQuick) { isVisible = false }
+        ZStack {
+            if isVisible {
+                Text("\(TimeFormatting.format(seconds: engine.clockStore.currentTime)) / \(TimeFormatting.format(seconds: engine.clockStore.duration))")
+                    .font(.system(size: 22, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 5)
+                    .background(.black.opacity(0.75), in: Capsule())
+                    .transition(.opacity)
             }
+        }
+        .padding(.trailing, 18)
+        .padding(.top, 92)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+        .task(id: engine.timeHUDToken) {
+            guard engine.timeHUDToken > 0 else { return }
+            withAnimation(.fluidQuick) { isVisible = true }
+            do {
+                try await Task.sleep(for: .seconds(4))
+            } catch {
+                return
+            }
+            withAnimation(.fluidQuick) { isVisible = false }
+        }
     }
 }

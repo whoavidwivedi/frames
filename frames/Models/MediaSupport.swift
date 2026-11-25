@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 /// AVFoundation selects hardware decoding whenever it is available on the Mac.
 nonisolated public enum MediaSupport: Sendable {
     public static let fileExtensions: Set<String> = [
-        "3gp", "3g2", "asf", "avi", "dv", "f4v", "flv", "m2ts", "m4v", "mkv",
+        "3gp", "3g2", "asf", "avi", "dv", "f4v", "flv", "ivf", "m2ts", "m4v", "mkv",
         "mov", "mp4", "mpeg", "mpg", "mts", "mxf", "ogv", "ts", "vob", "webm", "wmv",
         "aac", "aif", "aiff", "alac", "caf", "flac", "m4a", "mka", "mp3", "oga", "ogg",
         "opus", "wav", "wma"

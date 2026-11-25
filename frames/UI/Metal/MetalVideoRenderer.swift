@@ -40,7 +40,8 @@ nonisolated public final class MetalVideoRenderer: @unchecked Sendable {
     
     public let device: MTLDevice
     public let commandQueue: MTLCommandQueue
-    private var pipelineState: MTLRenderPipelineState?
+    // The default sample-buffer presentation path never needs a shader pipeline.
+    @MainActor private lazy var pipelineState = makePipeline()
     private var textureCache: CVMetalTextureCache?
     
     private let renderLock = NSLock()
@@ -78,16 +79,15 @@ nonisolated public final class MetalVideoRenderer: @unchecked Sendable {
             return nil
         }
         self.textureCache = c
-        
-        setupPipeline()
+
     }
     
-    private func setupPipeline() {
+    private func makePipeline() -> MTLRenderPipelineState? {
         do {
             let library = try device.makeLibrary(source: VideoShaderSource.source, options: nil)
             guard let vertexFunc = library.makeFunction(name: "videoVertexShader"),
                   let fragmentFunc = library.makeFunction(name: "videoFragmentShader") else {
-                return
+                return nil
             }
             
             let desc = MTLRenderPipelineDescriptor()
@@ -96,13 +96,13 @@ nonisolated public final class MetalVideoRenderer: @unchecked Sendable {
             // Render in 16-bit float extended linear space for perfect HDR headroom
             desc.colorAttachments[0].pixelFormat = .rgba16Float
             
-            pipelineState = try device.makeRenderPipelineState(descriptor: desc)
+            return try device.makeRenderPipelineState(descriptor: desc)
         } catch {
             print("[MetalVideoRenderer] Pipeline setup error: \(error)")
+            return nil
         }
     }
     
-    private var frameCount: UInt64 = 0
     public var preferredAspectRatio: Float? = nil {
         didSet {
             renderLock.lock()
@@ -121,6 +121,11 @@ nonisolated public final class MetalVideoRenderer: @unchecked Sendable {
     private var cachedColorSpaceMode: Int32 = 0
     private var isFlushPending: Bool = false
     private let flushLock = NSLock()
+
+    private struct FrameTextures: @unchecked Sendable {
+        let luma: CVMetalTexture
+        let chroma: CVMetalTexture
+    }
 
     private struct TextureCacheBox: @unchecked Sendable {
         let cache: CVMetalTextureCache
@@ -190,7 +195,7 @@ nonisolated public final class MetalVideoRenderer: @unchecked Sendable {
     // MARK: - Rendering
     
     /// Renders the current frame into the given CAMetalLayer drawable.
-    public func render(to layer: CAMetalLayer) {
+    @MainActor public func render(to layer: CAMetalLayer) {
         renderLock.lock()
         guard let buffer = currentPixelBuffer,
               let pipeline = pipelineState,
@@ -219,8 +224,9 @@ nonisolated public final class MetalVideoRenderer: @unchecked Sendable {
         guard let drawable = layer.nextDrawable() else { return }
         
         // Extract zero-copy Metal textures directly from Unified Memory CVPixelBuffer planes
-        let width = CVPixelBufferGetWidth(buffer)
-        let height = CVPixelBufferGetHeight(buffer)
+        guard CVPixelBufferGetPlaneCount(buffer) == 2 else { return }
+        let width = CVPixelBufferGetWidthOfPlane(buffer, 0)
+        let height = CVPixelBufferGetHeightOfPlane(buffer, 0)
         
         let pixelFormat = CVPixelBufferGetPixelFormatType(buffer)
         let isTenBitEffective = isTenBit || (pixelFormat == kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange ||
@@ -254,8 +260,8 @@ nonisolated public final class MetalVideoRenderer: @unchecked Sendable {
             buffer,
             nil,
             chromaFormat,
-            width / 2,
-            height / 2,
+            CVPixelBufferGetWidthOfPlane(buffer, 1),
+            CVPixelBufferGetHeightOfPlane(buffer, 1),
             1,
             &uvTextureRef
         )
@@ -353,14 +359,12 @@ nonisolated public final class MetalVideoRenderer: @unchecked Sendable {
         encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
         encoder.endEncoding()
         
+        // CVMetalTexture owns the mapping of each image plane. Keep both mappings
+        // alive until the GPU completes this command, including after a seek.
+        let planes = FrameTextures(luma: yRef, chroma: uvRef)
+        cmdBuffer.addCompletedHandler { _ in withExtendedLifetime(planes) {} }
         cmdBuffer.present(drawable)
         cmdBuffer.commit()
-
-        // Periodic texture cache maintenance to release unused IOSurfaces back to system pool
-        frameCount &+= 1
-        if (frameCount & 0x7F) == 0 { // Every 128 frames
-            flushTextureCacheAsync(cache: cache)
-        }
     }
     
     // MARK: - Color Transforms
