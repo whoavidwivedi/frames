@@ -620,8 +620,9 @@ public final class LibraryManager {
 
                 // 3. Add newly discovered files
                 var addedAny = false
+                var knownURLs = Set(self.videos.map(\.url))
                 for url in foundURLs {
-                    if !self.videos.contains(where: { $0.url == url }) {
+                    if knownURLs.insert(url).inserted {
                         let video = self.restoredItem(VideoItem(url: url, folderName: folderName))
                         self.videos.append(video)
                         self.loadMetadataAsync(for: video)
@@ -879,12 +880,16 @@ public final class LibraryManager {
                 invalidFolderIDs.append(folder.id)
             }
         }
+        // Favorites, individual imports and resume history often describe the same file.
+        // Probe each path once so all four indexes see the same filesystem snapshot.
+        let paths = Set(videoPaths).union(individualPaths).union(favoritePaths).union(progressPaths)
+        let missing = Set(paths.filter { !fileManager.fileExists(atPath: $0) })
         return FilePruneResult(
             invalidFolderIDs: invalidFolderIDs,
-            missingVideoPaths: Set(videoPaths.filter { !fileManager.fileExists(atPath: $0) }),
-            missingIndividualPaths: Set(individualPaths.filter { !fileManager.fileExists(atPath: $0) }),
-            missingFavoritePaths: Set(favoritePaths.filter { !fileManager.fileExists(atPath: $0) }),
-            missingProgressPaths: Set(progressPaths.filter { !fileManager.fileExists(atPath: $0) })
+            missingVideoPaths: missing.intersection(videoPaths),
+            missingIndividualPaths: missing.intersection(individualPaths),
+            missingFavoritePaths: missing.intersection(favoritePaths),
+            missingProgressPaths: missing.intersection(progressPaths)
         )
     }
 
@@ -999,5 +1004,6 @@ public final class LibraryManager {
                 _ = await self.verifyAndPruneMissingFilesAsync()
             }
         }
+        syncTimer?.tolerance = 6
     }
 }
