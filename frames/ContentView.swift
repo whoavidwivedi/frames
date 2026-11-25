@@ -298,7 +298,7 @@ struct ContentView: View {
         }
     }
 
-    var body: some View {
+    private var sceneContent: some View {
         ZStack {
             ShadcnTheme.background.ignoresSafeArea()
 
@@ -441,6 +441,10 @@ struct ContentView: View {
             }
 
         }
+    }
+
+    private var windowContent: some View {
+        sceneContent
         .frame(minWidth: 460, minHeight: 320)
         .background(HostWindowAccessor(window: $hostWindow))
         .animation(.fluidQuick, value: engine.currentURL != nil)
@@ -453,6 +457,10 @@ struct ContentView: View {
                 transaction.disablesAnimations = true
             }
         }
+    }
+
+    private var playbackContent: some View {
+        windowContent
         .onChange(of: engine.controlsVisible) { _, visible in
             if !visible && engine.isPlaying {
                 NSCursor.setHiddenUntilMouseMoves(true)
@@ -483,6 +491,10 @@ struct ContentView: View {
         .onChange(of: engine.currentURL) { _, newURL in
             updateWindowRepresentation(for: newURL)
         }
+    }
+
+    private var eventContent: some View {
+        playbackContent
         .onAppear {
             keyboardHandler = KeyboardHandler(engine: engine)
             // The engine is shared by every window, so this closure must not capture a
@@ -519,6 +531,10 @@ struct ContentView: View {
             guard isActiveWindow else { return }
             openFileDialog()
         }
+    }
+
+    var body: some View {
+        eventContent
         .onDrop(of: [.fileURL], isTargeted: $isTargetedForDrop) { providers in
             guard let provider = providers.first else { return false }
             _ = provider.loadObject(ofClass: URL.self) { url, _ in
