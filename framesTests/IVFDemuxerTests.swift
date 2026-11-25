@@ -29,7 +29,13 @@ extension IVFDemuxerTests {
         XCTAssertEqual(video.pixelWidth, 3840)
         XCTAssertEqual(video.pixelHeight, 2160)
         XCTAssertEqual(video.bitsPerChannel, 10)
-        XCTAssertTrue(video.isHDR)
+        // This encoder emitted Main 10 with an unspecified transfer and no colr atom.
+        XCTAssertFalse(video.isHDR)
+        for transfer: UInt64 in [16, 18] {
+            let hdr = DemuxedTrack(trackNumber: 1, type: .video, codecID: "hvc1",
+                                   bitsPerChannel: 10, colorPrimaries: 9, transferCharacteristics: transfer)
+            XCTAssertTrue(hdr.isHDR)
+        }
         let sdr = DemuxedTrack(trackNumber: 1, type: .video, codecID: "hvc1",
                                bitsPerChannel: 10, colorPrimaries: 9, transferCharacteristics: 1)
         XCTAssertFalse(sdr.isHDR)
