@@ -22,6 +22,33 @@ final class FramesTests: XCTestCase {
         try await super.tearDown()
     }
 
+    func testLatestSeekWinsAfterRapidFileSwitch() async throws {
+        let first = try XCTUnwrap(resolveTestMediaURL())
+        let second = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".mp4")
+        try FileManager.default.copyItem(at: first, to: second)
+        let engine = VideoPlayerEngine()
+        defer {
+            engine.unloadMedia()
+            try? FileManager.default.removeItem(at: second)
+        }
+
+        engine.loadMedia(from: first, initialSeekTime: 0.25, autoPlay: false)
+        engine.seek(to: 0.5, exact: true)
+        engine.loadMedia(from: second, initialSeekTime: 0.25, autoPlay: false)
+        engine.seek(to: 0.75)
+        engine.seek(to: 1.25, exact: true)
+
+        let deadline = Date().addingTimeInterval(5)
+        while engine.duration == 0 && Date() < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        XCTAssertGreaterThan(engine.duration, 1.25)
+        XCTAssertEqual(engine.currentURL, second)
+        XCTAssertEqual(engine.nativePipeline.currentURL, second)
+        XCTAssertEqual(engine.currentTime, 1.25, accuracy: 0.05)
+        XCTAssertFalse(engine.isPlaying)
+    }
+
     func testPlaybackIntentCanChangeDuringNativeLoad() async throws {
         let url = try XCTUnwrap(resolveTestMediaURL())
         let engine = VideoPlayerEngine()
