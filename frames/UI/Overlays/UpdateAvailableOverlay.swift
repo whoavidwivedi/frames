@@ -49,6 +49,14 @@ public struct UpdateAvailableOverlay: View {
                 .fill(ShadcnTheme.borderSubtle)
                 .frame(height: 1)
 
+            if update.declaresAdHocSigning {
+                Text("This build is ad-hoc signed. Update only if you trust the Frames GitHub release.")
+                    .font(.footnote)
+                    .foregroundStyle(ShadcnTheme.foregroundSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 10)
+            }
             actionBar
         }
         .background(ShadcnTheme.background)
