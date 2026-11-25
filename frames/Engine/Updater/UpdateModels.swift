@@ -149,6 +149,7 @@ public struct AppUpdateInfo: Sendable, Identifiable {
     /// Manifest used to authenticate `asset` before it is extracted or installed.
     public let checksumManifestAsset: GitHubReleaseAsset?
     public let isPrerelease: Bool
+    public let declaresAdHocSigning: Bool
 
     public init(
         tagName: String,
@@ -159,7 +160,8 @@ public struct AppUpdateInfo: Sendable, Identifiable {
         publishedDate: Date?,
         asset: GitHubReleaseAsset,
         checksumManifestAsset: GitHubReleaseAsset? = nil,
-        isPrerelease: Bool = false
+        isPrerelease: Bool = false,
+        declaresAdHocSigning: Bool = false
     ) {
         self.tagName = tagName
         self.version = version
@@ -170,6 +172,7 @@ public struct AppUpdateInfo: Sendable, Identifiable {
         self.asset = asset
         self.checksumManifestAsset = checksumManifestAsset
         self.isPrerelease = isPrerelease
+        self.declaresAdHocSigning = declaresAdHocSigning
     }
 }
 

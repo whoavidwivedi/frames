@@ -264,7 +264,8 @@ public final class UpdateManager: NSObject {
                 publishedDate: publishedDate,
                 asset: matchedAsset,
                 checksumManifestAsset: checksumAsset,
-                isPrerelease: release.prerelease ?? false
+                isPrerelease: release.prerelease ?? false,
+                declaresAdHocSigning: release.assets.contains { $0.name == "UNSIGNED_BUILD.txt" }
             )
 
             self.availableUpdate = update
@@ -428,13 +429,11 @@ public final class UpdateManager: NSObject {
                         )
                     }
                     try Self.verifyAdHocSignature(at: newAppBundleURL)
-                    guard Self.confirmUnsignedUpdate() else {
-                        self.status = .available(info: update)
-                        self.isUpdatePromptPresented = false
-                        self.downloadProgress = 0.0
-                        self.downloadedBytes = 0
-                        self.totalBytes = 0
-                        return
+                    guard update.declaresAdHocSigning else {
+                        throw Self.updateError(
+                            code: -20,
+                            message: "The update package is ad-hoc signed, but the release did not declare that signing mode."
+                        )
                     }
                 case .invalid:
                     throw Self.updateError(
@@ -608,22 +607,6 @@ public final class UpdateManager: NSObject {
             return nil
         }
         return signingInfo[kSecCodeInfoIdentifier as String] as? String
-    }
-
-    /// Explicit consent for builds that cannot prove Apple-issued publisher identity.
-    @MainActor
-    private static func confirmUnsignedUpdate() -> Bool {
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = "Install unsigned Frames update?"
-        alert.informativeText = """
-        This update has a valid checksum and bundle identity, but it is not signed with an Apple Developer ID and has not been notarized. macOS cannot verify the publisher.
-
-        Only continue if you trust the Frames GitHub release.
-        """
-        alert.addButton(withTitle: "Cancel")
-        alert.addButton(withTitle: "Install Update")
-        return alert.runModal() == .alertSecondButtonReturn
     }
 
     nonisolated private static func updateError(code: Int, message: String) -> NSError {
