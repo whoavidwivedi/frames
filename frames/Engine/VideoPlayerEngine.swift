@@ -225,7 +225,7 @@ public final class VideoPlayerEngine {
         PictureInPictureManager.shared.exitPictureInPicture()
         loadGeneration &+= 1
         seekGeneration &+= 1
-        isSeekInProgress = false
+        activeChaseSeek = nil
         chaseTime = .zero
         clearPlayerItemObservers()
 
@@ -280,7 +280,7 @@ public final class VideoPlayerEngine {
         let generation = loadGeneration
         clearPlayerItemObservers()
         seekGeneration &+= 1
-        isSeekInProgress = false
+        activeChaseSeek = nil
         chaseTime = .zero
         isScrubbing = false
         player.pause()
@@ -320,7 +320,7 @@ public final class VideoPlayerEngine {
         // Milestone 2 Unified Playback Core: Route all supported media containers
         // (MKV, WebM, MKA, MP4, MOV, M4V, 3GP) to the zero-copy Apple Silicon native pipeline.
         if canUseNativePipeline(for: url) {
-            startNativePipeline(url: url, initialSeekTime: initialSeekTime, autoPlay: autoPlay)
+            startNativePipeline(url: url, autoPlay: autoPlay)
             return
         }
 
@@ -341,16 +341,12 @@ public final class VideoPlayerEngine {
             ? .monoStereoAndMultichannel
             : []
 
+        pendingInitialSeekTime = initialSeekTime
         observePlayerItem(playerItem, generation: generation, nativeError: nativeError)
         player.replaceCurrentItem(with: playerItem)
         player.defaultRate = playbackRate
         player.volume = volume
         player.isMuted = isMuted
-
-        if let initialSeekTime, initialSeekTime > 0 {
-            let target = CMTime(seconds: initialSeekTime, preferredTimescale: 600)
-            player.seek(to: target, toleranceBefore: .zero, toleranceAfter: .zero)
-        }
 
         if autoPlay {
             play()
@@ -367,7 +363,7 @@ public final class VideoPlayerEngine {
 
     // MARK: - Playback Controls
     private var pendingPlaybackIntent: Bool?
-    private var isSeekInProgress = false
+    private var activeChaseSeek: UUID?
     private var chaseTime: CMTime = .zero
     @ObservationIgnored
     private var displayTime: Double = 0.0
@@ -501,6 +497,11 @@ public final class VideoPlayerEngine {
         lastSyncDate = Date()
         displayTime = clamped
 
+        if pendingPlaybackIntent != nil || (!isNativePipelineActive && player.currentItem?.status == .unknown) {
+            pendingInitialSeekTime = clamped
+            return
+        }
+
         if isNativePipelineActive {
             nativePipeline.seek(to: clamped, isScrubbing: !exact)
             return
@@ -514,7 +515,7 @@ public final class VideoPlayerEngine {
         let currentLoadGen = loadGeneration
 
         if exact {
-            isSeekInProgress = false
+            activeChaseSeek = nil
             player.seek(to: targetTime, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] finished in
                 Task { @MainActor [weak self] in
                     guard let self = self else { return }
@@ -531,17 +532,18 @@ public final class VideoPlayerEngine {
                 }
             }
         } else {
-            guard !isSeekInProgress else { return }
+            guard activeChaseSeek == nil else { return }
             performChaseSeek()
         }
     }
 
     private func performChaseSeek() {
         guard currentURL != nil, player.currentItem != nil else {
-            isSeekInProgress = false
+            activeChaseSeek = nil
             return
         }
-        isSeekInProgress = true
+        let request = UUID()
+        activeChaseSeek = request
         let seekTarget = chaseTime
         let currentLoadGen = loadGeneration
         let tolerance = CMTime(seconds: 0.1, preferredTimescale: 600)
@@ -550,12 +552,8 @@ public final class VideoPlayerEngine {
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
                 guard self.loadGeneration == currentLoadGen,
-                      self.currentURL != nil,
-                      self.player.currentItem != nil else {
-                    self.isSeekInProgress = false
-                    return
-                }
-                self.isSeekInProgress = false
+                      self.activeChaseSeek == request else { return }
+                self.activeChaseSeek = nil
                 if finished && CMTimeCompare(seekTarget, self.chaseTime) != 0 {
                     self.performChaseSeek()
                 }
@@ -804,23 +802,9 @@ public final class VideoPlayerEngine {
                         self.player.defaultRate = self.playbackRate
                         self.player.rate = self.playbackRate
                     }
-                    if let seekTime = self.pendingInitialSeekTime, seekTime > 0 {
-                        let targetTime = seekTime
+                    if let seekTime = self.pendingInitialSeekTime {
                         self.pendingInitialSeekTime = nil
-                        let target = CMTime(seconds: targetTime, preferredTimescale: 600)
-                        let currentLoadGen = self.loadGeneration
-                        self.player.seek(to: target, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] finished in
-                            Task { @MainActor [weak self] in
-                                guard let self = self, finished,
-                                      self.loadGeneration == currentLoadGen,
-                                      self.currentURL != nil,
-                                      self.player.currentItem != nil else { return }
-                                self.currentTime = targetTime
-                                self.lastSyncTime = targetTime
-                                self.lastSyncDate = Date()
-                                self.displayTime = targetTime
-                            }
-                        }
+                        self.seek(to: seekTime, exact: true)
                     }
                 } else if playerItem.status == .failed {
                     self.updateBufferingStatus(false)
@@ -877,7 +861,7 @@ public final class VideoPlayerEngine {
     /// Launches the zero-copy Apple Silicon native pipeline (Metal + VideoToolbox).
     /// If the native demuxer or hardware decoder rejects the stream, it gracefully
     /// falls back to AVFoundation without interrupting user playback.
-    private func startNativePipeline(url: URL, initialSeekTime: Double? = nil, autoPlay: Bool = true) {
+    private func startNativePipeline(url: URL, autoPlay: Bool = true) {
         loadGeneration &+= 1
         let generation = loadGeneration
         clearPlayerItemObservers()
@@ -904,6 +888,8 @@ public final class VideoPlayerEngine {
                 return
             }
 
+            let initialSeekTime = pendingInitialSeekTime
+            pendingInitialSeekTime = nil
             let autoPlay = pendingPlaybackIntent ?? autoPlay
             pendingPlaybackIntent = nil
             isPlaying = false
@@ -1025,7 +1011,7 @@ public final class VideoPlayerEngine {
                     self.updateActiveSubtitle(at: pts)
                     self.throttledRecordProgress()
                 }
-            if let initialSeekTime, initialSeekTime > 0 {
+            if let initialSeekTime {
                 seek(to: initialSeekTime, exact: true)
             }
             if autoPlay {
