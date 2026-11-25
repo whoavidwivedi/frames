@@ -131,6 +131,7 @@ public struct VolumeReadout: View {
 public struct LiquidGlassHUD: View {
     @Bindable var engine: VideoPlayerEngine
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var windowManager = WindowManager.shared
     @State private var showVolumePopover = false
     @State private var hoveredButton: String? = nil
@@ -183,7 +184,7 @@ public struct LiquidGlassHUD: View {
         .padding(.horizontal, 14)
         .padding(.bottom, 12)
         .environment(\.colorScheme, .dark)
-        .animation(.fluidQuick, value: engine.activeInspectorSheet)
+        .animation(reduceMotion ? nil : .fluidQuick, value: engine.activeInspectorSheet)
     }
 
     private func transportRow(compact: Bool) -> some View {

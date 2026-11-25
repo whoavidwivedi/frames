@@ -329,194 +329,48 @@ public struct DashboardContentView: View {
         .padding(.horizontal, isNarrow ? 16 : 24)
     }
 
-    // Dedicated Favorites Empty State
     private var favoritesEmptyState: some View {
-        VStack(spacing: 16) {
-            ZStack {
-                Circle()
-                    .fill(ShadcnTheme.card)
-                    .frame(width: 64, height: 64)
-                    .overlay(
-                        Circle()
-                            .strokeBorder(ShadcnTheme.border, lineWidth: 1)
-                    )
-
-                Image(systemName: "star")
-                    .font(.system(size: 26, weight: .regular))
-                    .foregroundStyle(goldenFavoriteColor)
-            }
-
-            VStack(spacing: 6) {
-                Text("No Favorites Yet")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(ShadcnTheme.foreground)
-
-                Text("Add videos to favorites by clicking the star icon on any video.")
-                    .font(.system(size: 12))
-                    .foregroundStyle(ShadcnTheme.foregroundMuted)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 320)
-            }
-        }
+        ContentUnavailableView("No Favorites", systemImage: "star", description: Text("Star a video to keep it handy here."))
     }
 
-    // Dedicated Recent Empty State
     private var recentEmptyState: some View {
-        VStack(spacing: 16) {
-            ZStack {
-                Circle()
-                    .fill(ShadcnTheme.card)
-                    .frame(width: 64, height: 64)
-                    .overlay(
-                        Circle()
-                            .strokeBorder(ShadcnTheme.border, lineWidth: 1)
-                    )
-
-                Image(systemName: "clock")
-                    .font(.system(size: 24, weight: .regular))
-                    .foregroundStyle(ShadcnTheme.foregroundSecondary)
-            }
-
-            VStack(spacing: 6) {
-                Text("No Recent Videos")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(ShadcnTheme.foreground)
-
-                Text("Videos you play will appear here so you can continue where you left off.")
-                    .font(.system(size: 12))
-                    .foregroundStyle(ShadcnTheme.foregroundMuted)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 320)
-            }
-        }
+        ContentUnavailableView("No Recent Videos", systemImage: "clock", description: Text("Videos you play appear here so you can resume them."))
     }
 
-    // Search Empty State
     private var searchEmptyState: some View {
-        VStack(spacing: 16) {
-            ZStack {
-                Circle()
-                    .fill(ShadcnTheme.card)
-                    .frame(width: 64, height: 64)
-                    .overlay(
-                        Circle()
-                            .strokeBorder(ShadcnTheme.border, lineWidth: 1)
-                    )
+        ContentUnavailableView {
+            Label("No Matching Videos", systemImage: "magnifyingglass")
+        } description: {
+            Text("Try a different title or folder name.")
+        } actions: {
+            Button("Clear Search") { library.searchQuery = "" }
+        }
+    }
 
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 24, weight: .regular))
-                    .foregroundStyle(ShadcnTheme.foregroundSecondary)
+    private var genericLibraryEmptyState: some View {
+        ContentUnavailableView {
+            if library.isScanning {
+                Label("Scanning for Videos", systemImage: "folder")
+            } else {
+                Label("No Videos", systemImage: "film.stack")
             }
-
-            VStack(spacing: 6) {
-                Text("No results for \"\(library.searchQuery)\"")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(ShadcnTheme.foreground)
-
-                Text("Try adjusting your search query or clear the filter.")
-                    .font(.system(size: 12))
-                    .foregroundStyle(ShadcnTheme.foregroundMuted)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 320)
+        } description: {
+            Text("Open a video or add a folder to your library.")
+        } actions: {
+            ViewThatFits(in: .horizontal) {
+                HStack { libraryEmptyActions }
+                VStack { libraryEmptyActions }
             }
         }
     }
 
-    // Generic Empty State with Dashed Frame + Plus Icon & Action Buttons
-    private var genericLibraryEmptyState: some View {
-        VStack(spacing: 16) {
-            // Iconic dashed-line frame with plus icon
-            Button {
-                library.selectAndAddVideos()
-            } label: {
-                ZStack {
-                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusLg, style: .continuous)
-                        .fill(ShadcnTheme.card.opacity(0.4))
-                        .frame(width: 72, height: 72)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusLg, style: .continuous)
-                                .strokeBorder(
-                                    ShadcnTheme.border,
-                                    style: StrokeStyle(lineWidth: 1.5, dash: [6, 6])
-                                )
-                        )
-
-                    Image(systemName: "plus")
-                        .font(.system(size: 26, weight: .light))
-                        .foregroundStyle(ShadcnTheme.foregroundSecondary)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .contentShape(Rectangle())
-            .pointingHand()
-            .help("Select files to play")
-
-            VStack(spacing: 6) {
-                Text("No videos found")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(ShadcnTheme.foreground)
-
-                Text("Add a folder in the sidebar or select video files to start playing.")
-                    .font(.system(size: 12))
-                    .foregroundStyle(ShadcnTheme.foregroundMuted)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 320)
-            }
-
-            HStack(spacing: 12) {
-                Button {
-                    library.selectFilesToPlay { url in
-                        onPlayURL(url)
-                    }
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "film")
-                            .font(.system(size: 11))
-                        Text("Select Files")
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 9)
-                    .foregroundStyle(ShadcnTheme.primaryForeground)
-                    .background(
-                        RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                            .fill(ShadcnTheme.primary)
-                    )
-                    .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .contentShape(Rectangle())
-                .pointingHand()
-
-                Button {
-                    library.selectAndAddFolder()
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "folder.badge.plus")
-                            .font(.system(size: 11))
-                        Text("Add Folder")
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 9)
-                    .foregroundStyle(ShadcnTheme.foreground)
-                    .background(
-                        RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                            .fill(ShadcnTheme.card)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                    .strokeBorder(ShadcnTheme.border, lineWidth: 1)
-                            )
-                    )
-                    .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .contentShape(Rectangle())
-                .pointingHand()
-            }
-            .padding(.top, 4)
-        }
+    @ViewBuilder
+    private var libraryEmptyActions: some View {
+        Button("Open Files…") { library.selectFilesToPlay(onSelected: onPlayURL) }
+            .buttonStyle(.borderedProminent)
+            .tint(ShadcnTheme.accent)
+        Button("Add Folder…") { library.selectAndAddFolder() }
+            .buttonStyle(.bordered)
     }
 }
 
