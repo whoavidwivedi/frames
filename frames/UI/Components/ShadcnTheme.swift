@@ -116,7 +116,7 @@ func dynamicColor(
 
 // Shared Frames surfaces and action colors.
 public enum ShadcnTheme {
-    public static let accent = dynamicColor(
+    public static let actionTint = dynamicColor(
         light: (0.24, 0.28, 0.72, 1),
         dark: (0.73, 0.76, 1, 1)
     )

@@ -13,7 +13,7 @@ public struct UpdateAvailableOverlay: View {
     @State private var isHoveringGitHub = false
     @State private var isHoveringSkip = false
 
-    private let accent = ShadcnTheme.accent
+    private let accent = ShadcnTheme.actionTint
 
     public init(
         update: AppUpdateInfo,

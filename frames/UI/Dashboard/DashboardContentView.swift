@@ -368,7 +368,7 @@ public struct DashboardContentView: View {
     private var libraryEmptyActions: some View {
         Button("Open Files…") { library.selectFilesToPlay(onSelected: onPlayURL) }
             .buttonStyle(.borderedProminent)
-            .tint(ShadcnTheme.accent)
+            .tint(ShadcnTheme.actionTint)
         Button("Add Folder…") { library.selectAndAddFolder() }
             .buttonStyle(.bordered)
     }
