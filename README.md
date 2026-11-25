@@ -26,88 +26,29 @@
 
 ---
 
-## Overview
+## Frames 2.0
 
-**Frames** is an ultra-fast, zero-bloat video player and media management dashboard built from the ground up for macOS and Apple Silicon, supporting all M-series hardware from M1 to the latest (M1, M1 Pro, M1 Max, M1 Ultra, M2, M2 Pro, M2 Max, M2 Ultra, M3, M3 Pro, M3 Max, M4, M4 Pro, M4 Max, and beyond).
+Frames is a native arm64 video player for macOS 14 and later. It uses first-party Swift container readers, VideoToolbox, Core Audio and native macOS presentation APIs. The player includes a folder library, resume history, external subtitles and keyboard transport controls.
 
-Traditional desktop video players are often weighed down by multi-hundred-megabyte Electron wrappers or legacy codebases dating back decades. Frames is written in pure **Swift and SwiftUI**, leveraging Apple Silicon's dedicated **VideoToolbox** media decoders and Unified Memory architecture to deliver fluid 60fps / 120fps playback, buttery timeline scrubbing, and sub-second cold starts with minimal battery drain.
+| Container | Playback path |
+| --- | --- |
+| MP4, MOV, M4V | Native ISO media reader with AVFoundation fallback |
+| MKV, WebM | Native Matroska reader |
+| AVI | Native Motion JPEG support, including compatible PCM audio |
+| IVF | VP9 and AV1 video on systems providing a suitable decoder |
+| Other media | AVFoundation attempts playback using the installed macOS codecs |
 
-The user interface adheres strictly to the **shadcn `base-luma`/`neutral`** (preset `b1VlK05Q`, with pointer cursor) design language: matte charcoal dark surfaces (`oklch(0.145 0 0)` / `#0a0a0a`), subtle border contours (`oklch(1 0 0 / 10%)`), crisp monochromatic neutral highlights (`oklch(0.985 0 0)` / `#fafafa`), and smooth pill-radius controls.
+Codec profile, hardware, and display capabilities affect resolution, HDR and decoding. Comparative battery life and maximum sustained playback resolution have yet to be benchmarked.
 
----
+## Installation and updates
 
-## ⚡️ Quick Install (1-Line Terminal Command)
-
-Install Frames directly on your Mac with a single command — the installer verifies the published checksum and Developer ID signature before installing and launching:
+Download the installer from [GitHub Releases](https://github.com/whoavidwivedi/frames/releases/latest), or run the installer from the repository.
 
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/whoavidwivedi/frames/main/scripts/install.sh)"
 ```
 
-> **What this does**: Fetches the latest release and its published `SHA256SUMS.txt`, verifies the archive checksum, the Developer ID code signature and the Frames bundle identifier, installs `Frames.app` into `/Applications`, and launches Frames. Installation is aborted if any check fails. Set `FRAMES_EXPECTED_TEAM_ID=<team-id>` to additionally pin the exact signing team, e.g. `FRAMES_EXPECTED_TEAM_ID=ABCDE12345 /bin/bash -c "$(curl -fsSL .../install.sh)"`.
-
-> **Unsigned releases**: When no Apple Developer ID is configured, releases are ad-hoc signed and not notarized. The one-line installer above still refuses them. The in-app updater can install them after an explicit “unsigned build” warning, and the manual steps in `UNSIGNED_BUILD.txt` remove the Gatekeeper quarantine attribute.
-
-### Upgrading from v1.9.4 or v1.9.5 (one-time migration)
-
-Those two versions contain the old strict Developer ID updater and fail with `OSStatus -67050` when updating to an unsigned release. Because that check runs inside the already-installed app, no server-side or OTA-only change can bypass it. Run the **one-time migration installer** once:
-
-Double-click `Frames-migrate.command` from the latest release, or run:
-
-```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/whoavidwivedi/frames/main/scripts/migrate.command)"
-```
-
-It downloads the latest release, verifies the published SHA-256 checksum, bundle identifier, and signature, replaces `Frames.app` with an automatic rollback on failure, clears the Gatekeeper quarantine attribute, and relaunches Frames. After that, all future in-app updates work normally with an explicit unsigned-build warning.
-
-If a future release is Developer ID–signed, set `FRAMES_EXPECTED_TEAM_ID` to the publisher's 10-character Apple team ID before running the migration script so the signing identity is pinned: `FRAMES_EXPECTED_TEAM_ID=ABCDE12345 /bin/bash -c "$(curl -fsSL .../migrate.command)"`.
-
-The strict one-line installer above is unchanged and still refuses unsigned builds; use it only when a Developer ID–signed release is available.
-
----
-
-## Key Features
-
-### 1. Pure Native Apple Silicon Media Engine
-* **Zero-Bloat Custom Architecture**: Built completely from scratch in Swift 6 without VLC or legacy C/C++ media player bloat.
-* **Pure Swift Matroska & WebM Demuxer**: High-performance zero-allocation EBML VINT streaming parser with $O(\log N)$ binary-search keyframe seeking for `.mkv` and `.webm`.
-* **Hardware-First VideoToolbox ASIC Pipeline**: Direct hardware decode for H.264, HEVC (8/10-bit HDR), VP9, AV1, and ProRes. Decoded frames live directly in Apple Silicon Unified Memory (`IOSurface`).
-* **Zero-Copy Metal 3 HDR Presentation**: Custom Metal shaders converting bi-planar NV12/P010 textures to RGB in 16-bit floating point with Rec.709, Rec.2020, and ST 2084 PQ / HLG EOTF optical transfer functions.
-* **120Hz ProMotion CADisplayLink Cadence**: Synced directly with macOS display refresh intervals, eliminating judder, frame tearing, and timing drift.
-* **Bit-Perfect CoreAudio Master Clock**: Hardware-driven audio DAC crystal oscillator timing synchronization keeps video and audio aligned to $< 1\text{ms}$.
-* **Ultra-Low Battery & Thermal Footprint**: Designed to sip less power than QuickTime and draw 2–4× less battery than VLC on Apple Silicon.
-
-### 2. Media Dashboard & Library Sidebar
-* **Folder Management**: Connect any folder on your Mac; subdirectories are recursively indexed asynchronously without blocking the UI.
-* **Smart Organization**: Instant navigation across *All Videos*, *Recent*, *Favorites*, or custom pinned directories with live item counts.
-* **Sub-Millisecond Search & Sort**: Filter thousands of titles instantly by name, date added, duration, or file size with keyboard focus management.
-* **Adaptive View Modes**: Switch seamlessly between a 16:9 cinematic card grid and a compact list table.
-* **Persistent Progress**: Remembers playback timestamps and resumes where you left off.
-
-### 3. Native macOS Window & Fullscreen Architecture
-* **Native Spaces Fullscreen (`⌃⌘F` / `F`)**: Full macOS Spaces immersion with automatic menu bar and dock suppression using the standard macOS shortcut `⌃⌘F` (or `F` during playback).
-* **Windowed Desktop Fill / Zoom (`⌃⌥⌘F` / `Window -> Zoom`)**: Fills the current display space instantly without creating a new Space; accessible via macOS Zoom or `⌃⌥⌘F`.
-
-### 4. Precision Subtitle Engine
-* Seamless support for external `.srt` and `.vtt` subtitles via drag-and-drop or file picker.
-* Real-time HTML tag stripping (`<i>`, `<b>`, `<font>`) and sub-millisecond timestamp parsing.
-
-### 5. In-App Production OTA Update Engine
-* **Non-Intrusive Update Discovery**: Asynchronous background query against GitHub Releases API with SemVer 2.0.0 parsing. Never forces disruptive silent updates.
-* **Liquid Glass Update Modal**: Sleek adaptive modal displaying version diff (`v1.2.0 → v1.3.0`), release notes highlights, download size, and real-time download progress.
-* **Granular User Control**: "Update & Restart", "Later", and "Skip this version" options, plus manual check affordance in App Menu (`Frames -> Check for Updates...`) and Command Palette.
-* **Verified Bundle Swap & Clean Restart**: Verifies the published SHA-256 checksum and bundle structure before extraction. Signed releases additionally require a valid Developer ID signature; unsigned releases require explicit confirmation and have their quarantine attribute cleared before the bundle is swapped and Frames restarts.
-
-### 6. Command Palette (`⌘K`) & High-Res Frame Capture (`⌘S`)
-* **Instant Keyboard Access**: Press `⌘K` from anywhere in the app to search and execute any command, switch themes, navigate folders, adjust audio/video playback, or check for updates.
-* **High-Res Frame Snapshot Engine (`⌘S`)**: Instant capture of native resolution video frames directly exported to `~/Pictures/Frames`.
-* **Timestamp Jump Expressions**: Jump directly to any position using expressions such as `1:23`, `01:15:00`, `90s`, `15m`, or relative offsets `+30s` / `-15s` via Command Palette.
-
-### 7. Native Settings Window (`⌘,`)
-* Comprehensive 5-tab native macOS preferences: General, Playback, Audio, Subtitles, and About.
-* Configurable hardware acceleration, ProMotion 120Hz sync, HDR tone mapping, subtitle styling, and battery saver guard.
-
----
+The installer verifies the archive checksum, bundle identity, version and signature. Ad-hoc builds require consent. If macOS blocks first launch, select **System Settings → Privacy & Security → Open Anyway** for Frames. Use **Frames → Check for Updates** for subsequent updates. Users on v1.9.4 or v1.9.5 can use the release’s migration installer.
 
 ## Keyboard Shortcuts
 
