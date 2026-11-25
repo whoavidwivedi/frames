@@ -140,8 +140,6 @@ public struct LiquidGlassHUD: View {
     }
 
     public var body: some View {
-        let isNarrow = windowManager.isCompact || windowManager.isQuarterScreen
-
         VStack(alignment: .trailing, spacing: 8) {
             if engine.activeInspectorSheet == .audio {
                 AudioSelectorPanel(engine: engine)
@@ -164,49 +162,9 @@ public struct LiquidGlassHUD: View {
             VStack(spacing: 2) {
                 PlaybackTimelineRow(engine: engine)
 
-                HStack(spacing: 4) {
-                    playPauseButton()
-                    transportSkipButton(forward: false)
-                    transportSkipButton(forward: true)
-
-                    Spacer(minLength: 4)
-
-                    muteButton(isNarrow: isNarrow)
-                    if !isNarrow {
-                        VolumeButtonGroup(volume: volumeBinding, isMuted: engine.isMuted)
-                    }
-
-                    utilityDivider
-                    Menu {
-                        Button("Audio Tracks…") { toggleInspector(.audio) }
-                        Button("Subtitles…") { toggleInspector(.subtitles) }
-                    } label: {
-                        Image(systemName: "captions.bubble")
-                    }
-                    .menuStyle(.borderlessButton)
-                    .fixedSize()
-                    .accessibilityLabel("Audio and subtitles")
-                    rateButton()
-                    circleButton(
-                        id: "pip",
-                        icon: PictureInPictureManager.shared.isPictureInPicture ? "pip.exit" : "pip.enter",
-                        help: "Picture in Picture (P)",
-                        accessibilityLabel: PictureInPictureManager.shared.isPictureInPicture ? "Exit Picture in Picture" : "Enter Picture in Picture"
-                    ) {
-                        PictureInPictureManager.shared.toggle(engine: engine)
-                    }
-                    circleButton(
-                        id: "fullscreen",
-                        icon: windowManager.isAnyFullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right",
-                        help: windowManager.isAnyFullscreen ? "Exit Fullscreen (Esc)" : "Enter Fullscreen (F)",
-                        accessibilityLabel: windowManager.isAnyFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"
-                    ) {
-                        if windowManager.isAnyFullscreen {
-                            windowManager.exitAnyFullscreen()
-                        } else {
-                            windowManager.toggleNativeFullscreen()
-                        }
-                    }
+                ViewThatFits(in: .horizontal) {
+                    transportRow(compact: false)
+                    transportRow(compact: true)
                 }
             }
             .padding(.horizontal, 12)
@@ -226,6 +184,95 @@ public struct LiquidGlassHUD: View {
         .padding(.bottom, 12)
         .environment(\.colorScheme, .dark)
         .animation(.fluidQuick, value: engine.activeInspectorSheet)
+    }
+
+    private func transportRow(compact: Bool) -> some View {
+        HStack(spacing: compact ? 2 : 4) {
+            playPauseButton()
+            transportSkipButton(forward: false)
+            transportSkipButton(forward: true)
+
+            Spacer(minLength: 4)
+            muteButton(isNarrow: compact)
+
+            if compact {
+                compactOptions
+            } else {
+                VolumeButtonGroup(volume: volumeBinding, isMuted: engine.isMuted)
+                utilityDivider
+                trackMenu
+                rateButton()
+                pictureInPictureButton
+            }
+            fullscreenButton
+        }
+    }
+
+    private var trackMenu: some View {
+        Menu {
+            trackActions
+        } label: {
+            Image(systemName: engine.selectedSubtitleTrack.id == SubtitleTrack.off.id
+                  ? "captions.bubble" : "captions.bubble.fill")
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("Audio and subtitle tracks")
+        .accessibilityLabel("Audio and subtitle tracks")
+    }
+
+    private var compactOptions: some View {
+        Menu {
+            trackActions
+            Divider()
+            Button("Playback Speed…") { toggleInspector(.speed) }
+            Button(pictureInPictureTitle) {
+                PictureInPictureManager.shared.toggle(engine: engine)
+            }
+        } label: {
+            Image(systemName: "ellipsis.circle")
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("More playback controls")
+        .accessibilityLabel("More playback controls")
+    }
+
+    @ViewBuilder
+    private var trackActions: some View {
+        Button("Audio Tracks…") { toggleInspector(.audio) }
+        Button("Subtitles…") { toggleInspector(.subtitles) }
+    }
+
+    private var pictureInPictureTitle: String {
+        PictureInPictureManager.shared.isPictureInPicture ? "Exit Picture in Picture" : "Enter Picture in Picture"
+    }
+
+    private var pictureInPictureButton: some View {
+        circleButton(
+            id: "pip",
+            icon: PictureInPictureManager.shared.isPictureInPicture ? "pip.exit" : "pip.enter",
+            help: "\(pictureInPictureTitle) (P)",
+            accessibilityLabel: pictureInPictureTitle
+        ) {
+            PictureInPictureManager.shared.toggle(engine: engine)
+        }
+    }
+
+    private var fullscreenButton: some View {
+        let isFullscreen = windowManager.isAnyFullscreen
+        return circleButton(
+            id: "fullscreen",
+            icon: isFullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right",
+            help: isFullscreen ? "Exit Fullscreen (Esc)" : "Enter Fullscreen (F)",
+            accessibilityLabel: isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"
+        ) {
+            if isFullscreen {
+                windowManager.exitAnyFullscreen()
+            } else {
+                windowManager.toggleNativeFullscreen()
+            }
+        }
     }
 
     public static func formatRate(_ rate: Float) -> String {
