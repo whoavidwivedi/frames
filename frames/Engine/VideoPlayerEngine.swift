@@ -216,6 +216,7 @@ public final class VideoPlayerEngine {
 
     // MARK: - Media Lifecycle
     public func unloadMedia() {
+        pendingPlaybackIntent = nil
         if let url = currentURL, !url.path.isEmpty, duration > 0 {
             let progress = hasEnded ? 1.0 : (currentTime / duration)
             LibraryManager.shared.recordPlayback(url: url, duration: duration, progress: progress)
@@ -274,6 +275,7 @@ public final class VideoPlayerEngine {
             return
         }
 
+        pendingPlaybackIntent = nil
         loadGeneration &+= 1
         let generation = loadGeneration
         clearPlayerItemObservers()
@@ -299,7 +301,8 @@ public final class VideoPlayerEngine {
         }
 
         self.currentURL = url
-        self.pendingInitialSeekTime = (initialSeekTime != nil && initialSeekTime! > 0) ? initialSeekTime : nil
+        let initialSeekTime = initialSeekTime.flatMap { $0.isFinite && $0 > 0 ? $0 : nil }
+        self.pendingInitialSeekTime = initialSeekTime
         let startSecs = initialSeekTime ?? 0.0
         self.currentTime = startSecs
         self.lastSyncTime = startSecs
@@ -363,12 +366,18 @@ public final class VideoPlayerEngine {
     }
 
     // MARK: - Playback Controls
+    private var pendingPlaybackIntent: Bool?
     private var isSeekInProgress = false
     private var chaseTime: CMTime = .zero
     @ObservationIgnored
     private var displayTime: Double = 0.0
 
     public func play() {
+        if pendingPlaybackIntent != nil {
+            pendingPlaybackIntent = true
+            isPlaying = true
+            return
+        }
         if hasEnded || (currentTime >= duration && duration > 0) {
             hasEnded = false
             // An exact seek re-anchors the audio engine too. A non-exact (scrub)
@@ -389,6 +398,11 @@ public final class VideoPlayerEngine {
     }
 
     public func pause() {
+        if pendingPlaybackIntent != nil {
+            pendingPlaybackIntent = false
+            isPlaying = false
+            return
+        }
         currentTime = currentInterpolatedTime()
         lastSyncTime = currentTime
         lastSyncDate = Date()
@@ -878,15 +892,21 @@ public final class VideoPlayerEngine {
 
         metadata.title = url.deletingPathExtension().lastPathComponent
         metadata.container = url.pathExtension.uppercased()
+        pendingPlaybackIntent = autoPlay
+        isPlaying = autoPlay
 
         Task { [weak self] in
-            guard let self else { return }
+            guard let self, loadGeneration == generation, currentURL == url else { return }
             let success = await nativePipeline.load(url: url)
             guard loadGeneration == generation, currentURL == url else {
                 // A newer load (or unload) owns the pipeline now; do not touch
                 // nativePipeline here or we corrupt its load token / subsystems.
                 return
             }
+
+            let autoPlay = pendingPlaybackIntent ?? autoPlay
+            pendingPlaybackIntent = nil
+            isPlaying = false
 
             guard success else {
                 // Milestone 2 Fallback: Gracefully fall back to AVFoundation

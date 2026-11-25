@@ -22,6 +22,30 @@ final class FramesTests: XCTestCase {
         try await super.tearDown()
     }
 
+    func testPlaybackIntentCanChangeDuringNativeLoad() async throws {
+        let url = try XCTUnwrap(resolveTestMediaURL())
+        let engine = VideoPlayerEngine()
+        defer { engine.unloadMedia() }
+        engine.loadMedia(from: url, initialSeekTime: .infinity)
+        engine.pause()
+        let deadline = Date().addingTimeInterval(5)
+        while engine.duration == 0 && Date() < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        XCTAssertGreaterThan(engine.duration, 0)
+        XCTAssertFalse(engine.isPlaying)
+        XCTAssertEqual(engine.currentTime, 0, accuracy: 0.05)
+
+        engine.loadMedia(from: url, autoPlay: false)
+        engine.play()
+        let secondDeadline = Date().addingTimeInterval(5)
+        while engine.duration == 0 && Date() < secondDeadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        XCTAssertGreaterThan(engine.duration, 0)
+        XCTAssertTrue(engine.isPlaying)
+    }
+
     func testPresentationFormatReuseTracksPixelBufferMetadata() throws {
         func frame(width: Int, matrix: CFString) throws -> CVPixelBuffer {
             var pixelBuffer: CVPixelBuffer?
