@@ -77,65 +77,9 @@ Designed for native macOS and keyboard-first navigation:
 
 ---
 
-## Testing & Optimization Suite
+## Testing
 
-Frames includes a built-in automated test suite covering demuxing, decoding, Metal 3 rendering, design tokens, time formatting, and memory benchmarks.
-
-Run tests directly from terminal:
-
-```bash
-build/DerivedData/Build/Products/Debug/frames.app/Contents/MacOS/frames --run-tests
-```
-
-```
-==========================================
-       FRAMES TEST & OPTIMIZATION SUITE   
-==========================================
-
-[1] Testing TimeFormatting...
-  ✔ PASS: Zero Seconds
-  ✔ PASS: Seconds Under A Minute
-  ✔ PASS: Minutes and Seconds
-  ✔ PASS: One Hour and Above
-  ✔ PASS: Negative Value Guard
-  ✔ PASS: NaN Value Guard
-
-[2] Testing SubtitleParser (SRT & WebVTT)...
-  ✔ PASS: SRT Count
-  ✔ PASS: SRT Cue 1 Timing
-  ✔ PASS: SRT Cue 1 HTML Stripping
-  ✔ PASS: SRT Cue 2 Timing
-  ✔ PASS: WebVTT Count
-  ✔ PASS: WebVTT Timing
-  ✔ PASS: WebVTT Text
-
-... (comprehensive automated test suites) ...
-
-[33] Testing Timestamp Jump Parser & Expression Engine...
-  ✔ PASS: TimeJumpParser MM:SS Parse (1:23 -> 83s)
-  ✔ PASS: TimeJumpParser HH:MM:SS Parse (01:23:45 -> 5025s)
-  ✔ PASS: TimeJumpParser Leading Colon (:45 -> 45s)
-  ✔ PASS: TimeJumpParser Unit Suffix Seconds (90s -> 90s)
-  ✔ PASS: TimeJumpParser Unit Suffix Minutes (15m -> 900s)
-  ✔ PASS: TimeJumpParser Unit Suffix Hours (2h -> 7200s)
-  ✔ PASS: TimeJumpParser Relative Forward (+30s from 60s -> 90s)
-  ✔ PASS: TimeJumpParser Relative Backward (-15s from 60s -> 45s)
-  ✔ PASS: TimeJumpParser Negative Underflow Clamped to 0.0
-  ✔ PASS: TimeJumpParser Duration Overflow Clamped to Duration
-  ✔ PASS: TimeJumpParser Invalid Input Rejected
-  ✔ PASS: TimeJumpParser Empty Input Rejected
-
-[34] Testing High-Resolution Frame Capture Engine...
-  ✔ PASS: FrameCaptureEngine Directory Creation
-  ✔ PASS: FrameCaptureEngine Standard Filename Format
-  ✔ PASS: FrameCaptureEngine File Persistence & Metadata
-
-==========================================
-Test Suite 'All tests' passed
-==========================================
-```
-
----
+Run the Xcode test scheme and the isolated installer regression suite from the repository root. The engineering guide includes the commands, playback fixture criteria, performance measurement procedure and release workflow. [Engineering guide](AGENTS.md)
 
 ## Building from Source
 
