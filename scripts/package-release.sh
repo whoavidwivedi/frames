@@ -9,7 +9,7 @@ plist="$app/Contents/Info.plist"
 [[ "$(/usr/bin/plutil -extract CFBundleShortVersionString raw "$plist")" == "$version" ]]
 [[ "$(/usr/bin/plutil -extract CFBundleIdentifier raw "$plist")" == whoavidwivedi.frames ]]
 exe="$(/usr/bin/plutil -extract CFBundleExecutable raw "$plist")"
-/usr/bin/lipo -verify_arch arm64 "$app/Contents/MacOS/$exe"
+/usr/bin/lipo "$app/Contents/MacOS/$exe" -verify_arch arm64
 /usr/bin/codesign --verify --deep --strict -R='identifier "whoavidwivedi.frames"' "$app"
 mkdir -p "$out"
 archive="Frames-v$version-macOS.zip"
