@@ -409,13 +409,13 @@ public struct LiquidGlassHUD: View {
                   ? "speaker.slash.fill"
                   : (engine.volume < 0.25 ? "speaker.fill" : (engine.volume < 0.65 ? "speaker.wave.1.fill" : "speaker.wave.2.fill")))
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(engine.isMuted ? ShadcnTheme.destructive : (isHovered ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary))
+                .foregroundStyle(engine.isMuted ? ShadcnTheme.foreground : (isHovered ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary))
                 .frame(width: 30, height: 30)
                 .background(
-                    Circle().fill(engine.isMuted ? ShadcnTheme.destructive.opacity(0.15) : (isHovered ? Color.white.opacity(0.10) : Color.clear))
+                    Circle().fill(engine.isMuted ? ShadcnTheme.foreground.opacity(0.15) : (isHovered ? Color.white.opacity(0.10) : Color.clear))
                 )
                 .overlay(
-                    Circle().strokeBorder(engine.isMuted ? ShadcnTheme.destructive.opacity(0.35) : Color.clear, lineWidth: 1)
+                    Circle().strokeBorder(engine.isMuted ? ShadcnTheme.foreground.opacity(0.35) : Color.clear, lineWidth: 1)
                 )
                 .contentShape(Circle())
         }

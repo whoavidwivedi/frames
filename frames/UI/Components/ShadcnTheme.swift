@@ -249,8 +249,8 @@ public enum ShadcnTheme {
 
     /// Destructive action
     public static let destructive: Color = dynamicColor(
-        light: (0.20, 0.20, 0.20, 1),
-        dark: (0.88, 0.88, 0.88, 1)
+        light: (0.68, 0.13, 0.16, 1),
+        dark: (1, 0.45, 0.46, 1)
     )
 
     // MARK: - Radii (base-luma scale with base 10pt / 0.625rem)

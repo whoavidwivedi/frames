@@ -365,7 +365,7 @@ public struct DashboardSidebarView: View {
                     } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(ShadcnTheme.foregroundMuted)
+                            .foregroundStyle(ShadcnTheme.destructive)
                             .frame(width: 20, height: 20)
                             .contentShape(Rectangle())
                     }

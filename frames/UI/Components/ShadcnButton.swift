@@ -5,6 +5,7 @@ public enum ShadcnButtonVariant {
     case primary
     case secondary
     case outline
+    case destructive
     case ghost
 }
 
@@ -157,6 +158,8 @@ public struct ShadcnButton: View {
         switch variant {
         case .default, .primary:
             return ShadcnTheme.primaryForeground
+        case .destructive:
+            return ShadcnTheme.destructive
         case .secondary:
             return isHovering || isSelected ? ShadcnTheme.foreground : ShadcnTheme.secondaryForeground
         case .outline, .ghost:
@@ -170,6 +173,8 @@ public struct ShadcnButton: View {
             return isHovering ? ShadcnTheme.primaryHighlight : ShadcnTheme.primary
         case .secondary:
             return isHovering ? ShadcnTheme.cardHover : ShadcnTheme.secondary
+        case .destructive:
+            return ShadcnTheme.destructive.opacity(isHovering ? 0.15 : 0.08)
         case .outline:
             if colorScheme == .dark { return Color(white: isHovering || isSelected ? 0.16 : 0.106) }
             return Color(white: isHovering || isSelected ? 0.96 : 1)
@@ -190,7 +195,7 @@ public struct ShadcnButton: View {
 
     private var borderColor: Color {
         switch variant {
-        case .default, .primary, .ghost: return .clear
+        case .default, .primary, .destructive, .ghost: return .clear
         case .secondary, .outline:
             return colorScheme == .dark ? Color(white: 0.16) : .black.opacity(0.09)
         }

@@ -387,6 +387,7 @@ public struct GeneralSettingsTab: View {
                     Spacer(minLength: 12)
                     Toggle("", isOn: $settings.showAddVideoTile)
                         .toggleStyle(.switch)
+                        .tint(.blue)
                         .pointingHand()
                 }
             }
@@ -453,7 +454,7 @@ public struct GeneralSettingsTab: View {
                         ShadcnButton(
                             historyClearedNotice ? "Cleared" : "Clear History",
                             icon: historyClearedNotice ? "checkmark" : "trash",
-                            variant: .outline,
+                            variant: historyClearedNotice ? .outline : .destructive,
                             size: .sm
                         ) {
                             showClearConfirm = true
@@ -474,7 +475,7 @@ public struct GeneralSettingsTab: View {
                         ShadcnButton(
                             historyClearedNotice ? "Cleared" : "Clear History",
                             icon: historyClearedNotice ? "checkmark" : "trash",
-                            variant: .outline,
+                            variant: historyClearedNotice ? .outline : .destructive,
                             size: .sm
                         ) {
                             showClearConfirm = true
@@ -588,6 +589,7 @@ public struct PlaybackSettingsTab: View {
                     Spacer(minLength: 12)
                     Toggle("", isOn: $settings.hardwareAccelerationEnabled)
                         .toggleStyle(.switch)
+                        .tint(.blue)
                         .pointingHand()
                 }
 
@@ -730,6 +732,7 @@ public struct PlaybackSettingsTab: View {
                     Spacer(minLength: 12)
                     Toggle("", isOn: $settings.proMotionSyncEnabled)
                         .toggleStyle(.switch)
+                        .tint(.blue)
                         .pointingHand()
                 }
             }
@@ -848,6 +851,7 @@ public struct AudioSettingsTab: View {
                     Spacer(minLength: 12)
                     Toggle("", isOn: $settings.spatialAudioEnabled)
                         .toggleStyle(.switch)
+                        .tint(.blue)
                         .pointingHand()
                 }
             }
@@ -913,6 +917,7 @@ public struct AudioSettingsTab: View {
                     Spacer(minLength: 12)
                     Toggle("", isOn: $settings.volumeNormalizationEnabled)
                         .toggleStyle(.switch)
+                        .tint(.blue)
                         .pointingHand()
                 }
             }
@@ -1101,6 +1106,7 @@ public struct SubtitlesSettingsTab: View {
                     Spacer(minLength: 12)
                     Toggle("", isOn: $settings.liveCaptionsEnabled)
                         .toggleStyle(.switch)
+                        .tint(.blue)
                         .pointingHand()
                 }
 
@@ -1165,6 +1171,7 @@ public struct SubtitlesSettingsTab: View {
                         Spacer(minLength: 12)
                         Toggle("", isOn: $settings.batterySaverGuardEnabled)
                             .toggleStyle(.switch)
+                            .tint(.blue)
                             .pointingHand()
                     }
                 }
@@ -1327,6 +1334,7 @@ public struct SoftwareUpdatesSettingsCard: View {
                 Spacer(minLength: 12)
                 Toggle("", isOn: $settings.automaticallyCheckForUpdates)
                     .toggleStyle(.switch)
+                    .tint(.blue)
                     .pointingHand()
             }
 
@@ -1351,6 +1359,7 @@ public struct SoftwareUpdatesSettingsCard: View {
                     }
                 ))
                 .toggleStyle(.switch)
+                .tint(.blue)
                 .pointingHand()
             }
 
@@ -1651,7 +1660,7 @@ public struct AboutSettingsTab: View {
                         ShadcnButton(
                             defaultsRestoredNotice ? "Defaults Restored" : "Restore All Defaults",
                             icon: defaultsRestoredNotice ? "checkmark" : "arrow.counterclockwise",
-                            variant: .outline,
+                            variant: defaultsRestoredNotice ? .outline : .destructive,
                             size: .sm
                         ) {
                             showResetConfirm = true
@@ -1672,7 +1681,7 @@ public struct AboutSettingsTab: View {
                         ShadcnButton(
                             defaultsRestoredNotice ? "Defaults Restored" : "Restore All Defaults",
                             icon: defaultsRestoredNotice ? "checkmark" : "arrow.counterclockwise",
-                            variant: .outline,
+                            variant: defaultsRestoredNotice ? .outline : .destructive,
                             size: .sm
                         ) {
                             showResetConfirm = true
