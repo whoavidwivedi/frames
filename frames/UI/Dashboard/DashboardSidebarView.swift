@@ -275,7 +275,7 @@ public struct DashboardSidebarView: View {
                 Image(systemName: icon)
                     .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
                     .foregroundStyle(
-                        icon == "star.fill" ? ShadcnTheme.favorite : (isSelected ? ShadcnTheme.blueAccent : ShadcnTheme.foregroundSecondary)
+                        icon == "star" ? ShadcnTheme.favorite : ShadcnTheme.blueAccent
                     )
                     .frame(width: 18)
 
@@ -333,7 +333,7 @@ public struct DashboardSidebarView: View {
             HStack(spacing: 9) {
                 Image(systemName: isSelected ? "folder.fill" : "folder")
                     .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
-                    .foregroundStyle(isSelected ? ShadcnTheme.blueAccent : ShadcnTheme.foregroundSecondary)
+                    .foregroundStyle(ShadcnTheme.blueAccent)
                     .frame(width: 18)
 
                 Text(folder.name)
