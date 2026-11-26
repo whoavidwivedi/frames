@@ -302,7 +302,15 @@ public struct DashboardContentView: View {
     }
 
     private var favoritesEmptyState: some View {
-        ContentUnavailableView("No Favorites", systemImage: "star", description: Text("Star a video to keep it handy here."))
+        ContentUnavailableView {
+            VStack(spacing: 8) {
+                EmptyFavoritesStar()
+                    .accessibilityHidden(true)
+                Text("No Favorites")
+            }
+        } description: {
+            Text("Star a video to keep it handy here.")
+        }
     }
 
     private var recentEmptyState: some View {
@@ -348,6 +356,47 @@ public struct DashboardContentView: View {
 }
 
 // MARK: - Dedicated Video Grid Card View
+private struct EmptyFavoritesStar: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var startedAt = Date()
+    @State private var settled = false
+
+    var body: some View {
+        Group {
+            if reduceMotion || settled {
+                star(brightness: 1)
+            } else {
+                TimelineView(.animation) { context in
+                    let elapsed = max(0, context.date.timeIntervalSince(startedAt))
+                    switch elapsed {
+                    case ..<0.09: star(brightness: 0.38)
+                    case ..<0.20: star(brightness: 0.85)
+                    case ..<0.30: star(brightness: 0.48)
+                    case ..<0.45: star(brightness: 0.9)
+                    default: star(brightness: 1)
+                    }
+                }
+            }
+        }
+        .task {
+            startedAt = Date()
+            do {
+                try await Task.sleep(for: .milliseconds(450))
+                settled = true
+            } catch {
+                // Leaving Favorites ends the effect.
+            }
+        }
+    }
+
+    private func star(brightness: Double) -> some View {
+        Image(systemName: "star")
+            .font(.system(size: 32, weight: .medium))
+            .foregroundStyle(ShadcnTheme.favorite.opacity(brightness))
+            .shadow(color: ShadcnTheme.favoriteOnThumbnail.opacity(0.24 * brightness), radius: 5)
+    }
+}
+
 private struct FavoriteStar: View {
     let isFavorite: Bool
     let fontSize: CGFloat
