@@ -207,9 +207,9 @@ struct ContentView: View {
 
         // Buffering Indicator
         if engine.isBuffering {
-            Label("Buffering…", systemImage: "hourglass").foregroundStyle(.white)
+            Label("Buffering…", systemImage: "hourglass").foregroundStyle(ShadcnTheme.foreground)
                 .padding(20)
-                .background(ShadcnTheme.card.opacity(0.8))
+                .background(ShadcnTheme.card)
                 .clipShape(Capsule())
         }
 

@@ -428,7 +428,7 @@ public struct VideoGridCardView: View {
                     }
                     Spacer()
 
-                    // Instant Golden Star Button
+                    // Favorite button over the thumbnail
                     Button {
                         library.toggleFavorite(videoId: video.id)
                     } label: {
@@ -438,7 +438,7 @@ public struct VideoGridCardView: View {
 
                             Image(systemName: video.isFavorite ? "star.fill" : "star")
                                 .font(.system(size: 11))
-                                .foregroundStyle(video.isFavorite ? favoriteColor : Color.white.opacity(0.85))
+                                .foregroundStyle(Color.white.opacity(video.isFavorite ? 1 : 0.85))
                         }
                         .frame(width: 28, height: 28)
                         .contentShape(Circle())
