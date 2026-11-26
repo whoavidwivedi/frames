@@ -802,10 +802,10 @@ public struct AudioSettingsTab: View {
             SettingsSectionCard("Spatial Immersion") {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Spatial Audio with Dynamic Head Tracking")
+                        Text("Spatial Audio for Surround Tracks")
                             .font(.system(size: 13, weight: .medium))
                             .foregroundStyle(ShadcnTheme.foreground)
-                        Text("Multichannel CoreAudio binaural rendering for AirPods Pro and AirPods Max.")
+                        Text("Allow spatial audio for multichannel tracks during system playback on supported devices. Stereo tracks keep their original channel placement.")
                             .font(.system(size: 11))
                             .foregroundStyle(ShadcnTheme.foregroundSecondary)
                             .fixedSize(horizontal: false, vertical: true)
