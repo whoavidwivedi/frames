@@ -61,7 +61,7 @@ public struct DashboardSidebarView: View {
                         let favCount = library.videos.filter { $0.isFavorite }.count
                         sidebarRow(
                             title: "Favorites",
-                            icon: "star",
+                            icon: favCount > 0 ? "star.fill" : "star",
                             badge: favCount > 0 ? "\(favCount)" : nil,
                             isSelected: library.selectedCategory == .favorites
                         ) {
@@ -275,7 +275,7 @@ public struct DashboardSidebarView: View {
                 Image(systemName: icon)
                     .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
                     .foregroundStyle(
-                        icon == "star" ? ShadcnTheme.favorite : ShadcnTheme.blueAccent
+                        ["star", "star.fill"].contains(icon) ? ShadcnTheme.favorite : ShadcnTheme.blueAccent
                     )
                     .frame(width: 18)
 

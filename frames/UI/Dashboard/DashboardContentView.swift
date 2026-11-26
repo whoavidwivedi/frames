@@ -359,6 +359,7 @@ public struct DashboardContentView: View {
 private struct EmptyFavoritesStar: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var brightness = 1.0
+    @State private var dimSide: UnitPoint = .leading
 
     var body: some View {
         star(brightness: reduceMotion ? 1 : brightness)
@@ -367,16 +368,21 @@ private struct EmptyFavoritesStar: View {
                 guard !reduceMotion else { return }
 
                 do {
-                    try await Task.sleep(for: .milliseconds(Int.random(in: 120...400)))
+                    try await Task.sleep(for: .milliseconds(Int.random(in: 180...650)))
                     while !Task.isCancelled {
-                        brightness = Double.random(in: 0.32...0.52)
-                        try await Task.sleep(for: .milliseconds(Int.random(in: 80...150)))
-                        brightness = Double.random(in: 0.78...0.96)
-                        try await Task.sleep(for: .milliseconds(Int.random(in: 95...170)))
-                        brightness = Double.random(in: 0.50...0.72)
-                        try await Task.sleep(for: .milliseconds(Int.random(in: 85...160)))
+                        dimSide = Bool.random() ? .leading : .trailing
+                        for beat in 0..<Int.random(in: 1...3) {
+                            if beat > 0 {
+                                brightness = Double.random(in: 0.74...0.98)
+                                try await Task.sleep(for: .milliseconds(Int.random(in: 180...360)))
+                            }
+                            brightness = Bool.random()
+                                ? Double.random(in: 0.27...0.48)
+                                : Double.random(in: 0.55...0.78)
+                            try await Task.sleep(for: .milliseconds(Int.random(in: 100...270)))
+                        }
                         brightness = 1
-                        try await Task.sleep(for: .milliseconds(Int.random(in: 1300...4800)))
+                        try await Task.sleep(for: .milliseconds(Int.random(in: 850...3800)))
                     }
                 } catch {
                     // Leaving Favorites or enabling Reduce Motion ends the loop.
@@ -385,10 +391,18 @@ private struct EmptyFavoritesStar: View {
     }
 
     private func star(brightness: Double) -> some View {
-        Image(systemName: "star")
+        let gold = ShadcnTheme.favorite
+        return Image(systemName: "star")
             .font(.system(size: 32, weight: .medium))
-            .foregroundStyle(ShadcnTheme.favorite.opacity(brightness))
-            .shadow(color: ShadcnTheme.favoriteOnThumbnail.opacity(0.36 * brightness * brightness), radius: 3 + 3 * brightness)
+            .foregroundStyle(
+                LinearGradient(
+                    colors: [gold.opacity(brightness * brightness), gold.opacity(brightness)],
+                    startPoint: dimSide,
+                    endPoint: dimSide == .leading ? .trailing : .leading
+                )
+            )
+            .shadow(color: ShadcnTheme.favoriteOnThumbnail.opacity(0.36 * brightness * brightness),
+                    radius: 3 + 3 * brightness)
     }
 }
 
