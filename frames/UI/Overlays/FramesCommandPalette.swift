@@ -267,10 +267,6 @@ public struct FramesCommandPalette: View {
                         .fill(ShadcnTheme.card.opacity(0.92))
                 )
                 .clipShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusXl, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusXl, style: .continuous)
-                        .strokeBorder(ShadcnTheme.border, lineWidth: 1)
-                )
                 .shadow(color: Color.black.opacity(0.40), radius: 32, x: 0, y: 16)
             }
             .onAppear {

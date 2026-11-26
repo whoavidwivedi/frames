@@ -98,10 +98,6 @@ public struct ShadcnButton: View {
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(borderColor, lineWidth: 1)
-            )
             .shadow(color: .black.opacity(variant == .ghost ? 0 : (colorScheme == .dark ? 0.24 : 0.04)), radius: 1, y: 1)
             .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         }
@@ -198,11 +194,4 @@ public struct ShadcnButton: View {
         return backgroundColor.opacity(0.92)
     }
 
-    private var borderColor: Color {
-        switch variant {
-        case .default, .primary, .update, .destructive, .ghost: return .clear
-        case .secondary, .outline:
-            return colorScheme == .dark ? Color(white: 0.16) : .black.opacity(0.09)
-        }
-    }
 }

@@ -58,6 +58,7 @@ public final class UpdateManager: NSObject {
         if case .readyToRestart = status { return }
         cancelDownload()
         activeCheckTask?.cancel()
+        if manualCheckNotice?.isLoading == true { manualCheckNotice = nil }
         updateChannel = channel
         availableUpdate = nil
         status = .idle
@@ -125,17 +126,26 @@ public final class UpdateManager: NSObject {
 
         status = .checking
         if manual {
-            manualCheckNotice = nil
+            manualCheckNotice = ManualCheckNotice(
+                title: "Checking for Updates",
+                message: "Looking for the latest Frames release.",
+                isLoading: true
+            )
         }
 
+        let clock = ContinuousClock()
+        let earliestResult = clock.now.advanced(by: .milliseconds(700))
         let channel = updateChannel
         activeCheckTask = Task {
             do {
                 let release = try await self.fetchRelease(for: channel)
+                if manual { try await clock.sleep(until: earliestResult) }
                 try Task.checkCancellation()
+                if manual { self.manualCheckNotice = nil }
                 self.lastCheckedDate = Date()
                 self.processRelease(release, manual: manual)
             } catch {
+                if manual { try? await clock.sleep(until: earliestResult) }
                 guard !Task.isCancelled else { return }
                 self.status = .error(message: error.localizedDescription)
                 if manual {

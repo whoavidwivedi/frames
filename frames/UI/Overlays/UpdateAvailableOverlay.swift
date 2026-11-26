@@ -316,10 +316,6 @@ public struct UpdateAvailableOverlay: View {
                 RoundedRectangle(cornerRadius: ShadcnTheme.radiusXl, style: .continuous)
                     .fill(ShadcnTheme.card)
             )
-            .overlay(
-                RoundedRectangle(cornerRadius: ShadcnTheme.radiusXl, style: .continuous)
-                    .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
-            )
     }
 
     // MARK: - Release Notes Rendering
@@ -375,10 +371,6 @@ public struct UpdateAvailableOverlay: View {
                 .background(
                     RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                         .fill(ShadcnTheme.background)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                        .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
                 )
         }
     }

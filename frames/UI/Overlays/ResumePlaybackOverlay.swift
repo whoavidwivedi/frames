@@ -60,7 +60,6 @@ public struct ResumePlaybackOverlay: View {
                             .padding(.horizontal, 8)
                             .frame(height: 22)
                             .background(Capsule().fill(ShadcnTheme.cardHover))
-                            .overlay(Capsule().strokeBorder(ShadcnTheme.border, lineWidth: 1))
                     }
                     .buttonStyle(FramesPressStyle())
                     .pointingHand()

@@ -19,10 +19,6 @@ public struct CommandShortcut: View, Equatable {
                 RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .fill(ShadcnTheme.cardHover)
             )
-            .overlay(
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 0.5)
-            )
     }
 }
 
@@ -662,10 +658,6 @@ public struct Command<Content: View>: View {
         }
         .background(ShadcnTheme.card)
         .clipShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusXl, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: ShadcnTheme.radiusXl, style: .continuous)
-                .strokeBorder(ShadcnTheme.border, lineWidth: 1)
-        )
         .environment(context)
     }
 }

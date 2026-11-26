@@ -308,18 +308,10 @@ public struct DashboardSidebarView: View {
                 if isSelected {
                     RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                         .fill(ShadcnTheme.cardHover)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                .strokeBorder(ShadcnTheme.border, lineWidth: 1)
-                        )
                         .matchedGeometryEffect(id: "activeSidebarPill", in: sidebarNamespace)
                 } else if hoveredRow == title {
                     RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                         .fill(ShadcnTheme.card.opacity(0.6))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
-                        )
                 }
             }
             .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
@@ -383,18 +375,10 @@ public struct DashboardSidebarView: View {
                 if isSelected {
                     RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                         .fill(ShadcnTheme.cardHover)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                .strokeBorder(ShadcnTheme.border, lineWidth: 1)
-                        )
                         .matchedGeometryEffect(id: "activeSidebarPill", in: sidebarNamespace)
                 } else if isHovered {
                     RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                         .fill(ShadcnTheme.accentActive)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
-                        )
                 }
             }
             .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))

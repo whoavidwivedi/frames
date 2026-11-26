@@ -512,10 +512,6 @@ public struct GeneralSettingsTab: View {
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(ShadcnTheme.secondary)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
-                )
         )
     }
 
@@ -538,10 +534,6 @@ public struct GeneralSettingsTab: View {
                 if isSelected {
                     RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                         .fill(ShadcnTheme.card)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                .strokeBorder(ShadcnTheme.border, lineWidth: 1)
-                        )
                         .shadow(color: Color.black.opacity(0.06), radius: 2, x: 0, y: 1)
                         .matchedGeometryEffect(id: "activeViewModePill", in: viewModeNamespace)
                 }
@@ -788,10 +780,6 @@ public struct PlaybackSettingsTab: View {
                             if isSelected {
                                 RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                                     .fill(ShadcnTheme.card)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                            .strokeBorder(ShadcnTheme.border, lineWidth: 1)
-                                    )
                                     .shadow(color: Color.black.opacity(0.06), radius: 2, x: 0, y: 1)
                                     .matchedGeometryEffect(id: "activeSkipIntervalPill", in: skipIntervalNamespace)
                             }
@@ -806,10 +794,6 @@ public struct PlaybackSettingsTab: View {
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(ShadcnTheme.secondary)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
-                )
         )
     }
 }
@@ -988,10 +972,6 @@ public struct SubtitlesSettingsTab: View {
                             .background(
                                 RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                                     .fill(ShadcnTheme.secondary)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                            .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
-                                    )
                             )
                             .contentShape(Rectangle())
                         }
@@ -1063,10 +1043,6 @@ public struct SubtitlesSettingsTab: View {
                     }
                     .frame(height: 140)
                     .clipShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
-                            .strokeBorder(ShadcnTheme.border, lineWidth: 1)
-                    )
                 }
             }
 
@@ -1472,10 +1448,6 @@ public struct SoftwareUpdatesSettingsCard: View {
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(ShadcnTheme.secondary)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
-                )
         )
     }
 }
@@ -1504,10 +1476,6 @@ private struct ChannelButton: View {
                 if isSelected {
                     RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                         .fill(ShadcnTheme.card)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                .strokeBorder(ShadcnTheme.border, lineWidth: 1)
-                        )
                         .shadow(color: Color.black.opacity(0.06), radius: 2, x: 0, y: 1)
                         .matchedGeometryEffect(id: "activeChannelPill", in: namespace)
                 }
@@ -1538,10 +1506,6 @@ private struct ChannelInfoBanner: View {
         .background(
             RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                 .fill(ShadcnTheme.secondary.opacity(0.40))
-                .overlay(
-                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                        .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
-                )
         )
     }
 }
@@ -1638,10 +1602,6 @@ public struct AboutSettingsTab: View {
                     RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
                         .fill(ShadcnTheme.secondary.opacity(0.40))
                 )
-                .overlay(
-                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
-                        .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
-                )
 
                 SettingsDivider()
 
@@ -1729,10 +1689,6 @@ private struct BadgeView: View {
         .background(
             RoundedRectangle(cornerRadius: 4, style: .continuous)
                 .fill(ShadcnTheme.secondary)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                .strokeBorder(ShadcnTheme.border, lineWidth: 1)
         )
     }
 }

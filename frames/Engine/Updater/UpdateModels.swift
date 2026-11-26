@@ -212,10 +212,12 @@ public struct ManualCheckNotice: Identifiable, Sendable {
     public let title: String
     public let message: String
     public let isError: Bool
+    public let isLoading: Bool
 
-    public init(title: String, message: String, isError: Bool = false) {
+    public init(title: String, message: String, isError: Bool = false, isLoading: Bool = false) {
         self.title = title
         self.message = message
         self.isError = isError
+        self.isLoading = isLoading
     }
 }

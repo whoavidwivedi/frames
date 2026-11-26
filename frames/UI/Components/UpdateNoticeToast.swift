@@ -16,15 +16,19 @@ public struct UpdateNoticeToast: View {
 
     public var body: some View {
         VStack {
-            Spacer()
-
             HStack {
                 Spacer()
 
                 HStack(spacing: 8) {
-                    Image(systemName: notice.isError ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(ShadcnTheme.foreground)
+                    if notice.isLoading {
+                        ProgressView()
+                            .controlSize(.small)
+                            .accessibilityLabel("Checking for Updates")
+                    } else {
+                        Image(systemName: notice.isError ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(ShadcnTheme.foreground)
+                    }
 
                     VStack(alignment: .leading, spacing: 1) {
                         Text(notice.title)
@@ -39,41 +43,44 @@ public struct UpdateNoticeToast: View {
 
                     Spacer(minLength: 8)
 
-                    Button {
-                        onDismiss()
-                    } label: {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                .fill(isHoveringClose ? ShadcnTheme.cardHover : Color.black.opacity(0.0001))
+                    if !notice.isLoading {
+                        Button {
+                            onDismiss()
+                        } label: {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
+                                    .fill(isHoveringClose ? ShadcnTheme.cardHover : Color.black.opacity(0.0001))
 
-                            Image(systemName: "xmark")
-                                .font(.system(size: 9, weight: .medium))
-                                .foregroundStyle(isHoveringClose ? ShadcnTheme.foreground : ShadcnTheme.foregroundMuted)
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 9, weight: .medium))
+                                    .foregroundStyle(isHoveringClose ? ShadcnTheme.foreground : ShadcnTheme.foregroundMuted)
+                            }
+                            .frame(width: 18, height: 18)
+                            .contentShape(Rectangle())
                         }
-                        .frame(width: 18, height: 18)
-                        .contentShape(Rectangle())
+                        .buttonStyle(FramesPressStyle())
+                        .pointingHand()
+                        .onHover { isHoveringClose = $0 }
                     }
-                    .buttonStyle(FramesPressStyle())
-                    .pointingHand()
-                    .onHover { isHoveringClose = $0 }
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .background(ShadcnTheme.card)
                 .clipShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
-                        .strokeBorder(notice.isError ? ShadcnTheme.actionTint.opacity(0.4) : ShadcnTheme.border, lineWidth: 1)
-                )
                 .shadow(color: Color.black.opacity(0.18), radius: 8, x: 0, y: 3)
                 .frame(maxWidth: 380)
                 .padding(.trailing, 20)
-                .padding(.bottom, 20)
+                .padding(.top, 52)
             }
+            Spacer(minLength: 0)
         }
-        .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 4.5) {
+        .task(id: notice.id) {
+            guard !notice.isLoading else { return }
+            do {
+                try await Task.sleep(for: .seconds(4.5))
                 onDismiss()
+            } catch {
+                // A newer notice or a dismissed view cancels this timer.
             }
         }
     }

@@ -284,10 +284,6 @@ public struct ShadcnCardModifier: ViewModifier {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(ShadcnTheme.card.opacity(0.85))
             )
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(ShadcnTheme.border, lineWidth: 1)
-            )
             .shadow(
                 color: Color(nsColor: NSColor(name: nil) { appearance in
                     appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua

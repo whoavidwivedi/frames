@@ -333,10 +333,6 @@ public struct DashboardTopBarView: View {
                             .background(
                                 RoundedRectangle(cornerRadius: 6, style: .continuous)
                                     .fill(ShadcnTheme.card)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                            .strokeBorder(ShadcnTheme.border, lineWidth: 1)
-                                    )
                             )
                             .contentShape(Rectangle())
                         }

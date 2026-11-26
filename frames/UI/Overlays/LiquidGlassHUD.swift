@@ -93,7 +93,6 @@ public struct VolumeReadout: View {
         .frame(height: 26)
         .background(Capsule(style: .continuous).fill(.ultraThinMaterial))
         .background(Capsule(style: .continuous).fill(ShadcnTheme.card.opacity(0.55)))
-        .overlay(Capsule(style: .continuous).strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1))
         .shadow(color: Color.black.opacity(0.25), radius: 8, y: 3)
         .opacity(isVisible ? 1 : 0)
         .scaleEffect(isVisible ? 1 : 0.95, anchor: .topTrailing)
@@ -617,7 +616,6 @@ public struct PlayerSideControls: View {
             .padding(5)
             .background(Capsule(style: .continuous).fill(.ultraThinMaterial))
             .background(Capsule(style: .continuous).fill(ShadcnTheme.card.opacity(0.55)))
-            .overlay(Capsule(style: .continuous).strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1))
             .shadow(color: Color.black.opacity(0.25), radius: 10, x: 0, y: 4)
 
             if engine.activeInspectorSheet == .audio {
