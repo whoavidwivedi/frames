@@ -3,7 +3,6 @@ import SwiftUI
 public struct SplashScreenView: View {
     private static let duration = 1.55
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.colorScheme) private var colorScheme
     @State private var start = Date()
 
     public var onComplete: () -> Void
@@ -48,14 +47,11 @@ public struct SplashScreenView: View {
     ]
 
     private func artwork(at progress: Double) -> some View {
-        let dark = colorScheme == .dark
         let reveal = min(1, max(0, (progress - 0.22) / 0.42))
         let arrival = 1 - pow(1 - reveal, 3)
-        let ink = dark ? Color.white : Color(red: 0.055, green: 0.067, blue: 0.13)
 
         return ZStack {
-            dark ? Color(red: 0.045, green: 0.049, blue: 0.086)
-                : Color(red: 0.92, green: 0.93, blue: 0.98)
+            Color.white
 
             ZStack {
                 HStack(alignment: .firstTextBaseline, spacing: -3) {
@@ -63,13 +59,13 @@ public struct SplashScreenView: View {
                         glyph(at: index)
                             .foregroundStyle(Color.clear)
                             .background {
-                                exposures(of: glyph(at: index), index: index, progress: progress, dark: dark)
+                                exposures(of: glyph(at: index), index: index, progress: progress)
                             }
                     }
                 }
                 HStack(alignment: .firstTextBaseline, spacing: -3) {
                     ForEach(Self.letters.indices, id: \.self) { index in
-                        glyph(at: index).foregroundStyle(ink)
+                        glyph(at: index).foregroundStyle(Color.black)
                     }
                 }
                 .opacity(min(1, reveal * 2.5))
@@ -84,7 +80,7 @@ public struct SplashScreenView: View {
             .font(.system(size: 72, weight: .semibold))
     }
 
-    private func exposures(of letter: Text, index: Int, progress: Double, dark: Bool) -> some View {
+    private func exposures(of letter: Text, index: Int, progress: Double) -> some View {
         ZStack {
             ForEach(Self.exposureColors.indices.reversed(), id: \.self) { layer in
                 let depth = Double(layer + 1)
@@ -108,7 +104,7 @@ public struct SplashScreenView: View {
                     .blur(radius: 2.2 + depth * 1.55 * spread)
                     .offset(x: (depth * 5 + ripple * 3) * spread,
                             y: -(depth * 9 + ripple * 5) * spread)
-                    .opacity(min(1, unfurl * 4) * (dark ? 0.89 : 0.80) * (1 - Double(layer) * 0.09))
+                    .opacity(min(1, unfurl * 4) * 0.80 * (1 - Double(layer) * 0.09))
             }
         }
     }
