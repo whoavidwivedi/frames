@@ -24,7 +24,7 @@ public struct UpdateNoticeToast: View {
                 HStack(spacing: 8) {
                     Image(systemName: notice.isError ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(notice.isError ? Color.red : Color.green)
+                        .foregroundStyle(ShadcnTheme.foreground)
 
                     VStack(alignment: .leading, spacing: 1) {
                         Text(notice.title)
@@ -63,7 +63,7 @@ public struct UpdateNoticeToast: View {
                 .clipShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
-                        .strokeBorder(notice.isError ? Color.red.opacity(0.4) : ShadcnTheme.border, lineWidth: 1)
+                        .strokeBorder(notice.isError ? ShadcnTheme.actionTint.opacity(0.4) : ShadcnTheme.border, lineWidth: 1)
                 )
                 .shadow(color: Color.black.opacity(0.18), radius: 8, x: 0, y: 3)
                 .frame(maxWidth: 380)

@@ -965,8 +965,8 @@ public struct SubtitlesSettingsTab: View {
                         // Deep cinematic canvas
                         LinearGradient(
                             colors: [
-                                Color(red: 0.05, green: 0.07, blue: 0.11),
-                                Color(red: 0.02, green: 0.03, blue: 0.05)
+                                Color(white: 0.07),
+                                Color(white: 0.03)
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
@@ -975,7 +975,7 @@ public struct SubtitlesSettingsTab: View {
                         // Soft cinematic anamorphic backlight
                         RadialGradient(
                             colors: [
-                                Color(red: 0.14, green: 0.22, blue: 0.32).opacity(0.35),
+                                Color(white: 0.22).opacity(0.35),
                                 Color.clear
                             ],
                             center: .center,
@@ -988,7 +988,7 @@ public struct SubtitlesSettingsTab: View {
                             HStack {
                                 HStack(spacing: 5) {
                                     Circle()
-                                        .fill(Color(red: 0.95, green: 0.25, blue: 0.25))
+                                        .fill(Color(white: 0.85))
                                         .frame(width: 5, height: 5)
                                     Text("4K HDR • 24 FPS")
                                         .font(.system(size: 9.5, weight: .semibold, design: .monospaced))

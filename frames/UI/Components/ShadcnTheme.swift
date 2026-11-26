@@ -117,30 +117,30 @@ func dynamicColor(
 // Shared Frames surfaces and action colors.
 public enum ShadcnTheme {
     public static let actionTint = dynamicColor(
-        light: (0.24, 0.28, 0.72, 1),
-        dark: (0.73, 0.76, 1, 1)
+        light: (0.12, 0.12, 0.12, 1),
+        dark: (0.94, 0.94, 0.94, 1)
     )
 
     public static let background = dynamicColor(
-        light: (0.966, 0.969, 0.978, 1),
-        dark: (0.064, 0.068, 0.086, 1)
+        light: (0.97, 0.97, 0.97, 1),
+        dark: (0.055, 0.055, 0.055, 1)
     )
 
     public static let card = dynamicColor(
         light: (1, 1, 1, 1),
-        dark: (0.101, 0.107, 0.135, 1)
+        dark: (0.10, 0.10, 0.10, 1)
     )
 
     public static let cardHover = dynamicColor(
-        light: (0.906, 0.918, 0.968, 1),
-        dark: (0.156, 0.169, 0.218, 1)
+        light: (0.91, 0.91, 0.91, 1),
+        dark: (0.17, 0.17, 0.17, 1)
     )
 
     public static let popover = card
 
     public static let sidebar = dynamicColor(
-        light: (0.926, 0.933, 0.956, 1),
-        dark: (0.082, 0.088, 0.112, 1)
+        light: (0.94, 0.94, 0.94, 1),
+        dark: (0.08, 0.08, 0.08, 1)
     )
 
     // MARK: - Foreground & Typography
@@ -244,10 +244,9 @@ public enum ShadcnTheme {
     )
 
     /// Destructive action
-    /// Light: oklch(0.577 0.245 27.325) -> #e7000b | Dark: oklch(0.704 0.191 22.216) -> #ff6467
     public static let destructive: Color = dynamicColor(
-        light: (0.906, 0.0, 0.042, 1.0),
-        dark: (1.0, 0.391, 0.404, 1.0)
+        light: (0.20, 0.20, 0.20, 1),
+        dark: (0.88, 0.88, 0.88, 1)
     )
 
     // MARK: - Radii (base-luma scale with base 10pt / 0.625rem)

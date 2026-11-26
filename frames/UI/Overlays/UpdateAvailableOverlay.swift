@@ -208,7 +208,7 @@ public struct UpdateAvailableOverlay: View {
             pageCard {
                 HStack(spacing: 8) {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(Color.green)
+                        .foregroundStyle(ShadcnTheme.actionTint)
                     Text("Update ready — restarting Frames…")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(ShadcnTheme.foreground)
@@ -219,10 +219,10 @@ public struct UpdateAvailableOverlay: View {
             pageCard {
                 HStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(Color.red)
+                        .foregroundStyle(ShadcnTheme.actionTint)
                     Text(message)
                         .font(.system(size: 12))
-                        .foregroundStyle(Color.red)
+                        .foregroundStyle(ShadcnTheme.actionTint)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }

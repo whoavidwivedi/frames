@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 
-private let goldenFavoriteColor = Color(red: 1.0, green: 0.8, blue: 0.0)
+private let favoriteColor = ShadcnTheme.foreground
 
 // MARK: - Tactile Card Press Button Style
 public struct TactileCardPressButtonStyle: ButtonStyle {
@@ -437,7 +437,7 @@ public struct VideoGridCardView: View {
 
                             Image(systemName: video.isFavorite ? "star.fill" : "star")
                                 .font(.system(size: 11))
-                                .foregroundStyle(video.isFavorite ? goldenFavoriteColor : Color.white.opacity(0.85))
+                                .foregroundStyle(video.isFavorite ? favoriteColor : Color.white.opacity(0.85))
                         }
                         .frame(width: 28, height: 28)
                         .contentShape(Circle())
@@ -712,7 +712,7 @@ public struct VideoListRowView: View {
 
                     Image(systemName: video.isFavorite ? "star.fill" : "star")
                         .font(.system(size: 12))
-                        .foregroundStyle(video.isFavorite ? goldenFavoriteColor : ShadcnTheme.foregroundMuted)
+                        .foregroundStyle(video.isFavorite ? favoriteColor : ShadcnTheme.foregroundMuted)
                 }
                 .frame(width: 28, height: 28)
                 .contentShape(Circle())

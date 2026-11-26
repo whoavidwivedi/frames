@@ -332,7 +332,7 @@ public struct DashboardTopBarView: View {
                         } label: {
                             HStack(spacing: 4) {
                                 Circle()
-                                    .fill(Color.blue)
+                                    .fill(ShadcnTheme.actionTint)
                                     .frame(width: 5, height: 5)
 
                                 if !isNarrow {

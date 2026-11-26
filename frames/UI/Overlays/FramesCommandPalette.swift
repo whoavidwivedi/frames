@@ -744,7 +744,7 @@ public struct FramesCommandPalette: View {
                     id: "video-\(video.id.uuidString)",
                     subtitle: "\(TimeFormatting.format(seconds: video.duration)) • \(format)\(video.isFavorite ? " • ★ Favorite" : "")",
                     icon: video.isFavorite ? "star.fill" : "play.rectangle.fill",
-                    iconColor: video.isFavorite ? Color(red: 1.0, green: 0.8, blue: 0.0) : nil,
+                    iconColor: video.isFavorite ? ShadcnTheme.foreground : nil,
                     keywords: [video.title, format, video.url.lastPathComponent, video.resolution, video.folderName, video.isFavorite ? "favorite" : ""],
                     group: videosGroup
                 ) {

@@ -470,6 +470,7 @@ struct ContentView: View {
                 updateManager.checkForUpdates(manual: false)
             }
         }
+        .tint(ShadcnTheme.actionTint)
         .preferredColorScheme(themeManager.mode.colorScheme)
         .onChange(of: engine.currentURL) { _, newURL in
             windowManager.isPlayerActive = (newURL != nil && !(newURL?.path.isEmpty ?? true))

@@ -188,7 +188,7 @@ public struct DashboardSidebarView: View {
                 if case .downloading = updateManager.status {
                     ProgressView(value: updateManager.downloadProgress)
                         .progressViewStyle(.linear)
-                        .tint(Color.blue)
+                        .tint(ShadcnTheme.actionTint)
                         .frame(height: 2)
                 }
             }
@@ -285,7 +285,7 @@ public struct DashboardSidebarView: View {
                 Image(systemName: icon)
                     .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
                     .foregroundStyle(
-                        isSelected ? ShadcnTheme.foreground : (title == "Favorites" ? Color.yellow : ShadcnTheme.foregroundSecondary)
+                        isSelected ? ShadcnTheme.foreground : (title == "Favorites" ? ShadcnTheme.actionTint : ShadcnTheme.foregroundSecondary)
                     )
                     .frame(width: 18)
 
