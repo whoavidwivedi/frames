@@ -117,7 +117,7 @@ public final class UpdateManager: NSObject {
 
     /// Checks for updates against GitHub Releases API.
     /// - Parameter manual: If true, user explicitly clicked "Check for Updates" and should receive feedback even if up-to-date.
-    public func checkForUpdates(manual: Bool = false) {
+    public func checkForUpdates(manual: Bool = false, presentsUpdatePrompt: Bool = true) {
         // Prevent concurrent checks
         if case .checking = status { return }
         if case .downloading = status { return }
@@ -143,7 +143,7 @@ public final class UpdateManager: NSObject {
                 try Task.checkCancellation()
                 if manual { self.manualCheckNotice = nil }
                 self.lastCheckedDate = Date()
-                self.processRelease(release, manual: manual)
+                self.processRelease(release, manual: manual, presentsUpdatePrompt: presentsUpdatePrompt)
             } catch {
                 if manual { try? await clock.sleep(until: earliestResult) }
                 guard !Task.isCancelled else { return }
@@ -227,7 +227,7 @@ public final class UpdateManager: NSObject {
     }
 
     /// Evaluates a fetched release against the local version.
-    public func processRelease(_ release: GitHubRelease, manual: Bool) {
+    public func processRelease(_ release: GitHubRelease, manual: Bool, presentsUpdatePrompt: Bool = true) {
         availableUpdate = nil
         isUpdatePromptPresented = false
         guard let releaseVersion = SemanticVersion(string: release.tagName) else {
@@ -281,9 +281,14 @@ public final class UpdateManager: NSObject {
             self.availableUpdate = update
             self.status = .available(info: update)
 
-            // Show prompt if manual, or if not skipped
-            if manual || !isVersionSkipped(release.tagName) {
-                self.isUpdatePromptPresented = true
+            if manual {
+                manualCheckNotice = ManualCheckNotice(
+                    title: "Update Available",
+                    message: "Frames \(release.tagName) is ready to download."
+                )
+            }
+            if presentsUpdatePrompt && (manual || !isVersionSkipped(release.tagName)) {
+                isUpdatePromptPresented = true
             }
         } else {
             self.availableUpdate = nil

@@ -353,13 +353,6 @@ struct ContentView: View {
                 .zIndex(160)
             }
 
-            // Manual Check Notice Toast
-            if let notice = updateManager.manualCheckNotice {
-                UpdateNoticeToast(notice: notice) {
-                    updateManager.dismissNotice()
-                }
-                .zIndex(170)
-            }
 
         }
     }
