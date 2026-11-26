@@ -5,7 +5,6 @@ import AppKit
 public struct DashboardTopBarView: View {
     @Bindable var library: LibraryManager
     public var onPlayURL: (URL) -> Void
-    @State private var systemAccent = Color(nsColor: .controlAccentColor)
     @State private var hoveredButton: HoveredButton? = nil
     @State private var themeManager = ThemeManager.shared
     @State private var windowManager = WindowManager.shared
@@ -348,11 +347,11 @@ public struct DashboardTopBarView: View {
                     } label: {
                         ZStack {
                             RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(hoveredButton == .theme ? systemAccent.opacity(0.12) : Color.black.opacity(0.0001))
+                                .fill(hoveredButton == .theme ? ShadcnTheme.blueAccent.opacity(0.12) : Color.black.opacity(0.0001))
 
                             Image(systemName: "circle.righthalf.filled")
                                 .font(.system(size: 12, weight: .regular))
-                                .foregroundStyle(systemAccent)
+                                .foregroundStyle(ShadcnTheme.blueAccent)
                                 .rotationEffect(.degrees(themeManager.isDark ? 180 : 0))
                         }
                         .frame(width: 28, height: 28)
@@ -377,8 +376,5 @@ public struct DashboardTopBarView: View {
         }
         .frame(height: 32)
         .macOSDefaultTitleBar()
-        .onReceive(NotificationCenter.default.publisher(for: NSColor.systemColorsDidChangeNotification)) { _ in
-            systemAccent = Color(nsColor: .controlAccentColor)
-        }
     }
 }
