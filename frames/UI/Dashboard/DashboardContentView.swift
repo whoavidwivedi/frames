@@ -358,42 +358,37 @@ public struct DashboardContentView: View {
 // MARK: - Dedicated Video Grid Card View
 private struct EmptyFavoritesStar: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var startedAt = Date()
-    @State private var settled = false
+    @State private var brightness = 1.0
 
     var body: some View {
-        Group {
-            if reduceMotion || settled {
-                star(brightness: 1)
-            } else {
-                TimelineView(.animation) { context in
-                    let elapsed = max(0, context.date.timeIntervalSince(startedAt))
-                    switch elapsed {
-                    case ..<0.09: star(brightness: 0.38)
-                    case ..<0.20: star(brightness: 0.85)
-                    case ..<0.30: star(brightness: 0.48)
-                    case ..<0.45: star(brightness: 0.9)
-                    default: star(brightness: 1)
+        star(brightness: reduceMotion ? 1 : brightness)
+            .task(id: reduceMotion) {
+                brightness = 1
+                guard !reduceMotion else { return }
+
+                do {
+                    try await Task.sleep(for: .milliseconds(Int.random(in: 120...400)))
+                    while !Task.isCancelled {
+                        brightness = Double.random(in: 0.32...0.52)
+                        try await Task.sleep(for: .milliseconds(Int.random(in: 80...150)))
+                        brightness = Double.random(in: 0.78...0.96)
+                        try await Task.sleep(for: .milliseconds(Int.random(in: 95...170)))
+                        brightness = Double.random(in: 0.50...0.72)
+                        try await Task.sleep(for: .milliseconds(Int.random(in: 85...160)))
+                        brightness = 1
+                        try await Task.sleep(for: .milliseconds(Int.random(in: 1300...4800)))
                     }
+                } catch {
+                    // Leaving Favorites or enabling Reduce Motion ends the loop.
                 }
             }
-        }
-        .task {
-            startedAt = Date()
-            do {
-                try await Task.sleep(for: .milliseconds(450))
-                settled = true
-            } catch {
-                // Leaving Favorites ends the effect.
-            }
-        }
     }
 
     private func star(brightness: Double) -> some View {
         Image(systemName: "star")
             .font(.system(size: 32, weight: .medium))
             .foregroundStyle(ShadcnTheme.favorite.opacity(brightness))
-            .shadow(color: ShadcnTheme.favoriteOnThumbnail.opacity(0.24 * brightness), radius: 5)
+            .shadow(color: ShadcnTheme.favoriteOnThumbnail.opacity(0.36 * brightness * brightness), radius: 3 + 3 * brightness)
     }
 }
 
