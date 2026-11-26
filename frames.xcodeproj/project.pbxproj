@@ -59,7 +59,6 @@
 		0228E85A8A1C399717EC310C /* ShadcnTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA43A3F961654503C7149A23 /* ShadcnTheme.swift */; };
 		770F21E1E6CB2D1B6762027A /* TimeFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01A1CEAB2CB8DF9D706583D5 /* TimeFormatting.swift */; };
 		C5A487A958D8338CF540EED8 /* TitleBarArea.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD01CBEACDB0C50D1155859A /* TitleBarArea.swift */; };
-		F607699E6E4774725F55BB1B /* UpdateNoticeToast.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFE7B84DA3AE2DC041FD957E /* UpdateNoticeToast.swift */; };
 		2AD3EA9A7FC78E73FD5A9426 /* DashboardContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86455C1C02FD2961CEDCCAC0 /* DashboardContentView.swift */; };
 		681C7006FC2895FF5D8155F2 /* DashboardSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95AD5838482A66BC0522BEC4 /* DashboardSidebarView.swift */; };
 		5AA3642B64D6042B0F03D1CB /* DashboardTopBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F8809FC1EBA6C2E00C58C3C /* DashboardTopBarView.swift */; };
@@ -151,7 +150,6 @@
 		AA43A3F961654503C7149A23 /* ShadcnTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ShadcnTheme.swift"; sourceTree = "<group>"; };
 		01A1CEAB2CB8DF9D706583D5 /* TimeFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TimeFormatting.swift"; sourceTree = "<group>"; };
 		AD01CBEACDB0C50D1155859A /* TitleBarArea.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TitleBarArea.swift"; sourceTree = "<group>"; };
-		EFE7B84DA3AE2DC041FD957E /* UpdateNoticeToast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UpdateNoticeToast.swift"; sourceTree = "<group>"; };
 		86455C1C02FD2961CEDCCAC0 /* DashboardContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DashboardContentView.swift"; sourceTree = "<group>"; };
 		95AD5838482A66BC0522BEC4 /* DashboardSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DashboardSidebarView.swift"; sourceTree = "<group>"; };
 		7F8809FC1EBA6C2E00C58C3C /* DashboardTopBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DashboardTopBarView.swift"; sourceTree = "<group>"; };
@@ -370,7 +368,6 @@
 				AA43A3F961654503C7149A23 /* ShadcnTheme.swift */,
 				01A1CEAB2CB8DF9D706583D5 /* TimeFormatting.swift */,
 				AD01CBEACDB0C50D1155859A /* TitleBarArea.swift */,
-				EFE7B84DA3AE2DC041FD957E /* UpdateNoticeToast.swift */,
 			);
 			path = "Components";
 			sourceTree = "<group>";
@@ -562,7 +559,6 @@
 				0228E85A8A1C399717EC310C /* ShadcnTheme.swift in Sources */,
 				770F21E1E6CB2D1B6762027A /* TimeFormatting.swift in Sources */,
 				C5A487A958D8338CF540EED8 /* TitleBarArea.swift in Sources */,
-				F607699E6E4774725F55BB1B /* UpdateNoticeToast.swift in Sources */,
 				2AD3EA9A7FC78E73FD5A9426 /* DashboardContentView.swift in Sources */,
 				681C7006FC2895FF5D8155F2 /* DashboardSidebarView.swift in Sources */,
 				5AA3642B64D6042B0F03D1CB /* DashboardTopBarView.swift in Sources */,

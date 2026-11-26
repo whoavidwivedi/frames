@@ -1297,7 +1297,6 @@ public struct SoftwareUpdatesSettingsCard: View {
     }
 
     public var body: some View {
-        let isChecking = updateManager.status == .checking
         let isSplit = windowManager.isSplitScreen || windowManager.isQuarterScreen || windowManager.isCompact
         let compact = isCompact || isSplit
 
@@ -1364,16 +1363,7 @@ public struct SoftwareUpdatesSettingsCard: View {
                             .foregroundStyle(ShadcnTheme.foregroundSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
-                    ShadcnButton(
-                        isChecking ? "Checking for Updates..." : "Check for Updates",
-                        icon: "arrow.triangle.2.circlepath",
-                        variant: .update,
-                        size: .sm
-                    ) {
-                        guard !isChecking else { return }
-                        updateManager.checkForUpdates(manual: true)
-                    }
-                    .disabled(isChecking)
+                    updateCheckButton
                 }
             } else {
                 HStack(alignment: .center, spacing: 16) {
@@ -1387,17 +1377,68 @@ public struct SoftwareUpdatesSettingsCard: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     Spacer(minLength: 16)
-                    ShadcnButton(
-                        isChecking ? "Checking for Updates..." : "Check for Updates",
-                        icon: "arrow.triangle.2.circlepath",
-                        variant: .update,
-                        size: .sm
-                    ) {
-                        guard !isChecking else { return }
-                        updateManager.checkForUpdates(manual: true)
-                    }
-                    .disabled(isChecking)
+                    updateCheckButton
                 }
+            }
+        }
+    }
+
+    private var updateCheckButton: some View {
+        let notice = updateManager.manualCheckNotice
+        let checking = updateManager.status == .checking
+        let isLatest: Bool
+        if case .upToDate = updateManager.status { isLatest = true } else { isLatest = false }
+
+        let title = checking ? "Checking for Updates…" : (notice?.title ?? "Check for Updates")
+        let accent: Color = if checking { ShadcnTheme.foregroundSecondary }
+            else if notice?.isError == true { ShadcnTheme.destructive }
+            else if notice != nil && isLatest { ShadcnTheme.updateSuccess }
+            else if notice != nil { ShadcnTheme.favorite }
+            else { ShadcnTheme.blueAccent }
+        let icon = if notice?.isError == true { "exclamationmark.circle" }
+            else if notice != nil && isLatest { "checkmark.circle" }
+            else if notice != nil { "arrow.down.circle" }
+            else { "arrow.triangle.2.circlepath" }
+
+        return Button {
+            if notice != nil, updateManager.availableUpdate != nil {
+                updateManager.presentUpdatePrompt()
+            } else {
+                updateManager.checkForUpdates(manual: true, presentsUpdatePrompt: false)
+            }
+        } label: {
+            HStack(spacing: 6) {
+                if checking {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .accessibilityHidden(true)
+                } else {
+                    Image(systemName: icon)
+                        .accessibilityHidden(true)
+                }
+                Text(title)
+            }
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(accent)
+            .padding(.horizontal, 10)
+            .frame(minHeight: 30)
+            .background(accent.opacity(0.10), in: Capsule())
+            .contentShape(Capsule())
+        }
+        .buttonStyle(FramesPressStyle())
+        .pointingHand()
+        .help(notice?.message ?? title)
+        .accessibilityHint(notice?.message ?? "")
+        .disabled(checking)
+        .task(id: notice?.id) {
+            guard let notice, !notice.isLoading else { return }
+            do {
+                try await Task.sleep(for: .seconds(4.5))
+                if updateManager.manualCheckNotice?.id == notice.id {
+                    updateManager.dismissNotice()
+                }
+            } catch {
+                // A new check or a dismissed Settings view cancels the timer.
             }
         }
     }

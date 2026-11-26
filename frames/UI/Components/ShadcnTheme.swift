@@ -252,6 +252,11 @@ public enum ShadcnTheme {
         dark: (0.43, 0.70, 1, 1)
     )
 
+    static let updateSuccess = dynamicColor(
+        light: (0.12, 0.42, 0.23, 1),
+        dark: (0.35, 0.83, 0.55, 1)
+    )
+
     /// Destructive action
     public static let destructive: Color = dynamicColor(
         light: (0.68, 0.13, 0.16, 1),
