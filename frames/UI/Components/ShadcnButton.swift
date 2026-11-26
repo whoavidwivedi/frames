@@ -21,7 +21,6 @@ private struct ShadcnPressStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed && !reduceMotion ? 0.94 : 1.0)
-            .animation(.fluidQuick, value: configuration.isPressed)
     }
 }
 
@@ -123,8 +122,6 @@ public struct ShadcnButton: View {
         .accessibilityLabel(effectiveAccessibilityLabel)
         .help(effectiveAccessibilityLabel)
         .onHover { isHovering = $0 }
-        .animation(.fluidQuick, value: isHovering)
-        .animation(.fluidQuick, value: isSelected)
     }
 
     private var isIconOnly: Bool {

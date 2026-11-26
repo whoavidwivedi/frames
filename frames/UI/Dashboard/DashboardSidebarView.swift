@@ -9,7 +9,6 @@ public struct SidebarRowButtonStyle: ButtonStyle {
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed && !reduceMotion ? 0.98 : 1.0)
-            .animation(.fluidQuick, value: configuration.isPressed)
     }
 }
 
@@ -20,7 +19,6 @@ public struct TactileIconButtonStyle: ButtonStyle {
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed && !reduceMotion ? 0.92 : 1.0)
-            .animation(.fluidQuick, value: configuration.isPressed)
     }
 }
 
@@ -57,9 +55,7 @@ public struct DashboardSidebarView: View {
                             badge: "\(library.videos.count)",
                             isSelected: library.selectedCategory == .allVideos
                         ) {
-                            withAnimation(.fluidQuick) {
-                                library.navigate(to: .allVideos)
-                            }
+                            library.navigate(to: .allVideos)
                         }
 
                         let recentCount = library.videos.filter { $0.lastPlayedDate != nil }.count
@@ -69,9 +65,7 @@ public struct DashboardSidebarView: View {
                             badge: recentCount > 0 ? "\(recentCount)" : nil,
                             isSelected: library.selectedCategory == .recent
                         ) {
-                            withAnimation(.fluidQuick) {
-                                library.navigate(to: .recent)
-                            }
+                            library.navigate(to: .recent)
                         }
 
                         let favCount = library.videos.filter { $0.isFavorite }.count
@@ -81,9 +75,7 @@ public struct DashboardSidebarView: View {
                             badge: favCount > 0 ? "\(favCount)" : nil,
                             isSelected: library.selectedCategory == .favorites
                         ) {
-                            withAnimation(.fluidQuick) {
-                                library.navigate(to: .favorites)
-                            }
+                            library.navigate(to: .favorites)
                         }
                     }
 
@@ -141,7 +133,6 @@ public struct DashboardSidebarView: View {
                 .padding(.horizontal, 10)
                 .padding(.top, 12)
             }
-            .animation(.fluidQuick, value: library.selectedCategory)
 
             Spacer()
 
@@ -152,9 +143,7 @@ public struct DashboardSidebarView: View {
                     icon: "gearshape",
                     isSelected: library.selectedCategory == .settings
                 ) {
-                    withAnimation(.fluidQuick) {
-                        library.navigate(to: .settings)
-                    }
+                    library.navigate(to: .settings)
                 }
                 .help("Settings (⌘,)")
             }
@@ -169,9 +158,7 @@ public struct DashboardSidebarView: View {
 
                 Button {
                     if updateManager.hasUpdate {
-                        withAnimation(.fluidQuick) {
-                            updateManager.presentUpdatePrompt()
-                        }
+                        updateManager.presentUpdatePrompt()
                     } else {
                         updateManager.checkForUpdates(manual: true)
                     }
@@ -195,9 +182,7 @@ public struct DashboardSidebarView: View {
                 .help("Frames v\(updateManager.currentVersionString) • \(updateStatusText) • Click to check for updates")
                 .accessibilityLabel("Frames version \(updateManager.currentVersionString). \(updateStatusText)")
                 .onHover { hovering in
-                    withAnimation(.fluidQuick) {
-                        isHoveringVersion = hovering
-                    }
+                    isHoveringVersion = hovering
                 }
 
                 if case .downloading = updateManager.status {
@@ -352,9 +337,7 @@ public struct DashboardSidebarView: View {
         .buttonStyle(SidebarRowButtonStyle())
         .pointingHand()
         .onHover { h in
-            withAnimation(.fluidQuick) {
-                hoveredRow = h ? title : nil
-            }
+            hoveredRow = h ? title : nil
         }
     }
 
@@ -363,9 +346,7 @@ public struct DashboardSidebarView: View {
         let isHovered = hoveredFolderId == folder.id
 
         return Button {
-            withAnimation(.fluidQuick) {
-                library.navigate(to: .folder(id: folder.id))
-            }
+            library.navigate(to: .folder(id: folder.id))
         } label: {
             HStack(spacing: 9) {
                 Image(systemName: isSelected ? "folder.fill" : "folder")
@@ -390,9 +371,7 @@ public struct DashboardSidebarView: View {
                     }
 
                     Button {
-                        withAnimation(.fluidQuick) {
-                            library.removeFolder(id: folder.id)
-                        }
+                        library.removeFolder(id: folder.id)
                     } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 10, weight: .bold))
@@ -433,9 +412,7 @@ public struct DashboardSidebarView: View {
         .buttonStyle(SidebarRowButtonStyle())
         .pointingHand()
         .onHover { h in
-            withAnimation(.fluidQuick) {
-                hoveredFolderId = h ? folder.id : nil
-            }
+            hoveredFolderId = h ? folder.id : nil
         }
         .contextMenu {
             Button("Rescan Folder") {

@@ -298,39 +298,3 @@ public extension View {
         modifier(ShadcnCardModifier(cornerRadius: cornerRadius, padding: padding))
     }
 }
-
-// MARK: - Fluid Physics & Curves (Optimized for Apple Silicon ProMotion 120Hz Displays)
-public enum FramesAnimation {
-    /// Fluid continuous spring curve strictly adhering to sub-300ms UI animation budget
-    /// Responsive 0.24s response and gentle damping (0.78) eliminating all bounce and visual jitter
-    public static let fluidSpring = Animation.spring(response: 0.24, dampingFraction: 0.78)
-
-    /// Smooth continuous transition curve under 300ms (0.20s)
-    public static let smooth = Animation.smooth(duration: 0.20)
-
-    /// Fast interactive spring for micro-interactions (hover, press, quick toggles: 0.18s)
-    public static let quick = Animation.spring(response: 0.18, dampingFraction: 0.82)
-
-    /// Responsive curve for overlays, popovers, and dialogs (0.24s)
-    public static let overlay = Animation.spring(response: 0.24, dampingFraction: 0.78)
-
-    /// Layout resizing and window state transition curve (0.26s)
-    public static let windowTransition = Animation.spring(response: 0.26, dampingFraction: 0.82)
-}
-
-public extension Animation {
-    /// Fluid continuous spring curve strictly adhering to sub-300ms UI animation budget
-    static let fluidSpring = FramesAnimation.fluidSpring
-
-    /// Smooth continuous transition curve (0.20s)
-    static let fluidSmooth = FramesAnimation.smooth
-
-    /// Fast interactive spring for micro-interactions (0.18s)
-    static let fluidQuick = FramesAnimation.quick
-
-    /// Responsive fluid curve for overlays, sheets, and popovers (0.24s)
-    static let fluidOverlay = FramesAnimation.overlay
-
-    /// Window state and layout transition animation curve (0.26s)
-    static let fluidWindow = FramesAnimation.windowTransition
-}

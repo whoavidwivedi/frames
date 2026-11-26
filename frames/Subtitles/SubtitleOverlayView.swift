@@ -57,7 +57,6 @@ public struct SubtitleOverlayView: View {
                             .fill(backgroundColor.opacity(activeScrimOpacity))
                     )
                     .padding(.horizontal, 28)
-                    .transition(.opacity)
             }
             .allowsHitTesting(false)
         }

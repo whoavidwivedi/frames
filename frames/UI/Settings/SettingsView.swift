@@ -104,7 +104,6 @@ public struct SettingsPillButtonStyle: ButtonStyle {
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1.0)
-            .animation(reduceMotion ? nil : Animation.fluidQuick, value: configuration.isPressed)
     }
 }
 
@@ -128,10 +127,6 @@ public struct SettingsSlider: View {
         self.range = range
         self.step = step
         self.accessibilityTitle = accessibilityTitle
-    }
-
-    private var sliderAnimation: Animation? {
-        reduceMotion ? nil : Animation.fluidQuick
     }
 
     private var effectiveStep: Double {
@@ -179,8 +174,6 @@ public struct SettingsSlider: View {
                     )
                     .shadow(color: Color.black.opacity(isHovered ? 0.30 : 0.12), radius: isHovered ? 4 : 2, x: 0, y: 1)
                     .offset(x: xOffset)
-                    .animation(sliderAnimation, value: isHovered)
-                    .animation(sliderAnimation, value: isDragging)
             }
             .frame(maxHeight: .infinity)
             .contentShape(Rectangle())
@@ -191,18 +184,14 @@ public struct SettingsSlider: View {
                         isDragging = true
                         let pct = max(0.0, min(1.0, gesture.location.x / width))
                         let rawValue = range.lowerBound + pct * (range.upperBound - range.lowerBound)
-                        withAnimation(sliderAnimation) {
-                            value = clamped(rawValue)
-                        }
+                        value = clamped(rawValue)
                     }
                     .onEnded { _ in
                         isDragging = false
                     }
             )
             .onHover { h in
-                withAnimation(sliderAnimation) {
-                    isHovered = h
-                }
+                isHovered = h
             }
         }
         .frame(height: 22)
@@ -211,9 +200,7 @@ public struct SettingsSlider: View {
         .accessibilityValue(formattedValue)
         .accessibilityAdjustableAction { direction in
             let delta = direction == .increment ? effectiveStep : -effectiveStep
-            withAnimation(sliderAnimation) {
-                value = clamped(value + delta)
-            }
+            value = clamped(value + delta)
         }
     }
 }
@@ -366,7 +353,6 @@ public struct GeneralSettingsTab: View {
                     Toggle("", isOn: $settings.showAddVideoTile)
                         .toggleStyle(.switch)
                         .pointingHand()
-                        .animation(.fluidQuick, value: settings.showAddVideoTile)
                 }
             }
 
@@ -500,9 +486,7 @@ public struct GeneralSettingsTab: View {
     private func viewModeButton(mode: ViewMode, icon: String, title: String) -> some View {
         let isSelected = settings.defaultViewMode == mode
         return Button {
-            withAnimation(.fluidQuick) {
-                settings.defaultViewMode = mode
-            }
+            settings.defaultViewMode = mode
         } label: {
             HStack(spacing: 5) {
                 Image(systemName: icon)
@@ -570,7 +554,6 @@ public struct PlaybackSettingsTab: View {
                     Toggle("", isOn: $settings.hardwareAccelerationEnabled)
                         .toggleStyle(.switch)
                         .pointingHand()
-                        .animation(.fluidQuick, value: settings.hardwareAccelerationEnabled)
                 }
 
                 SettingsDivider()
@@ -713,7 +696,6 @@ public struct PlaybackSettingsTab: View {
                     Toggle("", isOn: $settings.proMotionSyncEnabled)
                         .toggleStyle(.switch)
                         .pointingHand()
-                        .animation(.fluidQuick, value: settings.proMotionSyncEnabled)
                 }
             }
 
@@ -756,9 +738,7 @@ public struct PlaybackSettingsTab: View {
             ForEach([5, 10, 15, 30], id: \.self) { seconds in
                 let isSelected = settings.defaultSkipInterval == seconds
                 Button {
-                    withAnimation(.fluidQuick) {
-                        settings.defaultSkipInterval = seconds
-                    }
+                    settings.defaultSkipInterval = seconds
                 } label: {
                     Text("\(seconds)s")
                         .font(.system(size: 11, weight: .medium))
@@ -834,7 +814,6 @@ public struct AudioSettingsTab: View {
                     Toggle("", isOn: $settings.spatialAudioEnabled)
                         .toggleStyle(.switch)
                         .pointingHand()
-                        .animation(.fluidQuick, value: settings.spatialAudioEnabled)
                 }
             }
 
@@ -900,7 +879,6 @@ public struct AudioSettingsTab: View {
                     Toggle("", isOn: $settings.volumeNormalizationEnabled)
                         .toggleStyle(.switch)
                         .pointingHand()
-                        .animation(.fluidQuick, value: settings.volumeNormalizationEnabled)
                 }
             }
         }
@@ -956,9 +934,7 @@ public struct SubtitlesSettingsTab: View {
                         Spacer()
 
                         Button {
-                            withAnimation(.fluidQuick) {
-                                sampleCueIndex = (sampleCueIndex + 1) % sampleLines.count
-                            }
+                            sampleCueIndex = (sampleCueIndex + 1) % sampleLines.count
                         } label: {
                             HStack(spacing: 4) {
                                 Image(systemName: "arrow.triangle.2.circlepath")
@@ -1091,7 +1067,6 @@ public struct SubtitlesSettingsTab: View {
                     Toggle("", isOn: $settings.liveCaptionsEnabled)
                         .toggleStyle(.switch)
                         .pointingHand()
-                        .animation(.fluidQuick, value: settings.liveCaptionsEnabled)
                 }
 
                 if settings.liveCaptionsEnabled {
@@ -1156,7 +1131,6 @@ public struct SubtitlesSettingsTab: View {
                         Toggle("", isOn: $settings.batterySaverGuardEnabled)
                             .toggleStyle(.switch)
                             .pointingHand()
-                            .animation(.fluidQuick, value: settings.batterySaverGuardEnabled)
                     }
                 }
             }
@@ -1193,10 +1167,8 @@ private struct SubtitleColorRow: View {
                     let isSelected = hex.uppercased() == preset.hex.uppercased()
 
                     Button {
-                        withAnimation(.fluidQuick) {
-                            hex = preset.hex
-                            ColorPanelPresenter.shared.close()
-                        }
+                        hex = preset.hex
+                        ColorPanelPresenter.shared.close()
                     } label: {
                         HStack(spacing: 6) {
                             Circle()
@@ -1321,7 +1293,6 @@ public struct SoftwareUpdatesSettingsCard: View {
                 Toggle("", isOn: $settings.automaticallyCheckForUpdates)
                     .toggleStyle(.switch)
                     .pointingHand()
-                    .animation(.fluidQuick, value: settings.automaticallyCheckForUpdates)
             }
 
             SettingsDivider()
@@ -1346,7 +1317,6 @@ public struct SoftwareUpdatesSettingsCard: View {
                 ))
                 .toggleStyle(.switch)
                 .pointingHand()
-                .animation(.fluidQuick, value: settings.isBetaUpdatesEnabled)
             }
 
             SettingsDivider()
@@ -1474,9 +1444,7 @@ private struct ChannelButton: View {
 
     var body: some View {
         Button(action: {
-            withAnimation(.fluidQuick) {
-                action()
-            }
+            action()
         }) {
             HStack(spacing: 4) {
                 Image(systemName: channel.badgeIcon)

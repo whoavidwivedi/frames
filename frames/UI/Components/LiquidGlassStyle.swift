@@ -138,8 +138,6 @@ public struct AppleLiquidGlassNativeButtonStyle: ButtonStyle {
                 y: isHovered ? 3 : 2
             )
             .scaleEffect(configuration.isPressed ? 0.93 : 1.0)
-            .animation(.fluidQuick, value: isHovered)
-            .animation(.fluidQuick, value: configuration.isPressed)
     }
 
     @ViewBuilder
@@ -384,9 +382,7 @@ public struct AppleLiquidGlassButton<Content: View>: View {
             isHovered: isHovered
         ))
         .onHover { hovering in
-            withAnimation(.fluidQuick) {
-                isHovered = hovering
-            }
+            isHovered = hovering
         }
         .pointingHand()
         .help(helpText ?? "")

@@ -188,7 +188,6 @@ public struct UpdateAvailableOverlay: View {
                             RoundedRectangle(cornerRadius: 3, style: .continuous)
                                 .fill(accent)
                                 .frame(width: max(0, min(barGeo.size.width * CGFloat(progress), barGeo.size.width)))
-                                .animation(.linear(duration: 0.2), value: progress)
                         }
                     }
                     .frame(height: 6)
@@ -198,9 +197,7 @@ public struct UpdateAvailableOverlay: View {
         case .extracting:
             pageCard {
                 HStack(spacing: 8) {
-                    ProgressView()
-                        .progressViewStyle(.circular)
-                        .scaleEffect(0.7)
+                    Image(systemName: "hourglass").accessibilityHidden(true)
                     Text("Verifying and extracting update package…")
                         .font(.system(size: 12))
                         .foregroundStyle(ShadcnTheme.foregroundSecondary)

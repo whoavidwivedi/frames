@@ -7,7 +7,6 @@ public struct TopBarIconButtonStyle: ButtonStyle {
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.93 : 1.0)
-            .animation(.fluidQuick, value: configuration.isPressed)
     }
 }
 
@@ -16,7 +15,6 @@ public struct TopBarPillButtonStyle: ButtonStyle {
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
-            .animation(.fluidQuick, value: configuration.isPressed)
     }
 }
 
@@ -69,9 +67,7 @@ public struct DashboardTopBarView: View {
                 HStack(spacing: 4) {
                     // 1. Sidebar Toggle Icon
                     Button {
-                        withAnimation(.fluidQuick) {
-                            library.toggleSidebar()
-                        }
+                        library.toggleSidebar()
                     } label: {
                         ZStack {
                             RoundedRectangle(cornerRadius: 6, style: .continuous)
@@ -137,7 +133,6 @@ public struct DashboardTopBarView: View {
                         .onHover { h in
                             hoveredButton = h ? .forward : nil
                         }
-                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
                     }
 
                     // 4. Search & Command Menu (⌘K, ⌘F) Icon
@@ -186,10 +181,8 @@ public struct DashboardTopBarView: View {
                                 .foregroundStyle(ShadcnTheme.foregroundSecondary)
                                 .lineLimit(1)
                                 .truncationMode(.tail)
-                                .transition(.opacity.combined(with: .move(edge: .leading)))
                         }
                     }
-                    .transition(.opacity.combined(with: .move(edge: .leading)))
                 }
 
                 // MARK: - Expandable Search Field with Tactile Press & Active Focus Ring
@@ -209,9 +202,7 @@ public struct DashboardTopBarView: View {
 
                         if !library.searchQuery.isEmpty {
                             Button {
-                                withAnimation(.fluidQuick) {
-                                    library.searchQuery = ""
-                                }
+                                library.searchQuery = ""
                             } label: {
                                 Image(systemName: "xmark.circle.fill")
                                     .font(.system(size: 10))
@@ -220,7 +211,6 @@ public struct DashboardTopBarView: View {
                             }
                             .buttonStyle(TopBarIconButtonStyle())
                             .pointingHand()
-                            .transition(.opacity.combined(with: .scale(scale: 0.9)))
                         }
                     }
                     .padding(.horizontal, 6)
@@ -238,15 +228,8 @@ public struct DashboardTopBarView: View {
                             )
                     )
                     .shadow(color: isSearchFocused ? ShadcnTheme.ring.opacity(0.18) : Color.clear, radius: 4, x: 0, y: 0)
-                    .animation(.fluidQuick, value: isSearchFocused)
                     .contentShape(Rectangle())
                     .pointingHand()
-                    .transition(
-                        .asymmetric(
-                            insertion: .opacity.combined(with: .scale(scale: 0.92, anchor: .leading)),
-                            removal: .opacity.combined(with: .scale(scale: 0.92, anchor: .leading))
-                        )
-                    )
                 }
 
                 // MARK: - Central Draggable Spacer & Title Bar Double-Click Area
@@ -265,14 +248,11 @@ public struct DashboardTopBarView: View {
                                 .font(.system(size: 11, design: .monospaced))
                                 .foregroundStyle(ShadcnTheme.foregroundMuted)
                                 .padding(.trailing, 2)
-                                .transition(.opacity.combined(with: .scale(scale: 0.92)))
                         }
 
                         // Dedicated Sort Button (Click to cycle, right-click for direct choice)
                         Button {
-                            withAnimation(.fluidQuick) {
-                                library.cycleSortOption()
-                            }
+                            library.cycleSortOption()
                         } label: {
                             HStack(spacing: 4) {
                                 Image(systemName: "arrow.up.arrow.down")
@@ -301,9 +281,7 @@ public struct DashboardTopBarView: View {
                         .contextMenu {
                             ForEach(SortOption.allCases) { opt in
                                 Button {
-                                    withAnimation(.fluidQuick) {
-                                        library.sortOption = opt
-                                    }
+                                    library.sortOption = opt
                                 } label: {
                                     HStack {
                                         Text(opt.rawValue)
@@ -322,9 +300,7 @@ public struct DashboardTopBarView: View {
 
                         // 1-Click View Mode Toggle Button (Grid <-> List) - Tactile press & active focus ring
                         Button {
-                            withAnimation(.fluidQuick) {
-                                library.toggleViewMode()
-                            }
+                            library.toggleViewMode()
                         } label: {
                             ZStack {
                                 RoundedRectangle(cornerRadius: 6, style: .continuous)
@@ -343,7 +319,6 @@ public struct DashboardTopBarView: View {
                         }
                         .buttonStyle(TopBarIconButtonStyle())
                         .pointingHand()
-                        .animation(.fluidQuick, value: library.viewMode)
                         .help(library.viewMode == .grid ? "Switch to List View" : "Switch to Grid View")
                         .onHover { h in
                             hoveredButton = h ? .viewMode : nil
@@ -353,9 +328,7 @@ public struct DashboardTopBarView: View {
                     // OTA Update Available Pill Button (Strict Shadcn neutral b1VlK05Q)
                     if updateManager.hasUpdate {
                         Button {
-                            withAnimation(.fluidQuick) {
-                                updateManager.presentUpdatePrompt()
-                            }
+                            updateManager.presentUpdatePrompt()
                         } label: {
                             HStack(spacing: 4) {
                                 Circle()
@@ -384,14 +357,11 @@ public struct DashboardTopBarView: View {
                         .buttonStyle(TopBarPillButtonStyle())
                         .pointingHand()
                         .help("Update Available: \(updateManager.availableUpdate?.tagName ?? "")")
-                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
                     }
 
                     // 1-Click Theme Toggle Button - Icon-Only
                     Button {
-                        withAnimation(.fluidQuick) {
-                            themeManager.toggleTheme()
-                        }
+                        themeManager.toggleTheme()
                     } label: {
                         ZStack {
                             RoundedRectangle(cornerRadius: 6, style: .continuous)
@@ -407,7 +377,6 @@ public struct DashboardTopBarView: View {
                     }
                     .buttonStyle(TopBarIconButtonStyle())
                     .pointingHand()
-                    .animation(.fluidQuick, value: themeManager.isDark)
                     .help(themeManager.isDark ? "Switch to Light Mode" : "Switch to Dark Mode")
                     .onHover { h in
                         hoveredButton = h ? .theme : nil
@@ -422,8 +391,6 @@ public struct DashboardTopBarView: View {
                     TitleBarDragArea()
                 }
             )
-            .animation(.fluidQuick, value: library.isSearchActive)
-            .animation(.fluidQuick, value: library.viewMode)
         }
         .frame(height: 32)
         .macOSDefaultTitleBar()

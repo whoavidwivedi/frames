@@ -106,8 +106,6 @@ private struct PaletteRowItem: View {
         .contentShape(Rectangle())
 
         .opacity(item.isDisabled ? 0.4 : 1.0)
-        .animation(.fluidQuick, value: isSelected)
-        .animation(.fluidQuick, value: isHovered)
         .pointingHand()
         .onHover { h in
             isHovered = h && !item.isDisabled
@@ -273,12 +271,6 @@ public struct FramesCommandPalette: View {
                         .strokeBorder(ShadcnTheme.border, lineWidth: 1)
                 )
                 .shadow(color: Color.black.opacity(0.40), radius: 32, x: 0, y: 16)
-                .transition(
-                    .asymmetric(
-                        insertion: .scale(scale: 0.95).combined(with: .opacity),
-                        removal: .scale(scale: 0.97).combined(with: .opacity)
-                    )
-                )
             }
             .onAppear {
                 searchQuery = ""

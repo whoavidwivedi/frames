@@ -59,9 +59,7 @@ public struct TopBarOverlay: View {
         .accessibilityLabel("Close player")
         .help("Close (Esc)")
         .onHover { hovering in
-            withAnimation(.fluidQuick) {
-                isCloseHovered = hovering
-            }
+            isCloseHovered = hovering
         }
     }
 

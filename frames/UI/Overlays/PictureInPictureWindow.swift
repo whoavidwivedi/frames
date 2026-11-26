@@ -137,7 +137,6 @@ public struct PictureInPictureContentView: View {
             if isHovered {
                 Color.black.opacity(0.32)
                     .ignoresSafeArea()
-                    .transition(.opacity)
 
                 VStack {
                     // Top Bar: Close (Left) & Restore (Right)
@@ -260,14 +259,11 @@ public struct PictureInPictureContentView: View {
                     )
                     .padding(.bottom, 12)
                 }
-                .transition(.opacity.combined(with: .scale(scale: 0.96)))
             }
         }
         .ignoresSafeArea()
         .onHover { hovering in
-            withAnimation(.fluidQuick) {
-                isHovered = hovering
-            }
+            isHovered = hovering
             if hovering {
                 showControlsTemporarily()
             } else {
@@ -281,9 +277,7 @@ public struct PictureInPictureContentView: View {
         hideTimer?.invalidate()
         hideTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { _ in
             Task { @MainActor in
-                withAnimation(.fluidQuick) {
-                    isHovered = false
-                }
+                isHovered = false
             }
         }
     }

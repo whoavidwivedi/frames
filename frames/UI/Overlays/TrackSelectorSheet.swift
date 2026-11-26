@@ -8,7 +8,6 @@ private struct TactileSheetRowStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
-            .animation(.fluidQuick, value: configuration.isPressed)
     }
 }
 
@@ -18,7 +17,6 @@ private struct TactileSheetButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? scale : 1.0)
-            .animation(.fluidQuick, value: configuration.isPressed)
     }
 }
 
@@ -41,10 +39,8 @@ private struct SpringCheckmarkIndicator: View {
                 Image(systemName: "checkmark")
                     .font(.system(size: 8.5, weight: .bold))
                     .foregroundStyle(ShadcnTheme.background)
-                    .transition(.scale(scale: 0.90).combined(with: .opacity))
             }
         }
-        .animation(.fluidQuick, value: isSelected)
     }
 }
 
@@ -108,9 +104,7 @@ public struct SubtitleSelectorPanel: View {
 
                 // Close Button with Fluid Spring Dismissal
                 Button {
-                    withAnimation(.fluidQuick) {
-                        engine.activeInspectorSheet = nil
-                    }
+                    engine.activeInspectorSheet = nil
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 10, weight: .bold))
@@ -129,9 +123,7 @@ public struct SubtitleSelectorPanel: View {
                 ForEach(SubtitleTab.allCases) { tab in
                     let isTabActive = selectedTab == tab
                     Button {
-                        withAnimation(.fluidQuick) {
-                            selectedTab = tab
-                        }
+                        selectedTab = tab
                     } label: {
                         Text(tab.rawValue)
                             .font(.system(size: 11, weight: isTabActive ? .semibold : .medium))
@@ -183,9 +175,7 @@ public struct SubtitleSelectorPanel: View {
                     // Off Option
                     let isOff = engine.selectedSubtitleTrack.id == SubtitleTrack.off.id
                     Button {
-                        withAnimation(.fluidQuick) {
-                            engine.selectSubtitleTrack(SubtitleTrack.off)
-                        }
+                        engine.selectSubtitleTrack(SubtitleTrack.off)
                     } label: {
                         HStack(spacing: 8) {
                             SpringCheckmarkIndicator(isSelected: isOff)
@@ -215,18 +205,14 @@ public struct SubtitleSelectorPanel: View {
                     .buttonStyle(TactileSheetRowStyle())
                     .pointingHand()
                     .onHover { h in
-                        withAnimation(.fluidQuick) {
-                            hoveredTrackId = h ? "off" : nil
-                        }
+                        hoveredTrackId = h ? "off" : nil
                     }
 
                     // Available Subtitle Tracks
                     ForEach(engine.availableSubtitleTracks.filter { $0.id != SubtitleTrack.off.id }) { track in
                         let isSelected = engine.selectedSubtitleTrack.id == track.id
                         Button {
-                            withAnimation(.fluidQuick) {
-                                engine.selectSubtitleTrack(track)
-                            }
+                            engine.selectSubtitleTrack(track)
                         } label: {
                             HStack(spacing: 8) {
                                 SpringCheckmarkIndicator(isSelected: isSelected)
@@ -276,9 +262,7 @@ public struct SubtitleSelectorPanel: View {
                         .buttonStyle(TactileSheetRowStyle())
                         .pointingHand()
                         .onHover { h in
-                            withAnimation(.fluidQuick) {
-                                hoveredTrackId = h ? track.id : nil
-                            }
+                            hoveredTrackId = h ? track.id : nil
                         }
                     }
                 }
@@ -354,9 +338,7 @@ public struct SubtitleSelectorPanel: View {
                     ForEach(backgroundPresets, id: \.hex) { preset in
                         let isSelected = settings.subtitleBackgroundColorHex.uppercased() == preset.hex.uppercased()
                         Button {
-                            withAnimation(.fluidQuick) {
-                                settings.subtitleBackgroundColorHex = preset.hex
-                            }
+                            settings.subtitleBackgroundColorHex = preset.hex
                         } label: {
                             HStack(spacing: 4) {
                                 Circle()
@@ -405,9 +387,7 @@ public struct SubtitleSelectorPanel: View {
                     ForEach(colorPresets, id: \.hex) { preset in
                         let isSelected = settings.subtitleTextColorHex.uppercased() == preset.hex.uppercased()
                         Button {
-                            withAnimation(.fluidQuick) {
-                                settings.subtitleTextColorHex = preset.hex
-                            }
+                            settings.subtitleTextColorHex = preset.hex
                         } label: {
                             HStack(spacing: 4) {
                                 Circle()
@@ -512,9 +492,7 @@ public struct AudioSelectorPanel: View {
 
                 // Close Button with Fluid Spring Dismissal
                 Button {
-                    withAnimation(.fluidQuick) {
-                        engine.activeInspectorSheet = nil
-                    }
+                    engine.activeInspectorSheet = nil
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 10, weight: .bold))
@@ -563,9 +541,7 @@ public struct AudioSelectorPanel: View {
                         ForEach(engine.availableAudioTracks) { track in
                             let isSelected = engine.selectedAudioTrack?.id == track.id
                             Button {
-                                withAnimation(.fluidQuick) {
-                                    engine.selectAudioTrack(track)
-                                }
+                                engine.selectAudioTrack(track)
                             } label: {
                                 HStack(spacing: 8) {
                                     SpringCheckmarkIndicator(isSelected: isSelected)
@@ -628,9 +604,7 @@ public struct AudioSelectorPanel: View {
                             .buttonStyle(TactileSheetRowStyle())
                             .pointingHand()
                             .onHover { h in
-                                withAnimation(.fluidQuick) {
-                                    hoveredTrackId = h ? track.id : nil
-                                }
+                                hoveredTrackId = h ? track.id : nil
                             }
                         }
                     }

@@ -6,7 +6,6 @@ private struct TactileSpeedPresetStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.94 : 1.0)
-            .animation(.fluidQuick, value: configuration.isPressed)
     }
 }
 
@@ -14,7 +13,6 @@ private struct TactileSpeedCloseStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.90 : 1.0)
-            .animation(.fluidQuick, value: configuration.isPressed)
     }
 }
 
@@ -50,9 +48,7 @@ public struct SpeedSelectorPanel: View {
 
                 // Close Button with Fluid Spring Dismissal
                 Button {
-                    withAnimation(.fluidQuick) {
-                        engine.activeInspectorSheet = nil
-                    }
+                    engine.activeInspectorSheet = nil
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 10, weight: .bold))
@@ -90,9 +86,7 @@ public struct SpeedSelectorPanel: View {
                     Spacer()
                     if abs(engine.playbackRate - 1.0) > 0.01 {
                         Button("Reset (1.0×)") {
-                            withAnimation(.fluidQuick) {
-                                engine.playbackRate = 1.0
-                            }
+                            engine.playbackRate = 1.0
                         }
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(ShadcnTheme.foreground)
@@ -124,23 +118,19 @@ public struct SpeedSelectorPanel: View {
         let isHovered = hoveredSpeed == speed
 
         return Button {
-            withAnimation(.fluidQuick) {
-                engine.playbackRate = speed
-            }
+            engine.playbackRate = speed
         } label: {
             HStack(spacing: 4) {
                 if isSelected {
                     Image(systemName: "checkmark")
                         .font(.system(size: 8.5, weight: .bold))
                         .foregroundStyle(ShadcnTheme.foreground)
-                        .transition(.scale(scale: 0.3).combined(with: .opacity))
                 }
 
                 Text(String(format: "%.2f×", speed))
                     .font(.system(size: 11, weight: isSelected ? .bold : .medium, design: .monospaced))
                     .foregroundStyle(isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
             }
-            .animation(.fluidQuick, value: isSelected)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 6)
             .background(
@@ -156,9 +146,7 @@ public struct SpeedSelectorPanel: View {
         .buttonStyle(TactileSpeedPresetStyle())
         .pointingHand()
         .onHover { h in
-            withAnimation(.fluidQuick) {
-                hoveredSpeed = h ? speed : nil
-            }
+            hoveredSpeed = h ? speed : nil
         }
     }
 }

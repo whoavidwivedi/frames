@@ -574,9 +574,7 @@ public struct CommandList: View {
             .frame(maxHeight: 330)
             .onChange(of: context?.selectedItemId) { _, newId in
                 if let id = newId {
-                    withAnimation(.fluidQuick) {
-                        proxy.scrollTo(id, anchor: .center)
-                    }
+                    proxy.scrollTo(id, anchor: .center)
                 }
             }
             .onAppear {
@@ -709,12 +707,6 @@ public struct CommandDialog<Content: View>: View {
                 }
                 .frame(width: 560)
                 .shadow(color: Color.black.opacity(0.35), radius: 28, x: 0, y: 14)
-                .transition(
-                    .asymmetric(
-                        insertion: .scale(scale: 0.97).combined(with: .opacity),
-                        removal: .scale(scale: 0.98).combined(with: .opacity)
-                    )
-                )
             }
             .onAppear {
                 context.onDismiss = {
@@ -738,9 +730,7 @@ public struct CommandDialog<Content: View>: View {
     }
 
     private func closeDialog() {
-        withAnimation(.fluidQuick) {
-            isPresented = false
-        }
+        isPresented = false
     }
 
     private func setupKeyMonitor() {
@@ -815,20 +805,14 @@ public final class CommandPaletteManager {
     public var isPresented: Bool = false
 
     public func toggle() {
-        withAnimation(.fluidQuick) {
-            isPresented.toggle()
-        }
+        isPresented.toggle()
     }
 
     public func open() {
-        withAnimation(.fluidQuick) {
-            isPresented = true
-        }
+        isPresented = true
     }
 
     public func close() {
-        withAnimation(.fluidQuick) {
-            isPresented = false
-        }
+        isPresented = false
     }
 }
