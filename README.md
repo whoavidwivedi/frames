@@ -21,8 +21,10 @@
 </p>
 
 <p align="center">
-  <img src="assets/frames-splash.gif" width="720" alt="Frames Splash Animation" />
+  <img src="assets/frames-splash-white.png" width="720" alt="Frames launch artwork with a black wordmark and colored trails on white" />
 </p>
+
+The launch screen opens on a centered black wordmark on white, then the colored trails rise behind it.
 
 ---
 

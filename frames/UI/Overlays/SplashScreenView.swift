@@ -47,8 +47,6 @@ public struct SplashScreenView: View {
     ]
 
     private func artwork(at progress: Double) -> some View {
-        let reveal = min(1, max(0, (progress - 0.22) / 0.42))
-        let arrival = 1 - pow(1 - reveal, 3)
 
         return ZStack {
             Color.white
@@ -68,10 +66,8 @@ public struct SplashScreenView: View {
                         glyph(at: index).foregroundStyle(Color.black)
                     }
                 }
-                .opacity(min(1, reveal * 2.5))
             }
             .fixedSize()
-            .offset(x: -32 * (1 - arrival))
         }
     }
 
@@ -85,7 +81,7 @@ public struct SplashScreenView: View {
             ForEach(Self.exposureColors.indices.reversed(), id: \.self) { layer in
                 let depth = Double(layer + 1)
                 let stagger = Double(index) * 0.021 + Double(layer) * 0.038
-                let unfurl = min(1, max(0, (progress - stagger) / 0.51))
+                let unfurl = min(1, max(0, (progress - 0.13 - stagger) / 0.51))
                 let spread = 1 - pow(1 - unfurl, 2)
                 let ripple = sin(progress * 9 + Double(index) * 0.82 + depth * 0.56)
                 let color = Self.exposureColors[layer]
