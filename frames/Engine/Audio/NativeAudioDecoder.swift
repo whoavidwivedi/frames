@@ -102,7 +102,6 @@ nonisolated public final class NativeAudioDecoder: @unchecked Sendable {
             }
         }
         guard let format = avFormat, Int(format.channelCount) == channels else { return nil }
-        self.outputFormat = format
         
         let codec = track.codecID.uppercased()
         // MP4/QuickTime use four-character PCM sample entries (IN32, IN24,
@@ -138,6 +137,7 @@ nonisolated public final class NativeAudioDecoder: @unchecked Sendable {
             var pcmConverter: AudioConverterRef?
             guard AudioConverterNew(&source, &destination, &pcmConverter) == noErr,
                   let pcmConverter else { return nil }
+            self.outputFormat = format
             self.converter = pcmConverter
             return
         }
@@ -208,6 +208,30 @@ nonisolated public final class NativeAudioDecoder: @unchecked Sendable {
             }
         }
         
+        if channels > 2 {
+            // The ASBD describes the channel count, but carries no speaker labels.
+            // Use the order the codec actually emits before handing buffers to the mixer.
+            var size: UInt32 = 0
+            guard AudioConverterGetPropertyInfo(c, kAudioConverterOutputChannelLayout, &size, nil) == noErr,
+                  size >= 12 else {
+                AudioConverterDispose(c)
+                return nil
+            }
+            let storage = UnsafeMutableRawPointer.allocate(byteCount: Int(size), alignment: MemoryLayout<AudioChannelLayout>.alignment)
+            defer { storage.deallocate() }
+            guard AudioConverterGetProperty(c, kAudioConverterOutputChannelLayout, &size, storage) == noErr else {
+                AudioConverterDispose(c)
+                return nil
+            }
+            let layout = AVAudioChannelLayout(layout: storage.assumingMemoryBound(to: AudioChannelLayout.self))
+            guard layout.channelCount == format.channelCount else {
+                AudioConverterDispose(c)
+                return nil
+            }
+            self.outputFormat = AVAudioFormat(standardFormatWithSampleRate: sRate, channelLayout: layout)
+        } else {
+            self.outputFormat = format
+        }
         self.converter = c
     }
     
