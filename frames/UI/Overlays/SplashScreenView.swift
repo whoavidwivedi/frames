@@ -68,6 +68,9 @@ public struct SplashScreenView: View {
 
             ZStack {
                 ZStack {
+                    flames(at: progress)
+                        .frame(width: 270, height: 138)
+                        .offset(y: -42)
                     ForEach(Self.exposureColors.indices.reversed(), id: \.self) { index in
                         exposure(at: index, progress: progress)
                     }
@@ -127,6 +130,47 @@ public struct SplashScreenView: View {
             .fixedSize()
     }
 
+    private func flames(at progress: Double) -> some View {
+        Canvas { context, size in
+            let heights: [Double] = [0.84, 0.48, 0.71, 0.59, 0.80, 0.51]
+            let base = size.height * 0.84
+            for (index, height) in heights.enumerated() {
+                let lane = Double(index)
+                let elapsed = max(0, progress - lane * 0.022)
+                let rise = min(1, elapsed / 0.53)
+                let growth = 1 - pow(1 - rise, 2)
+                let sway = sin(progress * 15 - lane * 1.3)
+                let x = size.width * (0.13 + lane * 0.147)
+                let width = size.width * 0.105
+                let tip = CGPoint(x: x + (10 + sway * 13) * growth,
+                                  y: base - size.height * height * growth * (1 + sway * 0.13))
+
+                var silhouette = Path()
+                silhouette.move(to: CGPoint(x: x - width, y: base))
+                silhouette.addQuadCurve(
+                    to: tip,
+                    control: CGPoint(x: x - width * 0.9 + sway * 9, y: tip.y + 34)
+                )
+                silhouette.addCurve(
+                    to: CGPoint(x: x + width, y: base),
+                    control1: CGPoint(x: tip.x - sway * 16, y: tip.y + 35),
+                    control2: CGPoint(x: x + width * 1.3, y: base - 13)
+                )
+                silhouette.closeSubpath()
+
+                var glow = context
+                glow.addFilter(.blur(radius: 6))
+                glow.opacity = min(1, elapsed * 7) * 0.83
+                glow.fill(silhouette, with: .linearGradient(
+                    Gradient(colors: [Self.exposureColors[7], Self.exposureColors[5],
+                                      Self.exposureColors[2], Self.exposureColors[0]]),
+                    startPoint: tip,
+                    endPoint: CGPoint(x: tip.x, y: base)
+                ))
+            }
+        }
+    }
+
     private func exposure(at index: Int, progress: Double) -> some View {
         let layer = Double(index + 1)
         let elapsed = max(0, progress - Double(index) * 0.031)
@@ -162,6 +206,7 @@ public struct SplashScreenView: View {
                 }
             }
             .scaleEffect(x: 1 + depth * 0.058, y: 1 + depth * (0.115 + 0.019 * fold))
+            .offset(y: -depth * 2.4)
             .blur(radius: 1.2 + depth * 0.76)
             .opacity(fadeIn * intensity)
     }
