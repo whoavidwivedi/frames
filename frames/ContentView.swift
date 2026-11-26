@@ -207,9 +207,9 @@ struct ContentView: View {
 
         // Buffering Indicator
         if engine.isBuffering {
-            Label("Buffering…", systemImage: "hourglass").foregroundStyle(.white)
+            Label("Buffering…", systemImage: "hourglass").foregroundStyle(ShadcnTheme.foreground)
                 .padding(20)
-                .background(ShadcnTheme.card.opacity(0.8))
+                .background(ShadcnTheme.card)
                 .clipShape(Capsule())
         }
 
@@ -240,10 +240,6 @@ struct ContentView: View {
             .frame(maxWidth: 380)
             .background(ShadcnTheme.card.opacity(0.95))
             .clipShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusLg, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: ShadcnTheme.radiusLg, style: .continuous)
-                    .strokeBorder(ShadcnTheme.border, lineWidth: 1)
-            )
         }
     }
 
@@ -342,10 +338,6 @@ struct ContentView: View {
                     .frame(maxWidth: 820, maxHeight: 560)
                     .background(ShadcnTheme.background)
                     .clipShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusLg, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: ShadcnTheme.radiusLg, style: .continuous)
-                            .strokeBorder(ShadcnTheme.border, lineWidth: 1)
-                    )
                     .shadow(color: Color.black.opacity(0.4), radius: 24, x: 0, y: 12)
                 }
                 .zIndex(140)

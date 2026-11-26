@@ -1,7 +1,6 @@
 import SwiftUI
 import AppKit
 
-private let favoriteColor = ShadcnTheme.foreground
 
 // MARK: - Tactile Card Press Button Style
 public struct TactileCardPressButtonStyle: ButtonStyle {
@@ -303,7 +302,15 @@ public struct DashboardContentView: View {
     }
 
     private var favoritesEmptyState: some View {
-        ContentUnavailableView("No Favorites", systemImage: "star", description: Text("Star a video to keep it handy here."))
+        ContentUnavailableView {
+            VStack(spacing: 8) {
+                EmptyFavoritesStar()
+                    .accessibilityHidden(true)
+                Text("No Favorites")
+            }
+        } description: {
+            Text("Star a video to keep it handy here.")
+        }
     }
 
     private var recentEmptyState: some View {
@@ -349,6 +356,99 @@ public struct DashboardContentView: View {
 }
 
 // MARK: - Dedicated Video Grid Card View
+private struct EmptyFavoritesStar: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var brightness = 1.0
+    @State private var dimSide: UnitPoint = .leading
+
+    var body: some View {
+        star(brightness: reduceMotion ? 1 : brightness)
+            .task(id: reduceMotion) {
+                brightness = 1
+                guard !reduceMotion else { return }
+
+                do {
+                    try await Task.sleep(for: .milliseconds(Int.random(in: 180...650)))
+                    while !Task.isCancelled {
+                        dimSide = Bool.random() ? .leading : .trailing
+                        for beat in 0..<Int.random(in: 1...3) {
+                            if beat > 0 {
+                                brightness = Double.random(in: 0.74...0.98)
+                                try await Task.sleep(for: .milliseconds(Int.random(in: 180...360)))
+                            }
+                            brightness = Bool.random()
+                                ? Double.random(in: 0.27...0.48)
+                                : Double.random(in: 0.55...0.78)
+                            try await Task.sleep(for: .milliseconds(Int.random(in: 100...270)))
+                        }
+                        brightness = 1
+                        try await Task.sleep(for: .milliseconds(Int.random(in: 850...3800)))
+                    }
+                } catch {
+                    // Leaving Favorites or enabling Reduce Motion ends the loop.
+                }
+            }
+    }
+
+    private func star(brightness: Double) -> some View {
+        let gold = ShadcnTheme.favorite
+        return Image(systemName: "star")
+            .font(.system(size: 32, weight: .medium))
+            .foregroundStyle(
+                LinearGradient(
+                    colors: [gold.opacity(brightness * brightness), gold.opacity(brightness)],
+                    startPoint: dimSide,
+                    endPoint: dimSide == .leading ? .trailing : .leading
+                )
+            )
+            .shadow(color: ShadcnTheme.favoriteOnThumbnail.opacity(0.36 * brightness * brightness),
+                    radius: 3 + 3 * brightness)
+    }
+}
+
+private struct FavoriteStar: View {
+    let isFavorite: Bool
+    let fontSize: CGFloat
+    let gold: Color
+    let idle: Color
+    let markedAt: Date?
+    @State private var finishedAt: Date?
+
+    var body: some View {
+        Group {
+            if isFavorite, let markedAt, markedAt != finishedAt {
+                TimelineView(.animation) { context in
+                    let elapsed = max(0, context.date.timeIntervalSince(markedAt))
+                    let fill = min(elapsed / 0.30, 1)
+                    let glow = sin(Double.pi * min(elapsed / 0.52, 1))
+
+                    Image(systemName: "star")
+                        .foregroundStyle(idle)
+                        .overlay {
+                            Image(systemName: "star.fill")
+                                .foregroundStyle(gold)
+                                .mask { Circle().scaleEffect(fill * 1.45) }
+                                .shadow(color: ShadcnTheme.favoriteOnThumbnail.opacity(glow * 0.85),
+                                        radius: 2 + glow * 5)
+                        }
+                }
+                .task(id: markedAt) {
+                    do {
+                        try await Task.sleep(for: .milliseconds(520))
+                        finishedAt = markedAt
+                    } catch {
+                        // The star was removed or marked again.
+                    }
+                }
+            } else {
+                Image(systemName: isFavorite ? "star.fill" : "star")
+                    .foregroundStyle(isFavorite ? gold : idle)
+            }
+        }
+        .font(.system(size: fontSize))
+    }
+}
+
 public struct VideoGridCardView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     public let video: VideoItem
@@ -357,6 +457,7 @@ public struct VideoGridCardView: View {
     @Bindable var library: LibraryManager
     public var onPlayURL: (URL) -> Void
     @State private var isPressed: Bool = false
+    @State private var favoriteMarkedAt: Date?
 
     public init(
         video: VideoItem,
@@ -428,17 +529,18 @@ public struct VideoGridCardView: View {
                     }
                     Spacer()
 
-                    // Instant Golden Star Button
+                    // Favorite button over the thumbnail
                     Button {
+                        favoriteMarkedAt = !video.isFavorite && !reduceMotion ? Date() : nil
                         library.toggleFavorite(videoId: video.id)
                     } label: {
                         ZStack {
                             Circle()
                                 .fill(Color.black.opacity(0.65))
 
-                            Image(systemName: video.isFavorite ? "star.fill" : "star")
-                                .font(.system(size: 11))
-                                .foregroundStyle(video.isFavorite ? favoriteColor : Color.white.opacity(0.85))
+                            FavoriteStar(isFavorite: video.isFavorite, fontSize: 11,
+                                         gold: ShadcnTheme.favoriteOnThumbnail, idle: Color.white.opacity(0.85),
+                                         markedAt: favoriteMarkedAt)
                         }
                         .frame(width: 28, height: 28)
                         .contentShape(Circle())
@@ -578,6 +680,7 @@ public struct VideoListRowView: View {
 
     @State private var isThumbnailHovered: Bool = false
     @State private var isPressed: Bool = false
+    @State private var favoriteMarkedAt: Date?
 
     public init(
         video: VideoItem,
@@ -705,15 +808,16 @@ public struct VideoListRowView: View {
 
             // Instant Favorite Star Button
             Button {
+                favoriteMarkedAt = !video.isFavorite && !reduceMotion ? Date() : nil
                 library.toggleFavorite(videoId: video.id)
             } label: {
                 ZStack {
                     Circle()
                         .fill(Color.black.opacity(0.0001))
 
-                    Image(systemName: video.isFavorite ? "star.fill" : "star")
-                        .font(.system(size: 12))
-                        .foregroundStyle(video.isFavorite ? favoriteColor : ShadcnTheme.foregroundMuted)
+                    FavoriteStar(isFavorite: video.isFavorite, fontSize: 12,
+                                 gold: ShadcnTheme.favorite, idle: ShadcnTheme.foregroundMuted,
+                                 markedAt: favoriteMarkedAt)
                 }
                 .frame(width: 28, height: 28)
                 .contentShape(Circle())

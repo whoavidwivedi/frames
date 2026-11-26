@@ -77,6 +77,10 @@ struct framesApp: App {
                 .keyboardShortcut("w", modifiers: .command)
             }
 
+            SwiftUI.CommandGroup(after: .help) {
+                Link("Frames Website", destination: URL(string: "https://whoavidwivedi.github.io/frames-website/")!)
+            }
+
             SwiftUI.CommandGroup(replacing: .sidebar) {
                 Button(WindowManager.shared.isAnyFullscreen ? "Exit Full Screen" : "Enter Full Screen") {
                     WindowManager.shared.toggleNativeFullscreen()

@@ -76,10 +76,7 @@ public struct SettingsSectionCard<Content: View>: View {
                 RoundedRectangle(cornerRadius: ShadcnTheme.radiusXl, style: .continuous)
                     .fill(ShadcnTheme.card)
             )
-            .overlay(
-                RoundedRectangle(cornerRadius: ShadcnTheme.radiusXl, style: .continuous)
-                    .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
-            )
+
         }
     }
 }
@@ -216,6 +213,16 @@ public struct SettingsView: View {
         case subtitles = "Subtitles"
         case about = "About"
 
+        var icon: String {
+            switch self {
+            case .general: "slider.horizontal.3"
+            case .playback: "play.rectangle"
+            case .audio: "waveform"
+            case .subtitles: "rectangle.bottomthird.inset.filled"
+            case .about: "info.circle"
+            }
+        }
+
         var id: Self { self }
     }
 
@@ -229,44 +236,87 @@ public struct SettingsView: View {
             let isCompact = windowManager.isSplitScreen || windowManager.isQuarterScreen
                 || windowManager.isCompact || proxy.size.width < 620
 
-            VStack(spacing: 0) {
-                navigation
-                Divider()
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text(selection.rawValue)
-                            .font(.title2.weight(.semibold))
-                            .accessibilityAddTraits(.isHeader)
-                        sectionContent
+            Group {
+                if isCompact {
+                    VStack(spacing: 0) {
+                        sectionPicker
+                            .pickerStyle(.menu)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(16)
+                            .background(ShadcnTheme.sidebar)
+                        detail(compact: true)
                     }
-                    .frame(maxWidth: 740, alignment: .leading)
-                    .padding(isCompact ? 16 : 24)
-                    .frame(maxWidth: .infinity)
+                } else {
+                    HStack(spacing: 0) {
+                        navigation
+                        detail(compact: proxy.size.width < 800)
+                    }
                 }
-                .id(selection)
-                .environment(\.settingsCompact, isCompact)
             }
         }
+        .foregroundStyle(ShadcnTheme.foreground)
         .background(ShadcnTheme.background)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func detail(compact: Bool) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                Text(selection.rawValue)
+                    .font(.system(size: 25, weight: .semibold))
+                    .accessibilityAddTraits(.isHeader)
+                sectionContent
+            }
+            .frame(maxWidth: 720, alignment: .leading)
+            .padding(compact ? 16 : 24)
+            .frame(maxWidth: .infinity)
+        }
+        .id(selection)
+        .environment(\.settingsCompact, compact)
     }
 
     private var navigation: some View {
-        ViewThatFits(in: .horizontal) {
-            sectionPicker.pickerStyle(.segmented).fixedSize(horizontal: true, vertical: false)
-            sectionPicker.pickerStyle(.menu)
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Settings")
+                .font(.system(size: 15, weight: .semibold))
+                .accessibilityAddTraits(.isHeader)
+                .padding(.horizontal, 10)
+                .padding(.bottom, 10)
+
+            ForEach(Section.allCases) { section in
+                Button { selection = section } label: {
+                    Label {
+                        Text(section.rawValue)
+                            .font(.system(size: 13, weight: selection == section ? .semibold : .medium))
+                    } icon: {
+                        Image(systemName: section.icon)
+                            .font(.system(size: 13, weight: .medium))
+                            .frame(width: 19)
+                    }
+                        .foregroundStyle(selection == section ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 9)
+                        .background(selection == section ? ShadcnTheme.cardHover : Color.clear,
+                                    in: RoundedRectangle(cornerRadius: 8))
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(FramesPressStyle())
+                .pointingHand()
+                .accessibilityAddTraits(selection == section ? .isSelected : [])
+            }
+            Spacer(minLength: 0)
         }
-        .labelsHidden()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(12)
+        .padding(.top, 12)
+        .frame(width: 154)
+        .frame(maxHeight: .infinity, alignment: .topLeading)
         .background(ShadcnTheme.sidebar)
     }
 
     private var sectionPicker: some View {
         Picker("Settings section", selection: $selection) {
             ForEach(Section.allCases) { section in
-                Text(section.rawValue).tag(section)
+                Label(section.rawValue, systemImage: section.icon).tag(section)
             }
         }
         .pointingHand()
@@ -343,6 +393,7 @@ public struct GeneralSettingsTab: View {
                     Spacer(minLength: 12)
                     Toggle("", isOn: $settings.showAddVideoTile)
                         .toggleStyle(.switch)
+                        .tint(.blue)
                         .pointingHand()
                 }
             }
@@ -409,7 +460,7 @@ public struct GeneralSettingsTab: View {
                         ShadcnButton(
                             historyClearedNotice ? "Cleared" : "Clear History",
                             icon: historyClearedNotice ? "checkmark" : "trash",
-                            variant: .outline,
+                            variant: historyClearedNotice ? .outline : .destructive,
                             size: .sm
                         ) {
                             showClearConfirm = true
@@ -430,7 +481,7 @@ public struct GeneralSettingsTab: View {
                         ShadcnButton(
                             historyClearedNotice ? "Cleared" : "Clear History",
                             icon: historyClearedNotice ? "checkmark" : "trash",
-                            variant: .outline,
+                            variant: historyClearedNotice ? .outline : .destructive,
                             size: .sm
                         ) {
                             showClearConfirm = true
@@ -467,10 +518,6 @@ public struct GeneralSettingsTab: View {
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(ShadcnTheme.secondary)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
-                )
         )
     }
 
@@ -493,10 +540,6 @@ public struct GeneralSettingsTab: View {
                 if isSelected {
                     RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                         .fill(ShadcnTheme.card)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                .strokeBorder(ShadcnTheme.border, lineWidth: 1)
-                        )
                         .shadow(color: Color.black.opacity(0.06), radius: 2, x: 0, y: 1)
                         .matchedGeometryEffect(id: "activeViewModePill", in: viewModeNamespace)
                 }
@@ -544,6 +587,7 @@ public struct PlaybackSettingsTab: View {
                     Spacer(minLength: 12)
                     Toggle("", isOn: $settings.hardwareAccelerationEnabled)
                         .toggleStyle(.switch)
+                        .tint(.blue)
                         .pointingHand()
                 }
 
@@ -686,6 +730,7 @@ public struct PlaybackSettingsTab: View {
                     Spacer(minLength: 12)
                     Toggle("", isOn: $settings.proMotionSyncEnabled)
                         .toggleStyle(.switch)
+                        .tint(.blue)
                         .pointingHand()
                 }
             }
@@ -741,10 +786,6 @@ public struct PlaybackSettingsTab: View {
                             if isSelected {
                                 RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                                     .fill(ShadcnTheme.card)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                            .strokeBorder(ShadcnTheme.border, lineWidth: 1)
-                                    )
                                     .shadow(color: Color.black.opacity(0.06), radius: 2, x: 0, y: 1)
                                     .matchedGeometryEffect(id: "activeSkipIntervalPill", in: skipIntervalNamespace)
                             }
@@ -759,10 +800,6 @@ public struct PlaybackSettingsTab: View {
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(ShadcnTheme.secondary)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
-                )
         )
     }
 }
@@ -804,6 +841,7 @@ public struct AudioSettingsTab: View {
                     Spacer(minLength: 12)
                     Toggle("", isOn: $settings.spatialAudioEnabled)
                         .toggleStyle(.switch)
+                        .tint(.blue)
                         .pointingHand()
                 }
             }
@@ -869,6 +907,7 @@ public struct AudioSettingsTab: View {
                     Spacer(minLength: 12)
                     Toggle("", isOn: $settings.volumeNormalizationEnabled)
                         .toggleStyle(.switch)
+                        .tint(.blue)
                         .pointingHand()
                 }
             }
@@ -939,10 +978,6 @@ public struct SubtitlesSettingsTab: View {
                             .background(
                                 RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                                     .fill(ShadcnTheme.secondary)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                            .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
-                                    )
                             )
                             .contentShape(Rectangle())
                         }
@@ -1014,10 +1049,6 @@ public struct SubtitlesSettingsTab: View {
                     }
                     .frame(height: 140)
                     .clipShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
-                            .strokeBorder(ShadcnTheme.border, lineWidth: 1)
-                    )
                 }
             }
 
@@ -1057,6 +1088,7 @@ public struct SubtitlesSettingsTab: View {
                     Spacer(minLength: 12)
                     Toggle("", isOn: $settings.liveCaptionsEnabled)
                         .toggleStyle(.switch)
+                        .tint(.blue)
                         .pointingHand()
                 }
 
@@ -1121,6 +1153,7 @@ public struct SubtitlesSettingsTab: View {
                         Spacer(minLength: 12)
                         Toggle("", isOn: $settings.batterySaverGuardEnabled)
                             .toggleStyle(.switch)
+                            .tint(.blue)
                             .pointingHand()
                     }
                 }
@@ -1283,6 +1316,7 @@ public struct SoftwareUpdatesSettingsCard: View {
                 Spacer(minLength: 12)
                 Toggle("", isOn: $settings.automaticallyCheckForUpdates)
                     .toggleStyle(.switch)
+                    .tint(.blue)
                     .pointingHand()
             }
 
@@ -1307,6 +1341,7 @@ public struct SoftwareUpdatesSettingsCard: View {
                     }
                 ))
                 .toggleStyle(.switch)
+                .tint(.blue)
                 .pointingHand()
             }
 
@@ -1332,7 +1367,7 @@ public struct SoftwareUpdatesSettingsCard: View {
                     ShadcnButton(
                         isChecking ? "Checking for Updates..." : "Check for Updates",
                         icon: "arrow.triangle.2.circlepath",
-                        variant: .primary,
+                        variant: .update,
                         size: .sm
                     ) {
                         guard !isChecking else { return }
@@ -1355,7 +1390,7 @@ public struct SoftwareUpdatesSettingsCard: View {
                     ShadcnButton(
                         isChecking ? "Checking for Updates..." : "Check for Updates",
                         icon: "arrow.triangle.2.circlepath",
-                        variant: .primary,
+                        variant: .update,
                         size: .sm
                     ) {
                         guard !isChecking else { return }
@@ -1419,10 +1454,6 @@ public struct SoftwareUpdatesSettingsCard: View {
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(ShadcnTheme.secondary)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
-                )
         )
     }
 }
@@ -1451,10 +1482,6 @@ private struct ChannelButton: View {
                 if isSelected {
                     RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                         .fill(ShadcnTheme.card)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                                .strokeBorder(ShadcnTheme.border, lineWidth: 1)
-                        )
                         .shadow(color: Color.black.opacity(0.06), radius: 2, x: 0, y: 1)
                         .matchedGeometryEffect(id: "activeChannelPill", in: namespace)
                 }
@@ -1485,10 +1512,6 @@ private struct ChannelInfoBanner: View {
         .background(
             RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                 .fill(ShadcnTheme.secondary.opacity(0.40))
-                .overlay(
-                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                        .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
-                )
         )
     }
 }
@@ -1585,10 +1608,6 @@ public struct AboutSettingsTab: View {
                     RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
                         .fill(ShadcnTheme.secondary.opacity(0.40))
                 )
-                .overlay(
-                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
-                        .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
-                )
 
                 SettingsDivider()
 
@@ -1607,7 +1626,7 @@ public struct AboutSettingsTab: View {
                         ShadcnButton(
                             defaultsRestoredNotice ? "Defaults Restored" : "Restore All Defaults",
                             icon: defaultsRestoredNotice ? "checkmark" : "arrow.counterclockwise",
-                            variant: .outline,
+                            variant: defaultsRestoredNotice ? .outline : .destructive,
                             size: .sm
                         ) {
                             showResetConfirm = true
@@ -1628,7 +1647,7 @@ public struct AboutSettingsTab: View {
                         ShadcnButton(
                             defaultsRestoredNotice ? "Defaults Restored" : "Restore All Defaults",
                             icon: defaultsRestoredNotice ? "checkmark" : "arrow.counterclockwise",
-                            variant: .outline,
+                            variant: defaultsRestoredNotice ? .outline : .destructive,
                             size: .sm
                         ) {
                             showResetConfirm = true
@@ -1676,10 +1695,6 @@ private struct BadgeView: View {
         .background(
             RoundedRectangle(cornerRadius: 4, style: .continuous)
                 .fill(ShadcnTheme.secondary)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                .strokeBorder(ShadcnTheme.border, lineWidth: 1)
         )
     }
 }

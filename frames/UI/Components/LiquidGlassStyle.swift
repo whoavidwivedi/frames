@@ -17,10 +17,6 @@ public struct LiquidGlassCardModifier: ViewModifier {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(ShadcnTheme.card.opacity(0.65))
             )
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(ShadcnTheme.border, lineWidth: 1)
-            )
             .shadow(
                 color: Color(nsColor: NSColor(name: nil) { appearance in
                     appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
@@ -70,7 +66,6 @@ public extension View {
         return self
             .background(shape.fill(.ultraThinMaterial))
             .background(shape.fill(ShadcnTheme.card.opacity(0.72)))
-            .overlay(shape.strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1))
             .clipShape(shape)
             .shadow(color: Color.black.opacity(0.35), radius: 18, x: 0, y: 8)
     }

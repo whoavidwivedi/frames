@@ -23,10 +23,6 @@ public struct DropZoneView: View {
                     ZStack {
                         RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
                             .fill(ShadcnTheme.card)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: ShadcnTheme.radiusMd, style: .continuous)
-                                    .strokeBorder(ShadcnTheme.border, lineWidth: 1)
-                            )
                             .frame(width: 40, height: 40)
 
                         Image(systemName: "film")

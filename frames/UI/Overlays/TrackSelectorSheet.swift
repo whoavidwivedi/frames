@@ -232,10 +232,6 @@ public struct SubtitleSelectorPanel: View {
                                         .padding(.vertical, 1.5)
                                         .background(ShadcnTheme.secondary)
                                         .clipShape(RoundedRectangle(cornerRadius: 3))
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 3)
-                                                .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
-                                        )
                                 }
                             }
                             .padding(.horizontal, 8)
@@ -279,10 +275,6 @@ public struct SubtitleSelectorPanel: View {
                 .padding(.vertical, 6)
                 .background(ShadcnTheme.secondary.opacity(0.45))
                 .clipShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                        .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
-                )
                 .contentShape(Rectangle())
             }
             .buttonStyle(FramesPressStyle())
@@ -418,10 +410,6 @@ public struct SubtitleSelectorPanel: View {
                 .padding(.vertical, 4)
                 .background(ShadcnTheme.secondary.opacity(0.4))
                 .clipShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                        .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
-                )
                 .contentShape(Rectangle())
         }
         .buttonStyle(FramesPressStyle())
@@ -522,10 +510,6 @@ public struct AudioSelectorPanel: View {
                     RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
                         .fill(ShadcnTheme.secondary.opacity(0.35))
                 )
-                .overlay(
-                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                        .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
-                )
             } else {
                 ScrollView(.vertical, showsIndicators: true) {
                     VStack(alignment: .leading, spacing: 3) {
@@ -563,10 +547,6 @@ public struct AudioSelectorPanel: View {
                                                 .padding(.vertical, 1.5)
                                                 .background(ShadcnTheme.secondary)
                                                 .clipShape(RoundedRectangle(cornerRadius: 3))
-                                                .overlay(
-                                                    RoundedRectangle(cornerRadius: 3)
-                                                        .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
-                                                )
                                         }
 
                                         if !track.formatDescription.isEmpty && track.formatDescription != "Unknown" {

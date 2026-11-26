@@ -267,10 +267,6 @@ public struct FramesCommandPalette: View {
                         .fill(ShadcnTheme.card.opacity(0.92))
                 )
                 .clipShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusXl, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: ShadcnTheme.radiusXl, style: .continuous)
-                        .strokeBorder(ShadcnTheme.border, lineWidth: 1)
-                )
                 .shadow(color: Color.black.opacity(0.40), radius: 32, x: 0, y: 16)
             }
             .onAppear {
@@ -745,7 +741,7 @@ public struct FramesCommandPalette: View {
                     id: "video-\(video.id.uuidString)",
                     subtitle: "\(TimeFormatting.format(seconds: video.duration)) • \(format)\(video.isFavorite ? " • ★ Favorite" : "")",
                     icon: video.isFavorite ? "star.fill" : "play.rectangle.fill",
-                    iconColor: video.isFavorite ? ShadcnTheme.foreground : nil,
+                    iconColor: video.isFavorite ? ShadcnTheme.favorite : nil,
                     keywords: [video.title, format, video.url.lastPathComponent, video.resolution, video.folderName, video.isFavorite ? "favorite" : ""],
                     group: videosGroup
                 ) {
