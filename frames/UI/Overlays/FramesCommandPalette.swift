@@ -106,8 +106,6 @@ private struct PaletteRowItem: View {
         .contentShape(Rectangle())
 
         .opacity(item.isDisabled ? 0.4 : 1.0)
-        .animation(.fluidQuick, value: isSelected)
-        .animation(.fluidQuick, value: isHovered)
         .pointingHand()
         .onHover { h in
             isHovered = h && !item.isDisabled
@@ -164,6 +162,7 @@ public struct FramesCommandPalette: View {
                     .onTapGesture {
                         closePalette()
                     }
+                    .pointingHand()
 
                 // MARK: - Floating Command Palette Card
                 VStack(spacing: 0) {
@@ -187,7 +186,7 @@ public struct FramesCommandPalette: View {
                                     .font(.system(size: 13))
                                     .foregroundStyle(ShadcnTheme.foregroundMuted)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(FramesPressStyle())
                             .contentShape(Rectangle())
                             .pointingHand()
                         }
@@ -197,7 +196,7 @@ public struct FramesCommandPalette: View {
                         } label: {
                             CommandShortcut("ESC")
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(FramesPressStyle())
                         .pointingHand()
                     }
                     .padding(.horizontal, 14)
@@ -273,12 +272,6 @@ public struct FramesCommandPalette: View {
                         .strokeBorder(ShadcnTheme.border, lineWidth: 1)
                 )
                 .shadow(color: Color.black.opacity(0.40), radius: 32, x: 0, y: 16)
-                .transition(
-                    .asymmetric(
-                        insertion: .scale(scale: 0.95).combined(with: .opacity),
-                        removal: .scale(scale: 0.97).combined(with: .opacity)
-                    )
-                )
             }
             .onAppear {
                 searchQuery = ""
@@ -752,7 +745,7 @@ public struct FramesCommandPalette: View {
                     id: "video-\(video.id.uuidString)",
                     subtitle: "\(TimeFormatting.format(seconds: video.duration)) • \(format)\(video.isFavorite ? " • ★ Favorite" : "")",
                     icon: video.isFavorite ? "star.fill" : "play.rectangle.fill",
-                    iconColor: video.isFavorite ? Color(red: 1.0, green: 0.8, blue: 0.0) : nil,
+                    iconColor: video.isFavorite ? ShadcnTheme.foreground : nil,
                     keywords: [video.title, format, video.url.lastPathComponent, video.resolution, video.folderName, video.isFavorite ? "favorite" : ""],
                     group: videosGroup
                 ) {

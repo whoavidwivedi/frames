@@ -5,6 +5,7 @@ public struct TopBarOverlay: View {
     @Bindable var engine: VideoPlayerEngine
     public var onReturnToDashboard: (() -> Void)?
     @State private var windowManager = WindowManager.shared
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var isCloseHovered = false
 
     public init(engine: VideoPlayerEngine, onReturnToDashboard: (() -> Void)? = nil) {
@@ -12,33 +13,6 @@ public struct TopBarOverlay: View {
         self.onReturnToDashboard = onReturnToDashboard
     }
 
-    /// Floating neutral capsule that keeps the title legible over any frame without a
-    /// full-width gradient wash across the video.
-    private var titleBadge: some View {
-        Text(engine.metadata.title.isEmpty ? "Video Playback" : engine.metadata.title)
-            .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(ShadcnTheme.foreground)
-            .lineLimit(1)
-            .truncationMode(.middle)
-            .padding(.horizontal, 11)
-            .padding(.vertical, 5)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(.ultraThinMaterial)
-            )
-            .background(
-                Capsule(style: .continuous)
-                    .fill(ShadcnTheme.card.opacity(0.55))
-            )
-            .overlay(
-                Capsule(style: .continuous)
-                    .strokeBorder(ShadcnTheme.borderSubtle, lineWidth: 1)
-            )
-            .shadow(color: Color.black.opacity(0.28), radius: 8, x: 0, y: 2)
-            .environment(\.colorScheme, .dark)
-    }
-
-    /// Same circular cross as the PiP player, moved out of the centered title capsule.
     private var closeButton: some View {
         Button {
             if let onReturn = onReturnToDashboard {
@@ -47,50 +21,48 @@ public struct TopBarOverlay: View {
                 engine.unloadMedia()
             }
         } label: {
-            Image(systemName: "xmark")
-                .font(.system(size: 11, weight: .bold))
+            Image(systemName: "arrow.left")
+                .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(Color.white)
-                .frame(width: 26, height: 26)
+                .frame(width: 34, height: 34)
                 .background(Circle().fill(Color.black.opacity(isCloseHovered ? 0.78 : 0.60)))
                 .overlay(Circle().strokeBorder(Color.white.opacity(isCloseHovered ? 0.35 : 0.20), lineWidth: 1))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(FramesPressStyle())
         .pointingHand()
-        .accessibilityLabel("Close player")
-        .help("Close (Esc)")
+        .accessibilityLabel("Return to library")
+        .help("Return to library")
         .onHover { hovering in
-            withAnimation(.fluidQuick) {
-                isCloseHovered = hovering
-            }
+            isCloseHovered = hovering
         }
     }
 
     public var body: some View {
-        // Keep stable 78pt margin in both windowed and fullscreen so controls don't jump
-        let trafficLightSpacer: CGFloat = 78
-
-        VStack(spacing: 0) {
-            // Video Title (centered) & Close (top-right)
-            ZStack {
-                titleBadge
-                    .padding(.horizontal, trafficLightSpacer + 48)
-                HStack {
-                    Spacer()
-                    closeButton.padding(.trailing, 12)
-                }
-
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 32)
-
-            Spacer()
+        HStack(spacing: 12) {
+            closeButton
+            Text(engine.metadata.title.isEmpty ? (engine.currentURL?.lastPathComponent ?? "Video") : engine.metadata.title)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: 48)
+        .padding(.leading, windowManager.isAnyFullscreen ? 20 : 80)
+        .padding(.trailing, 20)
+        .frame(height: 52)
+        .background {
+            if reduceTransparency {
+                Color.black
+            } else {
+                LinearGradient(colors: [.black.opacity(0.88), .black.opacity(0.64), .clear],
+                               startPoint: .top, endPoint: .bottom)
+            }
+        }
         .contentShape(Rectangle())
         .onTapGesture(count: 2) {
             WindowManager.shared.performTitleBarDoubleClickAction()
         }
+        .pointingHand()
         .macOSDefaultTitleBar()
         .environment(\.colorScheme, .dark)
     }

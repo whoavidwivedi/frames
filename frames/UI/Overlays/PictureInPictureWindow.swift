@@ -137,7 +137,6 @@ public struct PictureInPictureContentView: View {
             if isHovered {
                 Color.black.opacity(0.32)
                     .ignoresSafeArea()
-                    .transition(.opacity)
 
                 VStack {
                     // Top Bar: Close (Left) & Restore (Right)
@@ -153,7 +152,7 @@ public struct PictureInPictureContentView: View {
                                 .background(Circle().fill(Color.black.opacity(0.60)))
                                 .overlay(Circle().strokeBorder(Color.white.opacity(0.20), lineWidth: 1))
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(FramesPressStyle())
                         .pointingHand()
                         .help("Close Picture in Picture")
 
@@ -172,7 +171,7 @@ public struct PictureInPictureContentView: View {
                             .background(Circle().fill(Color.black.opacity(0.60)))
                             .overlay(Circle().strokeBorder(Color.white.opacity(0.20), lineWidth: 1))
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(FramesPressStyle())
                         .pointingHand()
                         .help("Return to Main Window")
                     }
@@ -195,7 +194,7 @@ public struct PictureInPictureContentView: View {
                                 .background(Circle().fill(Color.white.opacity(0.18)))
                                 .overlay(Circle().strokeBorder(Color.white.opacity(0.25), lineWidth: 1))
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(FramesPressStyle())
                         .pointingHand()
                         .help("Skip back 10s")
 
@@ -211,7 +210,7 @@ public struct PictureInPictureContentView: View {
                                 .background(Circle().fill(Color.white.opacity(0.24)))
                                 .overlay(Circle().strokeBorder(Color.white.opacity(0.35), lineWidth: 1))
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(FramesPressStyle())
                         .pointingHand()
                         .help(engine.isPlaying ? "Pause" : "Play")
 
@@ -227,7 +226,7 @@ public struct PictureInPictureContentView: View {
                                 .background(Circle().fill(Color.white.opacity(0.18)))
                                 .overlay(Circle().strokeBorder(Color.white.opacity(0.25), lineWidth: 1))
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(FramesPressStyle())
                         .pointingHand()
                         .help("Skip forward 10s")
 
@@ -243,7 +242,7 @@ public struct PictureInPictureContentView: View {
                                 .background(Circle().fill(Color.white.opacity(0.18)))
                                 .overlay(Circle().strokeBorder(Color.white.opacity(0.25), lineWidth: 1))
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(FramesPressStyle())
                         .pointingHand()
                         .help(engine.isMuted ? "Unmute" : "Mute")
                     }
@@ -260,14 +259,11 @@ public struct PictureInPictureContentView: View {
                     )
                     .padding(.bottom, 12)
                 }
-                .transition(.opacity.combined(with: .scale(scale: 0.96)))
             }
         }
         .ignoresSafeArea()
         .onHover { hovering in
-            withAnimation(.fluidQuick) {
-                isHovered = hovering
-            }
+            isHovered = hovering
             if hovering {
                 showControlsTemporarily()
             } else {
@@ -281,9 +277,7 @@ public struct PictureInPictureContentView: View {
         hideTimer?.invalidate()
         hideTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { _ in
             Task { @MainActor in
-                withAnimation(.fluidQuick) {
-                    isHovered = false
-                }
+                isHovered = false
             }
         }
     }

@@ -71,7 +71,7 @@ struct ContentView: View {
                             .strokeBorder(Color.white.opacity(0.24), lineWidth: 1)
                     )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(FramesPressStyle())
                 .pointingHand()
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -94,6 +94,7 @@ struct ContentView: View {
                 engine.togglePlayPause()
                 resetControlsTimer()
             }
+            .pointingHand()
         } else {
             VideoCanvasView(
                 player: engine.player,
@@ -105,6 +106,7 @@ struct ContentView: View {
                     toggleFullscreen()
                 }
             )
+            .pointingHand()
             .ignoresSafeArea()
         }
     }
@@ -136,10 +138,9 @@ struct ContentView: View {
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
                 .onTapGesture {
-                    withAnimation(.fluidQuick) {
-                        engine.activeInspectorSheet = nil
-                    }
+                    engine.activeInspectorSheet = nil
                 }
+                .pointingHand()
         }
     }
 
@@ -153,12 +154,6 @@ struct ContentView: View {
                 }
                 Spacer()
             }
-            .transition(
-                .asymmetric(
-                    insertion: .opacity.combined(with: .offset(y: -8)),
-                    removal: .opacity
-                )
-            )
         }
 
         // Tier 1: thin always-on progress line (fades out when the full controls appear)
@@ -180,12 +175,6 @@ struct ContentView: View {
                         resetControlsTimer()
                     }
             }
-            .transition(
-                .asymmetric(
-                    insertion: .opacity.combined(with: .offset(y: 8)),
-                    removal: .opacity
-                )
-            )
         }
     }
 
@@ -202,12 +191,6 @@ struct ContentView: View {
                 }
                 Spacer()
             }
-            .transition(
-                .asymmetric(
-                    insertion: .opacity.combined(with: .scale(scale: 0.94)),
-                    removal: .opacity.combined(with: .scale(scale: 0.96))
-                )
-            )
             .zIndex(60)
         }
 
@@ -224,13 +207,10 @@ struct ContentView: View {
 
         // Buffering Indicator
         if engine.isBuffering {
-            ProgressView()
-                .progressViewStyle(.circular)
-                .scaleEffect(1.4)
-                .tint(.white)
+            Label("Buffering…", systemImage: "hourglass").foregroundStyle(.white)
                 .padding(20)
                 .background(ShadcnTheme.card.opacity(0.8))
-                .clipShape(Circle())
+                .clipShape(Capsule())
         }
 
         if let playbackError = engine.playbackError {
@@ -277,7 +257,6 @@ struct ContentView: View {
                     requestPlayVideo(url: url)
                 }
                 .ignoresSafeArea(.all, edges: .top)
-                .transition(.opacity)
             } else {
                 // Active Video Player Surface
                 ZStack {
@@ -290,7 +269,6 @@ struct ContentView: View {
                 .onContinuousHover { _ in
                     resetControlsTimer(force: false)
                 }
-                .transition(.opacity)
             }
 
             // Resume Playback Prompt Dialog
@@ -298,27 +276,20 @@ struct ContentView: View {
                 ResumePlaybackOverlay(
                     prompt: prompt,
                     onResume: { url, seekTime in
-                        withAnimation(.fluidQuick) {
-                            pendingResumePrompt = nil
-                        }
+                        pendingResumePrompt = nil
                         engine.seek(to: seekTime, exact: true)
                         engine.play()
                     },
                     onStartOver: { url in
-                        withAnimation(.fluidQuick) {
-                            pendingResumePrompt = nil
-                        }
+                        pendingResumePrompt = nil
                         library.resetPlaybackProgress(for: url)
                         engine.seek(to: 0, exact: true)
                         engine.play()
                     },
                     onCancel: {
-                        withAnimation(.fluidQuick) {
-                            pendingResumePrompt = nil
-                        }
+                        pendingResumePrompt = nil
                     }
                 )
-                .transition(.opacity.combined(with: .scale(scale: 0.96)))
                 .zIndex(90)
             }
 
@@ -346,10 +317,9 @@ struct ContentView: View {
                     Color.black.opacity(0.55)
                         .ignoresSafeArea()
                         .onTapGesture {
-                            withAnimation(.fluidQuick) {
-                                settings.closeSettings()
-                            }
+                            settings.closeSettings()
                         }
+                        .pointingHand()
 
                     VStack(spacing: 0) {
                         HStack {
@@ -361,7 +331,7 @@ struct ContentView: View {
                                     .font(.system(size: 16))
                                     .foregroundStyle(ShadcnTheme.foregroundSecondary)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(FramesPressStyle())
                             .pointingHand()
                             .padding(.trailing, 16)
                             .padding(.top, 12)
@@ -379,33 +349,23 @@ struct ContentView: View {
                     .shadow(color: Color.black.opacity(0.4), radius: 24, x: 0, y: 12)
                 }
                 .zIndex(140)
-                .transition(.opacity.combined(with: .scale(scale: 0.96)))
             }
             if updateManager.isUpdatePromptPresented, let update = updateManager.availableUpdate {
                 UpdateAvailableOverlay(
                     update: update,
                     manager: updateManager,
                     onDismiss: {
-                        withAnimation(.fluidQuick) {
-                            updateManager.dismissPrompt()
-                        }
+                        updateManager.dismissPrompt()
                     }
                 )
-                .transition(.opacity.combined(with: .scale(scale: 0.96)))
                 .zIndex(160)
             }
 
             // Manual Check Notice Toast
             if let notice = updateManager.manualCheckNotice {
                 UpdateNoticeToast(notice: notice) {
-                    withAnimation(.fluidQuick) {
-                        updateManager.dismissNotice()
-                    }
+                    updateManager.dismissNotice()
                 }
-                .transition(.asymmetric(
-                    insertion: .opacity.combined(with: .offset(y: 12)),
-                    removal: .opacity.combined(with: .offset(y: 6))
-                ))
                 .zIndex(170)
             }
 
@@ -416,15 +376,9 @@ struct ContentView: View {
         sceneContent
         .frame(minWidth: 460, minHeight: 320)
         .background(HostWindowAccessor(window: $hostWindow))
-        .animation(.fluidQuick, value: engine.currentURL != nil)
-        .animation(.fluidQuick, value: engine.controlsVisible)
-        .animation(.fluidOverlay, value: settings.isSettingsPresented)
-        .animation(.fluidOverlay, value: updateManager.isUpdatePromptPresented)
         .transaction { transaction in
-            if reduceMotion {
-                transaction.animation = nil
-                transaction.disablesAnimations = true
-            }
+            transaction.animation = nil
+            transaction.disablesAnimations = true
         }
     }
 
@@ -440,9 +394,7 @@ struct ContentView: View {
                 resetControlsTimer(force: true)
             } else {
                 hideControlsTimer?.invalidate()
-                withAnimation(.fluidQuick) {
-                    engine.controlsVisible = true
-                }
+                engine.controlsVisible = true
                 if engine.hasEnded {
                     NSCursor.setHiddenUntilMouseMoves(false)
                 }
@@ -522,6 +474,7 @@ struct ContentView: View {
                 updateManager.checkForUpdates(manual: false)
             }
         }
+        .tint(ShadcnTheme.actionTint)
         .preferredColorScheme(themeManager.mode.colorScheme)
         .onChange(of: engine.currentURL) { _, newURL in
             windowManager.isPlayerActive = (newURL != nil && !(newURL?.path.isEmpty ?? true))
@@ -565,15 +518,13 @@ struct ContentView: View {
             // Load the video paused at the resume position so the prompt sits
             // inside the player, over the timeline.
             playVideo(url: url, seekTo: resume.seconds, autoPlay: false)
-            withAnimation(.fluidQuick) {
-                pendingResumePrompt = ResumePromptData(
-                    url: url,
-                    resumeSeconds: resume.seconds,
-                    formattedTime: resume.formattedTime,
-                    formattedDuration: TimeFormatting.format(seconds: dur),
-                    progress: resume.progress
-                )
-            }
+            pendingResumePrompt = ResumePromptData(
+                url: url,
+                resumeSeconds: resume.seconds,
+                formattedTime: resume.formattedTime,
+                formattedDuration: TimeFormatting.format(seconds: dur),
+                progress: resume.progress
+            )
         } else {
             playVideo(url: url, seekTo: 0.0)
         }
@@ -595,10 +546,8 @@ struct ContentView: View {
         updateWindowRepresentation(for: nil)
         // Progress is saved and PiP is closed inside unloadMedia; doing both here as well
         // cost two extra UserDefaults persistence passes on the close path.
-        withAnimation(.fluidQuick) {
-            engine.controlsVisible = true
-            engine.unloadMedia()
-        }
+        engine.controlsVisible = true
+        engine.unloadMedia()
     }
 
     private var isActiveWindow: Bool {
@@ -639,9 +588,7 @@ struct ContentView: View {
         lastControlsTimerReset = now
 
         if !engine.controlsVisible {
-            withAnimation(.fluidQuick) {
-                engine.controlsVisible = true
-            }
+            engine.controlsVisible = true
         }
         hideControlsTimer?.invalidate()
 
@@ -650,9 +597,7 @@ struct ContentView: View {
             hideControlsTimer = Timer.scheduledTimer(withTimeInterval: 2.5, repeats: false) { _ in
                 Task { @MainActor in
                     if shouldHideControls {
-                        withAnimation(.fluidQuick) {
-                            engine.controlsVisible = false
-                        }
+                        engine.controlsVisible = false
                         NSCursor.setHiddenUntilMouseMoves(true)
                     }
                 }

@@ -138,8 +138,6 @@ public struct AppleLiquidGlassNativeButtonStyle: ButtonStyle {
                 y: isHovered ? 3 : 2
             )
             .scaleEffect(configuration.isPressed ? 0.93 : 1.0)
-            .animation(.fluidQuick, value: isHovered)
-            .animation(.fluidQuick, value: configuration.isPressed)
     }
 
     @ViewBuilder
@@ -170,11 +168,11 @@ public struct AppleLiquidGlassNativeButtonStyle: ButtonStyle {
         case .standard:
             return Color.white
         case .danger:
-            return Color(red: 1.0, green: 0.40, blue: 0.40)
+            return Color.white
         case .accent:
             return Color.white
         case .cyan:
-            return Color(red: 0.35, green: 0.88, blue: 1.0)
+            return Color.white
         case .custom(let color):
             return color
         }
@@ -197,7 +195,7 @@ public struct AppleLiquidGlassNativeButtonStyle: ButtonStyle {
             topOpacity = isPressed ? 0.52 : (isHovered ? 0.44 : 0.32)
             bottomOpacity = isPressed ? 0.26 : (isHovered ? 0.20 : 0.14)
             return LinearGradient(
-                colors: [Color.red.opacity(topOpacity), Color.red.opacity(bottomOpacity)],
+                colors: [Color.white.opacity(topOpacity), Color.white.opacity(bottomOpacity)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
@@ -205,7 +203,7 @@ public struct AppleLiquidGlassNativeButtonStyle: ButtonStyle {
             topOpacity = isPressed ? 0.52 : (isHovered ? 0.44 : 0.32)
             bottomOpacity = isPressed ? 0.26 : (isHovered ? 0.20 : 0.14)
             return LinearGradient(
-                colors: [Color.accentColor.opacity(topOpacity), Color.accentColor.opacity(bottomOpacity)],
+                colors: [Color.white.opacity(topOpacity), Color.white.opacity(bottomOpacity)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
@@ -213,7 +211,7 @@ public struct AppleLiquidGlassNativeButtonStyle: ButtonStyle {
             topOpacity = isPressed ? 0.46 : (isHovered ? 0.38 : 0.26)
             bottomOpacity = isPressed ? 0.22 : (isHovered ? 0.16 : 0.10)
             return LinearGradient(
-                colors: [Color.cyan.opacity(topOpacity), Color.cyan.opacity(bottomOpacity)],
+                colors: [Color.white.opacity(topOpacity), Color.white.opacity(bottomOpacity)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
@@ -384,9 +382,7 @@ public struct AppleLiquidGlassButton<Content: View>: View {
             isHovered: isHovered
         ))
         .onHover { hovering in
-            withAnimation(.fluidQuick) {
-                isHovered = hovering
-            }
+            isHovered = hovering
         }
         .pointingHand()
         .help(helpText ?? "")

@@ -97,7 +97,7 @@ public struct UpdateAvailableOverlay: View {
                     .frame(width: 26, height: 26)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(FramesPressStyle())
                 .pointingHand()
                 .keyboardShortcut(.cancelAction)
                 .help("Close (Esc)")
@@ -188,7 +188,6 @@ public struct UpdateAvailableOverlay: View {
                             RoundedRectangle(cornerRadius: 3, style: .continuous)
                                 .fill(accent)
                                 .frame(width: max(0, min(barGeo.size.width * CGFloat(progress), barGeo.size.width)))
-                                .animation(.linear(duration: 0.2), value: progress)
                         }
                     }
                     .frame(height: 6)
@@ -198,9 +197,7 @@ public struct UpdateAvailableOverlay: View {
         case .extracting:
             pageCard {
                 HStack(spacing: 8) {
-                    ProgressView()
-                        .progressViewStyle(.circular)
-                        .scaleEffect(0.7)
+                    Image(systemName: "hourglass").accessibilityHidden(true)
                     Text("Verifying and extracting update package…")
                         .font(.system(size: 12))
                         .foregroundStyle(ShadcnTheme.foregroundSecondary)
@@ -211,7 +208,7 @@ public struct UpdateAvailableOverlay: View {
             pageCard {
                 HStack(spacing: 8) {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(Color.green)
+                        .foregroundStyle(ShadcnTheme.actionTint)
                     Text("Update ready — restarting Frames…")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(ShadcnTheme.foreground)
@@ -222,10 +219,10 @@ public struct UpdateAvailableOverlay: View {
             pageCard {
                 HStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(Color.red)
+                        .foregroundStyle(ShadcnTheme.actionTint)
                     Text(message)
                         .font(.system(size: 12))
-                        .foregroundStyle(Color.red)
+                        .foregroundStyle(ShadcnTheme.actionTint)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -259,7 +256,7 @@ public struct UpdateAvailableOverlay: View {
                         .font(.system(size: 11))
                         .foregroundStyle(isHoveringSkip ? ShadcnTheme.foreground : ShadcnTheme.foregroundMuted)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(FramesPressStyle())
                 .pointingHand()
                 .onHover { isHoveringSkip = $0 }
 
@@ -276,7 +273,7 @@ public struct UpdateAvailableOverlay: View {
                     }
                     .foregroundStyle(isHoveringGitHub ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(FramesPressStyle())
                 .pointingHand()
                 .onHover { isHoveringGitHub = $0 }
                 .padding(.trailing, 4)

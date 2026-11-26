@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 
-private let goldenFavoriteColor = Color(red: 1.0, green: 0.8, blue: 0.0)
+private let favoriteColor = ShadcnTheme.foreground
 
 // MARK: - Tactile Card Press Button Style
 public struct TactileCardPressButtonStyle: ButtonStyle {
@@ -11,7 +11,6 @@ public struct TactileCardPressButtonStyle: ButtonStyle {
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed && !reduceMotion ? 0.98 : 1.0)
-            .animation(reduceMotion ? nil : Animation.fluidQuick, value: configuration.isPressed)
     }
 }
 
@@ -31,14 +30,6 @@ public struct DashboardContentView: View {
 
     public static let addListThumbnailWidth: CGFloat = VideoListRowView.thumbnailWidth
     public static let addListThumbnailHeight: CGFloat = VideoListRowView.thumbnailHeight
-
-    private var containerAnimation: Animation? {
-        reduceMotion ? nil : Animation.fluidQuick
-    }
-
-    private var containerTransition: AnyTransition {
-        reduceMotion ? AnyTransition.opacity : AnyTransition.opacity.combined(with: .scale(scale: 0.98))
-    }
 
     public static func computeGridItemWidth(containerWidth: CGFloat, contentPadding: CGFloat, isNarrow: Bool) -> CGFloat {
         let gridSpacing: CGFloat = isNarrow ? 10 : 14
@@ -63,10 +54,8 @@ public struct DashboardContentView: View {
                 if library.selectedCategory == .settings {
                     SettingsView()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .transition(.opacity)
                 } else if library.filteredVideos.isEmpty {
                     emptyStateView(isNarrow: isNarrow)
-                        .transition(containerTransition)
                 } else {
                     if library.viewMode == .grid {
                         ScrollView(.vertical, showsIndicators: true) {
@@ -81,9 +70,7 @@ public struct DashboardContentView: View {
                                         video: video,
                                         isHovered: hoveredVideoId == video.id,
                                         onHover: { h in
-                                            withAnimation(.fluidQuick) {
-                                                hoveredVideoId = h ? video.id : nil
-                                            }
+                                            hoveredVideoId = h ? video.id : nil
                                         },
                                         library: library,
                                         onPlayURL: onPlayURL
@@ -92,7 +79,6 @@ public struct DashboardContentView: View {
                             }
                             .padding(contentPadding)
                         }
-                        .transition(containerTransition)
                     } else {
                         ScrollView(.vertical, showsIndicators: true) {
                             LazyVStack(spacing: 8) {
@@ -107,9 +93,7 @@ public struct DashboardContentView: View {
                                         isHovered: hoveredVideoId == video.id,
                                         containerWidth: geo.size.width,
                                         onHover: { h in
-                                            withAnimation(.fluidQuick) {
-                                                hoveredVideoId = h ? video.id : nil
-                                            }
+                                            hoveredVideoId = h ? video.id : nil
                                         },
                                         library: library,
                                         onPlayURL: onPlayURL
@@ -118,15 +102,12 @@ public struct DashboardContentView: View {
                             }
                             .padding(contentPadding)
                         }
-                        .transition(containerTransition)
                     }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(ShadcnTheme.background)
             .clipped()
-            .animation(containerAnimation, value: library.viewMode)
-            .animation(containerAnimation, value: library.selectedCategory)
         }
     }
 
@@ -163,7 +144,6 @@ public struct DashboardContentView: View {
                     Image(systemName: "plus")
                         .font(.system(size: 24, weight: .light))
                         .foregroundStyle(isHoveringAddTile ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
-                        .animation(.fluidQuick, value: isHoveringAddTile)
                 }
                 .aspectRatio(16/9, contentMode: .fill)
                 .frame(maxWidth: .infinity)
@@ -194,14 +174,11 @@ public struct DashboardContentView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(TactileCardPressButtonStyle())
-        .animation(.fluidQuick, value: isHoveringAddTile)
         .contentShape(Rectangle())
         .pointingHand()
         .help("Add video files or folder to library")
         .onHover { h in
-            withAnimation(.fluidQuick) {
-                isHoveringAddTile = h
-            }
+            isHoveringAddTile = h
         }
         .contextMenu {
             Button("Add Video Files...") {
@@ -231,7 +208,6 @@ public struct DashboardContentView: View {
                     Image(systemName: "plus")
                         .font(.system(size: 14, weight: .light))
                         .foregroundStyle(isHoveringAddRow ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
-                        .animation(.fluidQuick, value: isHoveringAddRow)
                 }
                 .frame(width: VideoListRowView.thumbnailWidth, height: VideoListRowView.thumbnailHeight)
                 .clipShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
@@ -279,15 +255,12 @@ public struct DashboardContentView: View {
             .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
         }
         .buttonStyle(TactileCardPressButtonStyle())
-        .animation(.fluidQuick, value: isHoveringAddRow)
         .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
         .pointingHand()
         .help("Add video files or folder to library")
         .accessibilityLabel("Add video files or folder")
         .onHover { h in
-            withAnimation(.fluidQuick) {
-                isHoveringAddRow = h
-            }
+            isHoveringAddRow = h
         }
         .contextMenu {
             Button("Add Video Files...") {
@@ -343,7 +316,7 @@ public struct DashboardContentView: View {
         } description: {
             Text("Try a different title or folder name.")
         } actions: {
-            Button("Clear Search") { library.searchQuery = "" }
+            ShadcnButton("Clear Search", variant: .outline) { library.searchQuery = "" }
         }
     }
 
@@ -366,11 +339,12 @@ public struct DashboardContentView: View {
 
     @ViewBuilder
     private var libraryEmptyActions: some View {
-        Button("Open Files…") { library.selectFilesToPlay(onSelected: onPlayURL) }
-            .buttonStyle(.borderedProminent)
-            .tint(ShadcnTheme.actionTint)
-        Button("Add Folder…") { library.selectAndAddFolder() }
-            .buttonStyle(.bordered)
+        ShadcnButton("Open Files…", icon: "film", variant: .primary) {
+            library.selectFilesToPlay(onSelected: onPlayURL)
+        }
+        ShadcnButton("Add Folder…", icon: "folder.badge.plus", variant: .outline) {
+            library.selectAndAddFolder()
+        }
     }
 }
 
@@ -438,10 +412,8 @@ public struct VideoGridCardView: View {
                                         .offset(x: 1.5)
                                 )
                                 .opacity(isHovered ? 1.0 : 0.0)
-                                .animation(.fluidQuick, value: isHovered)
                         )
                 }
-                .animation(.fluidQuick, value: isHovered)
 
                 // Top Badges (Resolution / Instant Favorite Star)
                 HStack {
@@ -458,9 +430,7 @@ public struct VideoGridCardView: View {
 
                     // Instant Golden Star Button
                     Button {
-                        withAnimation(.fluidQuick) {
-                            library.toggleFavorite(videoId: video.id)
-                        }
+                        library.toggleFavorite(videoId: video.id)
                     } label: {
                         ZStack {
                             Circle()
@@ -468,17 +438,15 @@ public struct VideoGridCardView: View {
 
                             Image(systemName: video.isFavorite ? "star.fill" : "star")
                                 .font(.system(size: 11))
-                                .foregroundStyle(video.isFavorite ? goldenFavoriteColor : Color.white.opacity(0.85))
+                                .foregroundStyle(video.isFavorite ? favoriteColor : Color.white.opacity(0.85))
                         }
                         .frame(width: 28, height: 28)
                         .contentShape(Circle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(FramesPressStyle())
                     .contentShape(Circle())
                     .pointingHand()
                     .opacity(isHovered || video.isFavorite ? 1.0 : 0.0)
-                    .animation(.fluidQuick, value: isHovered)
-                    .animation(.fluidQuick, value: video.isFavorite)
                     .help(video.isFavorite ? "Remove from Favorites" : "Add to Favorites")
                 }
                 .padding(8)
@@ -544,13 +512,9 @@ public struct VideoGridCardView: View {
             .padding(.horizontal, 2)
         }
         .scaleEffect(isPressed && !reduceMotion ? 0.98 : 1.0)
-        .animation(.fluidQuick, value: isHovered)
-        .animation(.fluidQuick, value: isPressed)
         .contentShape(Rectangle())
         ._onButtonGesture(pressing: { pressing in
-            withAnimation(.fluidQuick) {
-                isPressed = pressing
-            }
+            isPressed = pressing
         }, perform: {
             if FileManager.default.fileExists(atPath: video.url.path) || TestEnvironment.isRunningTests {
                 onPlayURL(video.url)
@@ -586,9 +550,7 @@ public struct VideoGridCardView: View {
             .pointingHand()
             Divider()
             Button("Remove from Library", role: .destructive) {
-                withAnimation(.fluidQuick) {
-                    library.removeVideo(id: video.id)
-                }
+                library.removeVideo(id: video.id)
             }
             .pointingHand()
         }
@@ -687,10 +649,8 @@ public struct VideoListRowView: View {
                                         .offset(x: 1)
                                 )
                                 .opacity(isThumbnailHovered ? 1.0 : 0.0)
-                                .animation(.fluidQuick, value: isThumbnailHovered)
                         )
                 }
-                .animation(.fluidQuick, value: isThumbnailHovered)
             }
             .frame(width: Self.thumbnailWidth, height: Self.thumbnailHeight)
             .clipShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
@@ -701,9 +661,7 @@ public struct VideoListRowView: View {
             .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
             .pointingHand()
             .onHover { hovering in
-                withAnimation(.fluidQuick) {
-                    isThumbnailHovered = hovering
-                }
+                isThumbnailHovered = hovering
                 onThumbnailHover?(hovering)
             }
 
@@ -729,7 +687,6 @@ public struct VideoListRowView: View {
                     .font(.system(size: 10, weight: .semibold, design: .monospaced))
                     .foregroundStyle(ShadcnTheme.foregroundSecondary)
                     .frame(width: 44, alignment: .trailing)
-                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
             }
 
             // Duration
@@ -744,14 +701,11 @@ public struct VideoListRowView: View {
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(ShadcnTheme.foregroundMuted)
                     .frame(width: 60, alignment: .trailing)
-                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
             }
 
             // Instant Favorite Star Button
             Button {
-                withAnimation(.fluidQuick) {
-                    library.toggleFavorite(videoId: video.id)
-                }
+                library.toggleFavorite(videoId: video.id)
             } label: {
                 ZStack {
                     Circle()
@@ -759,17 +713,15 @@ public struct VideoListRowView: View {
 
                     Image(systemName: video.isFavorite ? "star.fill" : "star")
                         .font(.system(size: 12))
-                        .foregroundStyle(video.isFavorite ? goldenFavoriteColor : ShadcnTheme.foregroundMuted)
+                        .foregroundStyle(video.isFavorite ? favoriteColor : ShadcnTheme.foregroundMuted)
                 }
                 .frame(width: 28, height: 28)
                 .contentShape(Circle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(FramesPressStyle())
             .contentShape(Circle())
             .pointingHand()
             .opacity(isHovered || video.isFavorite ? 1.0 : 0.0)
-            .animation(.fluidQuick, value: isHovered)
-            .animation(.fluidQuick, value: video.isFavorite)
             .help(video.isFavorite ? "Remove from Favorites" : "Add to Favorites")
         }
         .padding(.horizontal, 12)
@@ -783,15 +735,9 @@ public struct VideoListRowView: View {
                 .strokeBorder(isHovered ? ShadcnTheme.borderActive : ShadcnTheme.border, lineWidth: 1)
         )
         .scaleEffect(isPressed && !reduceMotion ? 0.98 : 1.0)
-        .animation(.fluidQuick, value: isHovered)
-        .animation(.fluidQuick, value: isPressed)
-        .animation(.fluidQuick, value: containerWidth >= 380)
-        .animation(.fluidQuick, value: containerWidth >= 460)
         .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
         ._onButtonGesture(pressing: { pressing in
-            withAnimation(.fluidQuick) {
-                isPressed = pressing
-            }
+            isPressed = pressing
         }, perform: {
             if FileManager.default.fileExists(atPath: video.url.path) || TestEnvironment.isRunningTests {
                 onPlayURL(video.url)
@@ -805,9 +751,7 @@ public struct VideoListRowView: View {
         }
         .onChange(of: isHovered) { _, hovered in
             if !hovered {
-                withAnimation(.fluidQuick) {
-                    isThumbnailHovered = false
-                }
+                isThumbnailHovered = false
             }
         }
         .contextMenu {
@@ -834,9 +778,7 @@ public struct VideoListRowView: View {
             .pointingHand()
             Divider()
             Button("Remove from Library", role: .destructive) {
-                withAnimation(.fluidQuick) {
-                    library.removeVideo(id: video.id)
-                }
+                library.removeVideo(id: video.id)
             }
             .pointingHand()
         }

@@ -29,7 +29,6 @@ public struct ResumePlaybackOverlay: View {
 
     @State private var isHoveringResume: Bool = false
     @State private var isHoveringStartOver: Bool = false
-    @State private var appeared: Bool = false
     @State private var pulse: Bool = false
 
     public init(prompt: ResumePromptData, onResume: @escaping (URL, Double) -> Void, onStartOver: @escaping (URL) -> Void, onCancel: @escaping () -> Void) {
@@ -44,6 +43,7 @@ public struct ResumePlaybackOverlay: View {
             Color.black.opacity(0.2)
                 .ignoresSafeArea()
                 .onTapGesture { onCancel() }
+                .pointingHand()
 
             VStack {
                 Spacer()
@@ -62,7 +62,7 @@ public struct ResumePlaybackOverlay: View {
                             .background(Capsule().fill(ShadcnTheme.cardHover))
                             .overlay(Capsule().strokeBorder(ShadcnTheme.border, lineWidth: 1))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(FramesPressStyle())
                     .pointingHand()
 
                     Button { onResume(prompt.url, prompt.resumeSeconds) } label: {
@@ -75,7 +75,7 @@ public struct ResumePlaybackOverlay: View {
                         .frame(height: 22)
                         .background(Capsule().fill(isHoveringResume ? ShadcnTheme.primaryHighlight : ShadcnTheme.primary))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(FramesPressStyle())
                     .pointingHand()
                     .onHover { h in isHoveringResume = h }
 
@@ -96,14 +96,8 @@ public struct ResumePlaybackOverlay: View {
                         .strokeBorder(ShadcnTheme.primary.opacity(0.4), lineWidth: 1)
                 )
                 .shadow(color: .black.opacity(0.35), radius: 14, y: 6)
-                .scaleEffect(appeared ? 1 : 0.85)
-                .opacity(appeared ? 1 : 0)
-                .offset(y: appeared ? 0 : 12)
                 Spacer()
 
-                .onAppear {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.76)) { appeared = true }
-                }
             }
         }
     }

@@ -101,8 +101,7 @@ nonisolated public final class NativeAudioDecoder: @unchecked Sendable {
                 avFormat = AVAudioFormat(standardFormatWithSampleRate: sRate, channels: 2)
             }
         }
-        guard let format = avFormat else { return nil }
-        self.outputFormat = format
+        guard let format = avFormat, Int(format.channelCount) == channels else { return nil }
         
         let codec = track.codecID.uppercased()
         // MP4/QuickTime use four-character PCM sample entries (IN32, IN24,
@@ -119,10 +118,27 @@ nonisolated public final class NativeAudioDecoder: @unchecked Sendable {
                 || (track.pcmFormatFlags & 0x1) != 0
             // An explicit `enda` box wins over the codec's default byte order.
             let codecBigEndian = codec.contains("/BIG")
-                || ["IN32", "IN24", "IN16", "TWOS"].contains(codec)
+                || ["IN32", "IN24", "IN16", "TWOS", "FL32"].contains(codec)
             self.isBigEndianPCM = track.pcmBigEndian
                 ?? (codecBigEndian || (track.pcmFormatFlags & 0x2) != 0)
-            self.converter = nil
+            guard [8, 16, 24, 32, 64].contains(bitDepth),
+                  isFloatPCM ? [32, 64].contains(bitDepth) : bitDepth <= 32,
+                  track.pcmFormatFlags & kAudioFormatFlagIsNonInterleaved == 0 else { return nil }
+
+            let stride = UInt32(self.channels * bitDepth / 8)
+            var flags = kAudioFormatFlagIsPacked | (isFloatPCM ? kAudioFormatFlagIsFloat : kAudioFormatFlagIsSignedInteger)
+            if isBigEndianPCM { flags |= kAudioFormatFlagIsBigEndian }
+            var source = AudioStreamBasicDescription(
+                mSampleRate: sRate, mFormatID: kAudioFormatLinearPCM, mFormatFlags: flags,
+                mBytesPerPacket: stride, mFramesPerPacket: 1, mBytesPerFrame: stride,
+                mChannelsPerFrame: format.channelCount, mBitsPerChannel: UInt32(bitDepth), mReserved: 0
+            )
+            var destination = format.streamDescription.pointee
+            var pcmConverter: AudioConverterRef?
+            guard AudioConverterNew(&source, &destination, &pcmConverter) == noErr,
+                  let pcmConverter else { return nil }
+            self.outputFormat = format
+            self.converter = pcmConverter
             return
         }
         
@@ -156,9 +172,7 @@ nonisolated public final class NativeAudioDecoder: @unchecked Sendable {
             formatID = kAudioFormatFLAC
             framesPerPacket = 4096
         } else {
-            // Default fallback to AAC format ID
-            formatID = kAudioFormatMPEG4AAC
-            framesPerPacket = 1024
+            return nil
         }
         
         var asbdIn = AudioStreamBasicDescription(
@@ -194,6 +208,30 @@ nonisolated public final class NativeAudioDecoder: @unchecked Sendable {
             }
         }
         
+        if channels > 2 {
+            // The ASBD describes the channel count, but carries no speaker labels.
+            // Use the order the codec actually emits before handing buffers to the mixer.
+            var size: UInt32 = 0
+            guard AudioConverterGetPropertyInfo(c, kAudioConverterOutputChannelLayout, &size, nil) == noErr,
+                  size >= 12 else {
+                AudioConverterDispose(c)
+                return nil
+            }
+            let storage = UnsafeMutableRawPointer.allocate(byteCount: Int(size), alignment: MemoryLayout<AudioChannelLayout>.alignment)
+            defer { storage.deallocate() }
+            guard AudioConverterGetProperty(c, kAudioConverterOutputChannelLayout, &size, storage) == noErr else {
+                AudioConverterDispose(c)
+                return nil
+            }
+            let layout = AVAudioChannelLayout(layout: storage.assumingMemoryBound(to: AudioChannelLayout.self))
+            guard layout.channelCount == format.channelCount else {
+                AudioConverterDispose(c)
+                return nil
+            }
+            self.outputFormat = AVAudioFormat(standardFormatWithSampleRate: sRate, channelLayout: layout)
+        } else {
+            self.outputFormat = format
+        }
         self.converter = c
     }
     
@@ -220,14 +258,11 @@ nonisolated public final class NativeAudioDecoder: @unchecked Sendable {
     /// Translates an elementary demuxed audio packet into an uncompressed 32-bit Float AVAudioPCMBuffer.
     public func decode(packet: DemuxedPacket) -> AVAudioPCMBuffer? {
         return autoreleasepool { () -> AVAudioPCMBuffer? in
-            if isPCM {
-                return decodePCM(data: packet.data)
-            }
-            
             lock.lock()
             defer { lock.unlock() }
             
             guard let conv = converter else { return nil }
+            if isPCM { return decodePCM(data: packet.data, converter: conv) }
             
             // ALAC/FLAC packets can hold 4096 frames; 3072 was too small and truncated output.
             let outputFrameCapacity: UInt32 = 4096
@@ -293,7 +328,7 @@ nonisolated public final class NativeAudioDecoder: @unchecked Sendable {
                 feederPtr,
                 &ioOutputFrames,
                 abl,
-                feeder.packetDescPtr
+                nil
             )
             
             guard (status == noErr || status == kAudioDecoderEndOfBatchStatus), ioOutputFrames > 0 else {
@@ -306,94 +341,21 @@ nonisolated public final class NativeAudioDecoder: @unchecked Sendable {
     
     // MARK: - PCM Translation
     
-    private func decodePCM(data: Data) -> AVAudioPCMBuffer? {
-        let bytesPerSample = bitDepth / 8
-        guard bytesPerSample > 0, channels > 0 else { return nil }
-        
-        let frameSize = bytesPerSample * channels
-        let frameCount = UInt32(data.count / frameSize)
-        guard frameCount > 0 else { return nil }
-        
-        guard let pcmBuffer = AVAudioPCMBuffer(pcmFormat: outputFormat, frameCapacity: frameCount) else {
-            return nil
+    private func decodePCM(data: Data, converter: AudioConverterRef) -> AVAudioPCMBuffer? {
+        let stride = channels * bitDepth / 8
+        guard !data.isEmpty, data.count.isMultiple(of: stride),
+              let byteCount = UInt32(exactly: data.count) else { return nil }
+        let frames = byteCount / UInt32(stride)
+        guard let output = AVAudioPCMBuffer(pcmFormat: outputFormat, frameCapacity: frames) else { return nil }
+        output.frameLength = frames
+
+        let status = data.withUnsafeBytes { bytes in
+            var input = AudioBufferList(mNumberBuffers: 1, mBuffers: AudioBuffer(
+                mNumberChannels: UInt32(channels), mDataByteSize: byteCount,
+                mData: UnsafeMutableRawPointer(mutating: bytes.baseAddress)
+            ))
+            return AudioConverterConvertComplexBuffer(converter, frames, &input, output.mutableAudioBufferList)
         }
-        pcmBuffer.frameLength = frameCount
-        
-        guard let channelData = pcmBuffer.floatChannelData else {
-            return nil
-        }
-        let outChannels = Int(outputFormat.channelCount)
-        
-        data.withUnsafeBytes { raw in
-            guard let base = raw.baseAddress else { return }
-            
-            if isFloatPCM && bytesPerSample == 4 {
-                let floatPtr = base.bindMemory(to: Float.self, capacity: Int(frameCount) * channels)
-                for f in 0..<Int(frameCount) {
-                    for ch in 0..<outChannels {
-                        let srcCh = min(ch, channels - 1)
-                        let sample = floatPtr[f * channels + srcCh]
-                        channelData[ch][f] = isBigEndianPCM
-                            ? Float(bitPattern: sample.bitPattern.byteSwapped)
-                            : sample
-                    }
-                }
-            } else if bytesPerSample == 4 {
-                // 32-bit Signed Integer PCM (A_PCM/INT/LIT, MP4 IN32)
-                let int32Ptr = base.bindMemory(to: Int32.self, capacity: Int(frameCount) * channels)
-                let scale: Float = 1.0 / 2147483648.0
-                for f in 0..<Int(frameCount) {
-                    for ch in 0..<outChannels {
-                        let srcCh = min(ch, channels - 1)
-                        let sample = int32Ptr[f * channels + srcCh]
-                        channelData[ch][f] = Float(isBigEndianPCM ? Int32(bigEndian: sample) : sample) * scale
-                    }
-                }
-            } else if bytesPerSample == 2 {
-                // 16-bit Signed Integer PCM
-                let int16Ptr = base.bindMemory(to: Int16.self, capacity: Int(frameCount) * channels)
-                let scale: Float = 1.0 / 32768.0
-                for f in 0..<Int(frameCount) {
-                    for ch in 0..<outChannels {
-                        let srcCh = min(ch, channels - 1)
-                        let sample = int16Ptr[f * channels + srcCh]
-                        channelData[ch][f] = Float(isBigEndianPCM ? Int16(bigEndian: sample) : sample) * scale
-                    }
-                }
-            } else if bytesPerSample == 3 {
-                // 24-bit Signed Integer PCM
-                let bytePtr = base.bindMemory(to: UInt8.self, capacity: data.count)
-                let scale: Float = 1.0 / 8388608.0
-                for f in 0..<Int(frameCount) {
-                    for ch in 0..<outChannels {
-                        let srcCh = min(ch, channels - 1)
-                        let offset = (f * channels + srcCh) * 3
-                        let val: Int32
-                        if isBigEndianPCM {
-                            val = Int32(Int8(bitPattern: bytePtr[offset])) << 16 |
-                                  Int32(bytePtr[offset + 1]) << 8 |
-                                  Int32(bytePtr[offset + 2])
-                        } else {
-                            val = Int32(Int8(bitPattern: bytePtr[offset + 2])) << 16 |
-                                  Int32(bytePtr[offset + 1]) << 8 |
-                                  Int32(bytePtr[offset])
-                        }
-                        channelData[ch][f] = Float(val) * scale
-                    }
-                }
-            } else if bytesPerSample == 1 {
-                // 8-bit signed PCM (Matroska A_PCM/INT with 8-bit samples).
-                let bytePtr = base.bindMemory(to: UInt8.self, capacity: data.count)
-                for f in 0..<Int(frameCount) {
-                    for ch in 0..<outChannels {
-                        let srcCh = min(ch, channels - 1)
-                        let sample = Int8(bitPattern: bytePtr[f * channels + srcCh])
-                        channelData[ch][f] = Float(sample) / 128.0
-                    }
-                }
-            }
-        }
-        
-        return pcmBuffer
+        return status == noErr ? output : nil
     }
 }

@@ -40,7 +40,6 @@ public struct DashboardView: View {
                         .zIndex(0)
                 }
             }
-            .animation(.fluidQuick, value: library.isSidebarVisible)
         }
         .frame(minWidth: 460, minHeight: 320)
         .overlay(

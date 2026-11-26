@@ -117,30 +117,30 @@ func dynamicColor(
 // Shared Frames surfaces and action colors.
 public enum ShadcnTheme {
     public static let actionTint = dynamicColor(
-        light: (0.24, 0.28, 0.72, 1),
-        dark: (0.73, 0.76, 1, 1)
+        light: (0.12, 0.12, 0.12, 1),
+        dark: (0.94, 0.94, 0.94, 1)
     )
 
     public static let background = dynamicColor(
-        light: (0.966, 0.969, 0.978, 1),
-        dark: (0.064, 0.068, 0.086, 1)
+        light: (0.97, 0.97, 0.97, 1),
+        dark: (0.055, 0.055, 0.055, 1)
     )
 
     public static let card = dynamicColor(
         light: (1, 1, 1, 1),
-        dark: (0.101, 0.107, 0.135, 1)
+        dark: (0.10, 0.10, 0.10, 1)
     )
 
     public static let cardHover = dynamicColor(
-        light: (0.906, 0.918, 0.968, 1),
-        dark: (0.156, 0.169, 0.218, 1)
+        light: (0.91, 0.91, 0.91, 1),
+        dark: (0.17, 0.17, 0.17, 1)
     )
 
     public static let popover = card
 
     public static let sidebar = dynamicColor(
-        light: (0.926, 0.933, 0.956, 1),
-        dark: (0.082, 0.088, 0.112, 1)
+        light: (0.94, 0.94, 0.94, 1),
+        dark: (0.08, 0.08, 0.08, 1)
     )
 
     // MARK: - Foreground & Typography
@@ -244,10 +244,9 @@ public enum ShadcnTheme {
     )
 
     /// Destructive action
-    /// Light: oklch(0.577 0.245 27.325) -> #e7000b | Dark: oklch(0.704 0.191 22.216) -> #ff6467
     public static let destructive: Color = dynamicColor(
-        light: (0.906, 0.0, 0.042, 1.0),
-        dark: (1.0, 0.391, 0.404, 1.0)
+        light: (0.20, 0.20, 0.20, 1),
+        dark: (0.88, 0.88, 0.88, 1)
     )
 
     // MARK: - Radii (base-luma scale with base 10pt / 0.625rem)
@@ -297,40 +296,4 @@ public extension View {
     func shadcnCard(cornerRadius: CGFloat = ShadcnTheme.radiusLg, padding: CGFloat = 12) -> some View {
         modifier(ShadcnCardModifier(cornerRadius: cornerRadius, padding: padding))
     }
-}
-
-// MARK: - Fluid Physics & Curves (Optimized for Apple Silicon ProMotion 120Hz Displays)
-public enum FramesAnimation {
-    /// Fluid continuous spring curve strictly adhering to sub-300ms UI animation budget
-    /// Responsive 0.24s response and gentle damping (0.78) eliminating all bounce and visual jitter
-    public static let fluidSpring = Animation.spring(response: 0.24, dampingFraction: 0.78)
-
-    /// Smooth continuous transition curve under 300ms (0.20s)
-    public static let smooth = Animation.smooth(duration: 0.20)
-
-    /// Fast interactive spring for micro-interactions (hover, press, quick toggles: 0.18s)
-    public static let quick = Animation.spring(response: 0.18, dampingFraction: 0.82)
-
-    /// Responsive curve for overlays, popovers, and dialogs (0.24s)
-    public static let overlay = Animation.spring(response: 0.24, dampingFraction: 0.78)
-
-    /// Layout resizing and window state transition curve (0.26s)
-    public static let windowTransition = Animation.spring(response: 0.26, dampingFraction: 0.82)
-}
-
-public extension Animation {
-    /// Fluid continuous spring curve strictly adhering to sub-300ms UI animation budget
-    static let fluidSpring = FramesAnimation.fluidSpring
-
-    /// Smooth continuous transition curve (0.20s)
-    static let fluidSmooth = FramesAnimation.smooth
-
-    /// Fast interactive spring for micro-interactions (0.18s)
-    static let fluidQuick = FramesAnimation.quick
-
-    /// Responsive fluid curve for overlays, sheets, and popovers (0.24s)
-    static let fluidOverlay = FramesAnimation.overlay
-
-    /// Window state and layout transition animation curve (0.26s)
-    static let fluidWindow = FramesAnimation.windowTransition
 }

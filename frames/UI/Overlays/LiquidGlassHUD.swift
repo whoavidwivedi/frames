@@ -4,18 +4,6 @@ import UniformTypeIdentifiers
 
 // MARK: - Emil Kowalski Tactile Button Styles
 
-private struct TactileTransportButtonStyle: ButtonStyle {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    var scale: CGFloat = 0.93
-    var spring: Animation = .spring(response: 0.24, dampingFraction: 0.74)
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed && !reduceMotion ? scale : 1.0)
-            .animation(.fluidQuick, value: configuration.isPressed)
-    }
-}
-
 // MARK: - Shadcn-style volume button group (− +)
 
 public struct VolumeButtonGroup: View {
@@ -65,17 +53,15 @@ public struct VolumeButtonGroup: View {
                 )
                 .contentShape(Rectangle())
         }
-        .buttonStyle(TactileTransportButtonStyle(scale: 0.9))
+        .buttonStyle(FramesPressStyle())
         .pointingHand()
         .help(label)
         .accessibilityLabel(label)
         .onHover { h in
-            withAnimation(.fluidQuick) {
-                if h {
-                    hovered = id
-                } else if hovered == id {
-                    hovered = nil
-                }
+            if h {
+                hovered = id
+            } else if hovered == id {
+                hovered = nil
             }
         }
     }
@@ -115,13 +101,13 @@ public struct VolumeReadout: View {
         .accessibilityHidden(true)
         .task(id: engine.volumeHUDToken) {
             guard engine.volumeHUDToken > 0 else { return }
-            withAnimation(.fluidQuick) { isVisible = true }
+            isVisible = true
             do {
                 try await Task.sleep(nanoseconds: 1_200_000_000)
             } catch {
                 return // A newer change restarted the task; keep the readout visible.
             }
-            withAnimation(.fluidQuick) { isVisible = false }
+            isVisible = false
         }
     }
 }
@@ -152,55 +138,46 @@ public struct LiquidGlassHUD: View {
                     Spacer(minLength: 0)
                     SpeedSelectorPanel(engine: engine)
                 }
-                .transition(
-                    .asymmetric(
-                        insertion: .opacity.combined(with: .scale(scale: 0.95, anchor: .bottomTrailing)).combined(with: .offset(y: 6)),
-                        removal: .opacity.combined(with: .scale(scale: 0.97, anchor: .bottomTrailing)).combined(with: .offset(y: 4))
-                    )
-                )
             }
 
-            VStack(spacing: 2) {
+            VStack(spacing: 8) {
                 PlaybackTimelineRow(engine: engine)
+                    .tint(.white)
 
                 ViewThatFits(in: .horizontal) {
                     transportRow(compact: false)
                     transportRow(compact: true)
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 14)
+            .padding(.top, 20)
             .background {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color(white: 0.075).opacity(reduceTransparency ? 1 : 0.94))
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .strokeBorder(.white.opacity(0.18), lineWidth: 1)
-                    .allowsHitTesting(false)
+                if reduceTransparency {
+                    Color.black
+                } else {
+                    LinearGradient(colors: [.clear, .black.opacity(0.78), .black.opacity(0.96)],
+                                   startPoint: .top, endPoint: .bottom)
+                }
             }
         }
-        .frame(maxWidth: 660)
-        .padding(.horizontal, 14)
-        .padding(.bottom, 12)
+        .frame(maxWidth: .infinity)
         .environment(\.colorScheme, .dark)
-        .animation(reduceMotion ? nil : .fluidQuick, value: engine.activeInspectorSheet)
     }
 
     private func transportRow(compact: Bool) -> some View {
-        HStack(spacing: compact ? 2 : 4) {
+        HStack(spacing: compact ? 3 : 8) {
             playPauseButton()
             transportSkipButton(forward: false)
             transportSkipButton(forward: true)
 
-            Spacer(minLength: 4)
             muteButton(isNarrow: compact)
+            if !compact { VolumeButtonGroup(volume: volumeBinding, isMuted: engine.isMuted) }
+            Spacer(minLength: 8)
 
             if compact {
                 compactOptions
             } else {
-                VolumeButtonGroup(volume: volumeBinding, isMuted: engine.isMuted)
-                utilityDivider
                 trackMenu
                 rateButton()
                 pictureInPictureButton
@@ -216,6 +193,7 @@ public struct LiquidGlassHUD: View {
             Image(systemName: engine.selectedSubtitleTrack.id == SubtitleTrack.off.id
                   ? "captions.bubble" : "captions.bubble.fill")
         }
+        .pointingHand()
         .menuStyle(.borderlessButton)
         .fixedSize()
         .help("Audio and subtitle tracks")
@@ -233,6 +211,7 @@ public struct LiquidGlassHUD: View {
         } label: {
             Image(systemName: "ellipsis.circle")
         }
+        .pointingHand()
         .menuStyle(.borderlessButton)
         .fixedSize()
         .help("More playback controls")
@@ -295,9 +274,7 @@ public struct LiquidGlassHUD: View {
     }
 
     private func toggleInspector(_ sheet: VideoPlayerEngine.InspectorSheet) {
-        withAnimation(.fluidQuick) {
-            engine.activeInspectorSheet = (engine.activeInspectorSheet == sheet ? nil : sheet)
-        }
+        engine.activeInspectorSheet = (engine.activeInspectorSheet == sheet ? nil : sheet)
     }
 
     private var utilityDivider: some View {
@@ -344,15 +321,13 @@ public struct LiquidGlassHUD: View {
                 )
                 .contentShape(Circle())
         }
-        .buttonStyle(TactileTransportButtonStyle(scale: 0.92))
+        .buttonStyle(FramesPressStyle())
         .pointingHand()
         .accessibilityLabel(engine.isPlaying ? "Pause" : (engine.hasEnded ? "Replay" : "Play"))
         .accessibilityHint("Toggles video playback")
         .help(engine.isPlaying ? "Pause (Space)" : (engine.hasEnded ? "Replay (Space)" : "Play (Space)"))
         .onHover { h in
-            withAnimation(.fluidQuick) {
-                hoveredButton = h ? "play" : nil
-            }
+            hoveredButton = h ? "play" : nil
         }
     }
 
@@ -381,15 +356,13 @@ public struct LiquidGlassHUD: View {
                 )
                 .contentShape(Circle())
         }
-        .buttonStyle(TactileTransportButtonStyle(scale: 0.92))
+        .buttonStyle(FramesPressStyle())
         .pointingHand()
         .help(help)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityValue(accessibilityValue ?? "")
         .onHover { h in
-            withAnimation(.fluidQuick) {
-                hoveredButton = h ? id : nil
-            }
+            hoveredButton = h ? id : nil
         }
     }
 
@@ -413,15 +386,13 @@ public struct LiquidGlassHUD: View {
                 )
                 .contentShape(Capsule())
         }
-        .buttonStyle(TactileTransportButtonStyle(scale: 0.94))
+        .buttonStyle(FramesPressStyle())
         .pointingHand()
         .help(isOpen ? "Close Speed Settings" : "Playback Speed")
         .accessibilityLabel("Playback speed")
         .accessibilityValue(Self.formatRate(engine.playbackRate))
         .onHover { h in
-            withAnimation(.fluidQuick) {
-                hoveredButton = h ? "speed" : nil
-            }
+            hoveredButton = h ? "speed" : nil
         }
     }
 
@@ -448,15 +419,13 @@ public struct LiquidGlassHUD: View {
                 )
                 .contentShape(Circle())
         }
-        .buttonStyle(TactileTransportButtonStyle(scale: 0.92))
+        .buttonStyle(FramesPressStyle())
         .pointingHand()
         .accessibilityLabel(isNarrow ? "Volume controls" : (engine.isMuted ? "Unmute" : "Mute"))
         .accessibilityValue("\(engine.isMuted ? 0 : Int(engine.volume * 100))%")
         .help(isNarrow ? "Volume Slider" : (engine.isMuted ? "Unmute (M)" : "Mute (M)"))
         .onHover { h in
-            withAnimation(.fluidQuick) {
-                hoveredButton = h ? "mute" : nil
-            }
+            hoveredButton = h ? "mute" : nil
         }
         .popover(isPresented: $showVolumePopover) {
             VStack(spacing: 8) {
@@ -476,7 +445,7 @@ public struct LiquidGlassHUD: View {
                 }
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(ShadcnTheme.foreground)
-                .buttonStyle(TactileTransportButtonStyle(scale: 0.96))
+                .buttonStyle(FramesPressStyle())
                 .pointingHand()
             }
             .padding(10)
@@ -543,7 +512,7 @@ public struct PlaybackTimeDisplay: View {
             .padding(.leading, 4)
             .contentShape(Rectangle())
         }
-        .buttonStyle(TactileTransportButtonStyle(scale: 0.98))
+        .buttonStyle(FramesPressStyle())
         .pointingHand()
         .help(showRemainingTime ? "Click to show duration" : "Click to show remaining time")
         .accessibilityLabel(showRemainingTime ? "Remaining time display" : "Playback time display")
@@ -617,9 +586,7 @@ public struct PlayerSideControls: View {
     }
 
     private func toggle(_ sheet: VideoPlayerEngine.InspectorSheet) {
-        withAnimation(.fluidQuick) {
-            engine.activeInspectorSheet = (engine.activeInspectorSheet == sheet ? nil : sheet)
-        }
+        engine.activeInspectorSheet = (engine.activeInspectorSheet == sheet ? nil : sheet)
     }
 
     public var body: some View {
@@ -655,16 +622,13 @@ public struct PlayerSideControls: View {
 
             if engine.activeInspectorSheet == .audio {
                 AudioSelectorPanel(engine: engine)
-                    .transition(.asymmetric(insertion: .opacity.combined(with: .offset(x: -8)), removal: .opacity))
             } else if engine.activeInspectorSheet == .subtitles {
                 SubtitleSelectorPanel(engine: engine)
-                    .transition(.asymmetric(insertion: .opacity.combined(with: .offset(x: -8)), removal: .opacity))
             }
 
             Spacer(minLength: 0)
         }
         .padding(.leading, 18)
-        .animation(.fluidQuick, value: engine.activeInspectorSheet)
         .environment(\.colorScheme, .dark)
     }
 
@@ -691,15 +655,13 @@ public struct PlayerSideControls: View {
                 )
                 .contentShape(Circle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(FramesPressStyle())
         .pointingHand()
         .help(help)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityValue(accessibilityValue ?? "")
         .onHover { isHovering in
-            withAnimation(.fluidQuick) {
-                hoveredButton = isHovering ? id : nil
-            }
+            hoveredButton = isHovering ? id : nil
         }
     }
 }
@@ -741,17 +703,13 @@ public struct SkipReadout: View {
         .task(id: engine.skipHUDToken) {
             guard engine.skipHUDToken > 0 else { return }
             isForward = engine.lastSkipDelta >= 0
-            withAnimation(.spring(response: 0.38, dampingFraction: 0.62)) {
-                isVisible = true
-            }
+            isVisible = true
             do {
                 try await Task.sleep(nanoseconds: 900_000_000)
             } catch {
                 return
             }
-            withAnimation(.easeOut(duration: 0.32)) {
-                isVisible = false
-            }
+            isVisible = false
         }
     }
 }
@@ -776,7 +734,6 @@ public struct TimeReadout: View {
                     .padding(.horizontal, 12)
                     .padding(.vertical, 5)
                     .background(.black.opacity(0.75), in: Capsule())
-                    .transition(.opacity)
             }
         }
         .padding(.trailing, 18)
@@ -786,13 +743,13 @@ public struct TimeReadout: View {
         .accessibilityHidden(true)
         .task(id: engine.timeHUDToken) {
             guard engine.timeHUDToken > 0 else { return }
-            withAnimation(.fluidQuick) { isVisible = true }
+            isVisible = true
             do {
                 try await Task.sleep(for: .seconds(4))
             } catch {
                 return
             }
-            withAnimation(.fluidQuick) { isVisible = false }
+            isVisible = false
         }
     }
 }

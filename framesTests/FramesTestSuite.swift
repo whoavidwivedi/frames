@@ -780,26 +780,6 @@ public enum FramesTestSuite {
             localizedMenu.items[2].title == "Palette de commandes"
         )
 
-        // ProMotion 120Hz Fluid Physics Animation Curve Tokens
-        func animationDescription(_ animation: Animation) -> String {
-            let base = Mirror(reflecting: animation).children
-                .first(where: { $0.label == "base" })?.value
-            return [String(describing: animation), base.map { String(describing: $0) }]
-                .compactMap { $0 }.joined(separator: " ")
-        }
-        let springCurve = animationDescription(FramesAnimation.fluidSpring)
-        let smoothCurve = animationDescription(FramesAnimation.smooth)
-        let quickCurve = animationDescription(FramesAnimation.quick)
-        let overlayCurve = animationDescription(FramesAnimation.overlay)
-        let windowCurve = animationDescription(FramesAnimation.windowTransition)
-        logs.append("  Animation curves: fluid=\(springCurve) smooth=\(smoothCurve) quick=\(quickCurve)")
-        assertTest("Fluid Spring Curve Initialized", condition: springCurve.localizedCaseInsensitiveContains("spring") && springCurve.contains("0.24"))
-        // SwiftUI implements .smooth() as a critically damped spring on current macOS versions.
-        assertTest("Smooth Curve Initialized", condition: smoothCurve.contains("0.2") &&
-                   (smoothCurve.localizedCaseInsensitiveContains("smooth") || smoothCurve.contains("dampingFraction: 1.0")))
-        assertTest("Quick Curve Initialized", condition: quickCurve.localizedCaseInsensitiveContains("spring") && quickCurve.contains("0.18"))
-        assertTest("Overlay Curve Initialized", condition: overlayCurve.localizedCaseInsensitiveContains("spring") && overlayCurve.contains("0.24"))
-        assertTest("Window Transition Curve Initialized", condition: windowCurve.localizedCaseInsensitiveContains("spring") && windowCurve.contains("0.26"))
 
         // MARK: - 12. Pure Native EBML & Matroska VINT Parser Tests
         logs.append("\n[12] Testing EBML VINT & Matroska Parser...")

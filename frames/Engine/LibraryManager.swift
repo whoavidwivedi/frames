@@ -186,25 +186,19 @@ public final class LibraryManager {
         guard category != selectedCategory else { return }
         backStack.append(selectedCategory)
         forwardStack.removeAll()
-        withAnimation(.fluidQuick) {
-            selectedCategory = category
-        }
+        selectedCategory = category
     }
 
     public func goBack() {
         guard let prev = backStack.popLast() else { return }
         forwardStack.append(selectedCategory)
-        withAnimation(.fluidQuick) {
-            selectedCategory = prev
-        }
+        selectedCategory = prev
     }
 
     public func goForward() {
         guard let next = forwardStack.popLast() else { return }
         backStack.append(selectedCategory)
-        withAnimation(.fluidQuick) {
-            selectedCategory = next
-        }
+        selectedCategory = next
     }
 
     public func toggleSidebar() {
@@ -226,11 +220,9 @@ public final class LibraryManager {
     }
 
     public func toggleSearch() {
-        withAnimation(.fluidQuick) {
-            isSearchActive.toggle()
-            if !isSearchActive {
-                searchQuery = ""
-            }
+        isSearchActive.toggle()
+        if !isSearchActive {
+            searchQuery = ""
         }
     }
 

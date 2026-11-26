@@ -338,7 +338,7 @@ public final class VideoPlayerEngine {
         // Apple Silicon low-latency audio/video configuration with broad time-pitch scaling
         playerItem.audioTimePitchAlgorithm = .spectral
         playerItem.allowedAudioSpatializationFormats = SettingsManager.shared.spatialAudioEnabled
-            ? .monoStereoAndMultichannel
+            ? .multichannel
             : []
 
         pendingInitialSeekTime = initialSeekTime

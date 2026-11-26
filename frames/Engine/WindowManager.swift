@@ -105,11 +105,9 @@ public final class WindowManager: NSObject, NSWindowDelegate {
             MainActor.assumeIsolated {
                 guard let window = self?.contentWindow(from: notification) else { return }
                 self?.configureWindow(window)
-                withAnimation(.fluidQuick) {
-                    self?.isTransitioning = true
-                    self?.isNativeFullscreen = true
-                    self?.updateLayoutState(window: window)
-                }
+                self?.isTransitioning = true
+                self?.isNativeFullscreen = true
+                self?.updateLayoutState(window: window)
             }
         }
 
@@ -121,11 +119,9 @@ public final class WindowManager: NSObject, NSWindowDelegate {
             MainActor.assumeIsolated {
                 guard let window = self?.contentWindow(from: notification) else { return }
                 self?.configureWindow(window)
-                withAnimation(.fluidQuick) {
-                    self?.isTransitioning = false
-                    self?.isNativeFullscreen = true
-                    self?.updateLayoutState(window: window)
-                }
+                self?.isTransitioning = false
+                self?.isNativeFullscreen = true
+                self?.updateLayoutState(window: window)
             }
         }
 
@@ -137,11 +133,9 @@ public final class WindowManager: NSObject, NSWindowDelegate {
             MainActor.assumeIsolated {
                 guard let window = self?.contentWindow(from: notification) else { return }
                 self?.configureWindow(window)
-                withAnimation(.fluidQuick) {
-                    self?.isTransitioning = true
-                    self?.isNativeFullscreen = false
-                    self?.updateLayoutState(window: window)
-                }
+                self?.isTransitioning = true
+                self?.isNativeFullscreen = false
+                self?.updateLayoutState(window: window)
             }
         }
 
@@ -153,11 +147,9 @@ public final class WindowManager: NSObject, NSWindowDelegate {
             MainActor.assumeIsolated {
                 guard let window = self?.contentWindow(from: notification) else { return }
                 self?.configureWindow(window)
-                withAnimation(.fluidQuick) {
-                    self?.isTransitioning = false
-                    self?.isNativeFullscreen = false
-                    self?.updateLayoutState(window: window)
-                }
+                self?.isTransitioning = false
+                self?.isNativeFullscreen = false
+                self?.updateLayoutState(window: window)
             }
         }
 
@@ -183,9 +175,7 @@ public final class WindowManager: NSObject, NSWindowDelegate {
                       let window = self.contentWindow(from: notification) else { return }
                 self.configureWindow(window)
                 self.isLiveResizing = false
-                withAnimation(.fluidQuick) {
-                    self.updateLayoutState(window: window)
-                }
+                self.updateLayoutState(window: window)
             }
         }
 

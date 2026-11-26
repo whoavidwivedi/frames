@@ -57,14 +57,18 @@ nonisolated public final class AudioEngineBridge: @unchecked Sendable {
         self.decoder = dec
         self.outputFormat = dec.outputFormat
         
-        setupAudioEngine()
+        do {
+            try setupAudioEngine()
+        } catch {
+            return nil
+        }
     }
     
     deinit {
         stop()
     }
     
-    private func setupAudioEngine() {
+    private func setupAudioEngine() throws {
         audioEngine.attach(playerNode)
         audioEngine.attach(timePitchNode)
         audioEngine.connect(playerNode, to: timePitchNode, format: outputFormat)
@@ -76,12 +80,8 @@ nonisolated public final class AudioEngineBridge: @unchecked Sendable {
         timePitchNode.bypass = (abs(playbackRate - 1.0) < 0.001)
         audioEngine.mainMixerNode.outputVolume = 1.0
         
-        do {
-            audioEngine.prepare()
-            try audioEngine.start()
-        } catch {
-            print("[AudioEngineBridge] Engine startup error: \(error)")
-        }
+        audioEngine.prepare()
+        try audioEngine.start()
     }
     
     // MARK: - Packet Processing & Decoding

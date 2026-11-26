@@ -43,6 +43,7 @@ public struct CustomScrubber: View {
                 }
             }
         )
+        .pointingHand()
         .controlSize(.small)
         .disabled(!canSeek)
         .accessibilityLabel("Playback position")

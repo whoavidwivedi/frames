@@ -33,11 +33,7 @@ public struct ShadcnBadge: View {
     public var body: some View {
         HStack(spacing: 4) {
             if isLoading {
-                ProgressView()
-                    .controlSize(.mini)
-                    .scaleEffect(0.6)
-                    .frame(width: 9, height: 9)
-                    .tint(foregroundColor)
+                Image(systemName: "hourglass").font(.system(size: 9)).accessibilityHidden(true)
             } else if let icon = icon {
                 Image(systemName: icon)
                     .font(.system(size: 9, weight: .semibold))
@@ -57,7 +53,6 @@ public struct ShadcnBadge: View {
                 .strokeBorder(borderColor, lineWidth: 1)
         )
         .fixedSize(horizontal: true, vertical: false)
-        .animation(.fluidQuick, value: isHighlighted)
     }
 
     private var foregroundColor: Color {

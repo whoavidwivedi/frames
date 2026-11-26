@@ -21,9 +21,7 @@ public struct FullscreenSelectorPanel: View {
             // Option 1: Windowed Full Screen
             Button {
                 windowManager.toggleWindowedFullscreen()
-                withAnimation(.fluidQuick) {
-                    engine.activeInspectorSheet = nil
-                }
+                engine.activeInspectorSheet = nil
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "macwindow.on.rectangle")
@@ -49,7 +47,6 @@ public struct FullscreenSelectorPanel: View {
                         Image(systemName: "checkmark")
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundStyle(ShadcnTheme.foreground)
-                            .transition(.opacity.combined(with: .scale(scale: 0.9)))
                     }
                 }
                 .padding(.horizontal, 8)
@@ -60,16 +57,13 @@ public struct FullscreenSelectorPanel: View {
                 )
                 .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(FramesPressStyle())
             .pointingHand()
-            .animation(.fluidQuick, value: windowManager.isWindowedFullscreen)
 
             // Option 2: Native Full Screen
             Button {
                 windowManager.toggleNativeFullscreen()
-                withAnimation(.fluidQuick) {
-                    engine.activeInspectorSheet = nil
-                }
+                engine.activeInspectorSheet = nil
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "arrow.up.left.and.arrow.down.right")
@@ -95,7 +89,6 @@ public struct FullscreenSelectorPanel: View {
                         Image(systemName: "checkmark")
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundStyle(ShadcnTheme.foreground)
-                            .transition(.opacity.combined(with: .scale(scale: 0.9)))
                     }
                 }
                 .padding(.horizontal, 8)
@@ -106,9 +99,8 @@ public struct FullscreenSelectorPanel: View {
                 )
                 .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(FramesPressStyle())
             .pointingHand()
-            .animation(.fluidQuick, value: windowManager.isNativeFullscreen)
 
             if windowManager.isAnyFullscreen {
                 Rectangle()
@@ -117,9 +109,7 @@ public struct FullscreenSelectorPanel: View {
 
                 Button {
                     windowManager.exitAnyFullscreen()
-                    withAnimation(.fluidQuick) {
-                        engine.activeInspectorSheet = nil
-                    }
+                    engine.activeInspectorSheet = nil
                 } label: {
                     HStack {
                         Image(systemName: "arrow.down.right.and.arrow.up.left")
@@ -140,7 +130,7 @@ public struct FullscreenSelectorPanel: View {
                     )
                     .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(FramesPressStyle())
                 .pointingHand()
             }
         }
