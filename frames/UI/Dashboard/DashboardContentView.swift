@@ -348,27 +348,46 @@ public struct DashboardContentView: View {
 }
 
 // MARK: - Dedicated Video Grid Card View
-private struct FavoriteGlow: ViewModifier {
+private struct FavoriteStar: View {
     let isFavorite: Bool
-    @State private var glow = false
-    @State private var pulse = 0
+    let fontSize: CGFloat
+    let gold: Color
+    let idle: Color
+    let markedAt: Date?
+    @State private var finishedAt: Date?
 
-    func body(content: Content) -> some View {
-        content
-            .shadow(color: glow ? ShadcnTheme.favoriteOnThumbnail : .clear, radius: 5)
-            .onChange(of: isFavorite) { _, marked in
-                glow = marked
-                pulse += 1
-            }
-            .task(id: pulse) {
-                guard glow else { return }
-                do {
-                    try await Task.sleep(for: .milliseconds(220))
-                    glow = false
-                } catch {
-                    // A new favorite state superseded this pulse.
+    var body: some View {
+        Group {
+            if isFavorite, let markedAt, markedAt != finishedAt {
+                TimelineView(.animation) { context in
+                    let elapsed = max(0, context.date.timeIntervalSince(markedAt))
+                    let fill = min(elapsed / 0.30, 1)
+                    let glow = sin(Double.pi * min(elapsed / 0.52, 1))
+
+                    Image(systemName: "star")
+                        .foregroundStyle(idle)
+                        .overlay {
+                            Image(systemName: "star.fill")
+                                .foregroundStyle(gold)
+                                .mask { Circle().scaleEffect(fill * 1.45) }
+                                .shadow(color: ShadcnTheme.favoriteOnThumbnail.opacity(glow * 0.85),
+                                        radius: 2 + glow * 5)
+                        }
                 }
+                .task(id: markedAt) {
+                    do {
+                        try await Task.sleep(for: .milliseconds(520))
+                        finishedAt = markedAt
+                    } catch {
+                        // The star was removed or marked again.
+                    }
+                }
+            } else {
+                Image(systemName: isFavorite ? "star.fill" : "star")
+                    .foregroundStyle(isFavorite ? gold : idle)
             }
+        }
+        .font(.system(size: fontSize))
     }
 }
 
@@ -380,6 +399,7 @@ public struct VideoGridCardView: View {
     @Bindable var library: LibraryManager
     public var onPlayURL: (URL) -> Void
     @State private var isPressed: Bool = false
+    @State private var favoriteMarkedAt: Date?
 
     public init(
         video: VideoItem,
@@ -453,16 +473,16 @@ public struct VideoGridCardView: View {
 
                     // Favorite button over the thumbnail
                     Button {
+                        favoriteMarkedAt = !video.isFavorite && !reduceMotion ? Date() : nil
                         library.toggleFavorite(videoId: video.id)
                     } label: {
                         ZStack {
                             Circle()
                                 .fill(Color.black.opacity(0.65))
 
-                            Image(systemName: video.isFavorite ? "star.fill" : "star")
-                                .font(.system(size: 11))
-                                .foregroundStyle(video.isFavorite ? ShadcnTheme.favoriteOnThumbnail : Color.white.opacity(0.85))
-                                .modifier(FavoriteGlow(isFavorite: video.isFavorite))
+                            FavoriteStar(isFavorite: video.isFavorite, fontSize: 11,
+                                         gold: ShadcnTheme.favoriteOnThumbnail, idle: Color.white.opacity(0.85),
+                                         markedAt: favoriteMarkedAt)
                         }
                         .frame(width: 28, height: 28)
                         .contentShape(Circle())
@@ -602,6 +622,7 @@ public struct VideoListRowView: View {
 
     @State private var isThumbnailHovered: Bool = false
     @State private var isPressed: Bool = false
+    @State private var favoriteMarkedAt: Date?
 
     public init(
         video: VideoItem,
@@ -729,16 +750,16 @@ public struct VideoListRowView: View {
 
             // Instant Favorite Star Button
             Button {
+                favoriteMarkedAt = !video.isFavorite && !reduceMotion ? Date() : nil
                 library.toggleFavorite(videoId: video.id)
             } label: {
                 ZStack {
                     Circle()
                         .fill(Color.black.opacity(0.0001))
 
-                    Image(systemName: video.isFavorite ? "star.fill" : "star")
-                        .font(.system(size: 12))
-                        .foregroundStyle(video.isFavorite ? ShadcnTheme.favorite : ShadcnTheme.foregroundMuted)
-                        .modifier(FavoriteGlow(isFavorite: video.isFavorite))
+                    FavoriteStar(isFavorite: video.isFavorite, fontSize: 12,
+                                 gold: ShadcnTheme.favorite, idle: ShadcnTheme.foregroundMuted,
+                                 markedAt: favoriteMarkedAt)
                 }
                 .frame(width: 28, height: 28)
                 .contentShape(Circle())
