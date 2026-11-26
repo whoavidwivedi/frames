@@ -1385,7 +1385,7 @@ public struct SoftwareUpdatesSettingsCard: View {
                     ShadcnButton(
                         isChecking ? "Checking for Updates..." : "Check for Updates",
                         icon: "arrow.triangle.2.circlepath",
-                        variant: .primary,
+                        variant: .update,
                         size: .sm
                     ) {
                         guard !isChecking else { return }
@@ -1408,7 +1408,7 @@ public struct SoftwareUpdatesSettingsCard: View {
                     ShadcnButton(
                         isChecking ? "Checking for Updates..." : "Check for Updates",
                         icon: "arrow.triangle.2.circlepath",
-                        variant: .primary,
+                        variant: .update,
                         size: .sm
                     ) {
                         guard !isChecking else { return }

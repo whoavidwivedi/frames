@@ -247,6 +247,11 @@ public enum ShadcnTheme {
         dark: (1.0, 1.0, 1.0, 0.12)
     )
 
+    static let updateAccent = dynamicColor(
+        light: (0.02, 0.33, 0.72, 1),
+        dark: (0.43, 0.70, 1, 1)
+    )
+
     /// Destructive action
     public static let destructive: Color = dynamicColor(
         light: (0.68, 0.13, 0.16, 1),
