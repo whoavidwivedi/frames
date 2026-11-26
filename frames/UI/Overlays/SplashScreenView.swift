@@ -79,29 +79,34 @@ public struct SplashScreenView: View {
     private func exposures(of letter: Text, index: Int, progress: Double) -> some View {
         ZStack {
             ForEach(Self.exposureColors.indices.reversed(), id: \.self) { layer in
-                let depth = Double(layer + 1)
-                let stagger = Double(index) * 0.021 + Double(layer) * 0.038
-                let unfurl = min(1, max(0, (progress - 0.13 - stagger) / 0.51))
-                let spread = 1 - pow(1 - unfurl, 2)
-                let ripple = sin(progress * 9 + Double(index) * 0.82 + depth * 0.56)
-                let color = Self.exposureColors[layer]
-
-                letter
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [color.opacity(0.35), color, color.opacity(0.72)],
-                            startPoint: .bottomLeading, endPoint: .topTrailing
-                        )
-                    )
-                    .scaleEffect(x: 1 + depth * 0.06 * spread,
-                                 y: 1 + depth * 0.16 * spread, anchor: .bottomLeading)
-                    .rotationEffect(.degrees((depth * 2.1 + ripple * 2) * spread),
-                                    anchor: .bottomLeading)
-                    .blur(radius: 2.2 + depth * 1.55 * spread)
-                    .offset(x: (depth * 5 + ripple * 3) * spread,
-                            y: -(depth * 9 + ripple * 5) * spread)
-                    .opacity(min(1, unfurl * 4) * 0.80 * (1 - Double(layer) * 0.09))
+                exposure(of: letter, index: index, progress: progress, layer: layer)
             }
         }
+    }
+
+    private func exposure(of letter: Text, index: Int, progress: Double, layer: Int) -> some View {
+        let depth = Double(layer + 1)
+        let stagger = Double(index) * 0.021 + Double(layer) * 0.038
+        let unfurl = min(1, max(0, (progress - 0.13 - stagger) / 0.51))
+        let spread = 1 - pow(1 - unfurl, 2)
+        let ripple = sin(progress * 9 + Double(index) * 0.82 + depth * 0.56)
+        let color = Self.exposureColors[layer]
+        let gradient = LinearGradient(
+            colors: [color.opacity(0.35), color, color.opacity(0.72)],
+            startPoint: .bottomLeading, endPoint: .topTrailing
+        )
+        let scaleX = 1 + depth * 0.06 * spread
+        let scaleY = 1 + depth * 0.16 * spread
+        let rotation = (depth * 2.1 + ripple * 2) * spread
+        let offsetX = (depth * 5 + ripple * 3) * spread
+        let offsetY = -(depth * 9 + ripple * 5) * spread
+
+        return letter
+            .foregroundStyle(gradient)
+            .scaleEffect(x: scaleX, y: scaleY, anchor: .bottomLeading)
+            .rotationEffect(.degrees(rotation), anchor: .bottomLeading)
+            .blur(radius: 2.2 + depth * 1.55 * spread)
+            .offset(x: offsetX, y: offsetY)
+            .opacity(min(1, unfurl * 4) * 0.80 * (1 - Double(layer) * 0.09))
     }
 }
