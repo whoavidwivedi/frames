@@ -116,6 +116,14 @@ func dynamicColor(
 
 // Shared Frames surfaces and action colors.
 public enum ShadcnTheme {
+    // A deeper gold for light surfaces and a brighter gold for dark surfaces.
+    static let favorite = dynamicColor(
+        light: (0.50, 0.32, 0.02, 1),
+        dark: (1, 0.77, 0.29, 1)
+    )
+
+    static let favoriteOnThumbnail = Color(red: 1, green: 0.77, blue: 0.29)
+
     public static let actionTint = dynamicColor(
         light: (0.12, 0.12, 0.12, 1),
         dark: (0.94, 0.94, 0.94, 1)
