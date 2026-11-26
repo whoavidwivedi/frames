@@ -122,25 +122,25 @@ public enum ShadcnTheme {
     )
 
     public static let background = dynamicColor(
-        light: (0.97, 0.97, 0.97, 1),
-        dark: (0.055, 0.055, 0.055, 1)
+        light: (0.965, 0.965, 0.965, 1),
+        dark: (0.075, 0.075, 0.075, 1)
     )
 
     public static let card = dynamicColor(
         light: (1, 1, 1, 1),
-        dark: (0.10, 0.10, 0.10, 1)
+        dark: (0.125, 0.125, 0.125, 1)
     )
 
     public static let cardHover = dynamicColor(
-        light: (0.91, 0.91, 0.91, 1),
-        dark: (0.17, 0.17, 0.17, 1)
+        light: (0.865, 0.865, 0.865, 1),
+        dark: (0.25, 0.25, 0.25, 1)
     )
 
     public static let popover = card
 
     public static let sidebar = dynamicColor(
-        light: (0.94, 0.94, 0.94, 1),
-        dark: (0.08, 0.08, 0.08, 1)
+        light: (0.92, 0.92, 0.92, 1),
+        dark: (0.105, 0.105, 0.105, 1)
     )
 
     // MARK: - Foreground & Typography
@@ -150,16 +150,14 @@ public enum ShadcnTheme {
         dark: (0.98, 0.98, 0.98, 1.0)
     )
 
-    /// Light: oklch(0.556 0 0) -> #737373 | Dark: oklch(0.708 0 0) -> #a1a1a1
     public static let foregroundSecondary: Color = dynamicColor(
-        light: (0.452, 0.452, 0.452, 1.0),
-        dark: (0.63, 0.63, 0.63, 1.0)
+        light: (0.36, 0.36, 0.36, 1),
+        dark: (0.74, 0.74, 0.74, 1)
     )
 
-    /// Light: #616161 (contrast ratio ~5.8:1 against #ffffff) | Dark: #adadad (contrast ratio ~6.5:1 against #0a0a0a)
     public static let foregroundMuted: Color = dynamicColor(
-        light: (0.38, 0.38, 0.38, 1.0),
-        dark: (0.68, 0.68, 0.68, 1.0)
+        light: (0.37, 0.37, 0.37, 1),
+        dark: (0.70, 0.70, 0.70, 1)
     )
 
     // MARK: - Borders & Outlines
@@ -189,8 +187,8 @@ public enum ShadcnTheme {
 
     /// Focus ring
     public static let ring: Color = dynamicColor(
-        light: (0.708, 0.708, 0.708, 1.0),
-        dark: (0.556, 0.556, 0.556, 1.0)
+        light: (0.41, 0.41, 0.41, 1),
+        dark: (0.65, 0.65, 0.65, 1)
     )
 
     // MARK: - Primary & Brand Highlights (Preset b1VlK05Q: Monochrome Neutral)
@@ -213,10 +211,9 @@ public enum ShadcnTheme {
     )
 
     /// Secondary container
-    /// Light: oklch(0.97 0 0) -> #f5f5f5 | Dark: oklch(0.269 0 0) -> #262626
     public static let secondary: Color = dynamicColor(
-        light: (0.961, 0.961, 0.961, 1.0),
-        dark: (0.149, 0.149, 0.149, 1.0)
+        light: (0.905, 0.905, 0.905, 1),
+        dark: (0.195, 0.195, 0.195, 1)
     )
 
     /// Secondary text
@@ -227,15 +224,14 @@ public enum ShadcnTheme {
     )
 
     /// Muted / Accent
-    /// Light: oklch(0.97 0 0) -> #f5f5f5 | Dark: oklch(0.269 0 0) -> #262626
     public static let muted: Color = dynamicColor(
-        light: (0.961, 0.961, 0.961, 1.0),
-        dark: (0.149, 0.149, 0.149, 1.0)
+        light: (0.925, 0.925, 0.925, 1),
+        dark: (0.17, 0.17, 0.17, 1)
     )
 
     public static let accent: Color = dynamicColor(
-        light: (0.961, 0.961, 0.961, 1.0),
-        dark: (0.149, 0.149, 0.149, 1.0)
+        light: (0.88, 0.88, 0.88, 1),
+        dark: (0.225, 0.225, 0.225, 1)
     )
 
     public static let accentActive: Color = dynamicColor(
