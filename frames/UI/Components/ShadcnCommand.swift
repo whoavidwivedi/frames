@@ -620,7 +620,7 @@ public struct CommandInput: View {
                         .font(.system(size: 13))
                         .foregroundStyle(ShadcnTheme.foregroundMuted)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(FramesOutlineButtonStyle())
                 .contentShape(Rectangle())
                 .pointingHand()
             }
@@ -696,6 +696,7 @@ public struct CommandDialog<Content: View>: View {
                     .onTapGesture {
                         closeDialog()
                     }
+                    .pointingHand()
 
                 // High-Craft Floating Palette
                 VStack(spacing: 0) {

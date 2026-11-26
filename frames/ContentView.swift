@@ -71,7 +71,7 @@ struct ContentView: View {
                             .strokeBorder(Color.white.opacity(0.24), lineWidth: 1)
                     )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(FramesOutlineButtonStyle())
                 .pointingHand()
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -94,6 +94,7 @@ struct ContentView: View {
                 engine.togglePlayPause()
                 resetControlsTimer()
             }
+            .pointingHand()
         } else {
             VideoCanvasView(
                 player: engine.player,
@@ -105,6 +106,7 @@ struct ContentView: View {
                     toggleFullscreen()
                 }
             )
+            .pointingHand()
             .ignoresSafeArea()
         }
     }
@@ -138,6 +140,7 @@ struct ContentView: View {
                 .onTapGesture {
                     engine.activeInspectorSheet = nil
                 }
+                .pointingHand()
         }
     }
 
@@ -316,6 +319,7 @@ struct ContentView: View {
                         .onTapGesture {
                             settings.closeSettings()
                         }
+                        .pointingHand()
 
                     VStack(spacing: 0) {
                         HStack {
@@ -327,7 +331,7 @@ struct ContentView: View {
                                     .font(.system(size: 16))
                                     .foregroundStyle(ShadcnTheme.foregroundSecondary)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(FramesOutlineButtonStyle())
                             .pointingHand()
                             .padding(.trailing, 16)
                             .padding(.top, 12)

@@ -162,6 +162,7 @@ public struct FramesCommandPalette: View {
                     .onTapGesture {
                         closePalette()
                     }
+                    .pointingHand()
 
                 // MARK: - Floating Command Palette Card
                 VStack(spacing: 0) {
@@ -185,7 +186,7 @@ public struct FramesCommandPalette: View {
                                     .font(.system(size: 13))
                                     .foregroundStyle(ShadcnTheme.foregroundMuted)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(FramesOutlineButtonStyle())
                             .contentShape(Rectangle())
                             .pointingHand()
                         }
@@ -195,7 +196,7 @@ public struct FramesCommandPalette: View {
                         } label: {
                             CommandShortcut("ESC")
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(FramesOutlineButtonStyle())
                         .pointingHand()
                     }
                     .padding(.horizontal, 14)

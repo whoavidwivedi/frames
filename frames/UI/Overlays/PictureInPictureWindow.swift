@@ -152,7 +152,7 @@ public struct PictureInPictureContentView: View {
                                 .background(Circle().fill(Color.black.opacity(0.60)))
                                 .overlay(Circle().strokeBorder(Color.white.opacity(0.20), lineWidth: 1))
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(FramesOutlineButtonStyle())
                         .pointingHand()
                         .help("Close Picture in Picture")
 
@@ -171,7 +171,7 @@ public struct PictureInPictureContentView: View {
                             .background(Circle().fill(Color.black.opacity(0.60)))
                             .overlay(Circle().strokeBorder(Color.white.opacity(0.20), lineWidth: 1))
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(FramesOutlineButtonStyle())
                         .pointingHand()
                         .help("Return to Main Window")
                     }
@@ -194,7 +194,7 @@ public struct PictureInPictureContentView: View {
                                 .background(Circle().fill(Color.white.opacity(0.18)))
                                 .overlay(Circle().strokeBorder(Color.white.opacity(0.25), lineWidth: 1))
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(FramesOutlineButtonStyle())
                         .pointingHand()
                         .help("Skip back 10s")
 
@@ -210,7 +210,7 @@ public struct PictureInPictureContentView: View {
                                 .background(Circle().fill(Color.white.opacity(0.24)))
                                 .overlay(Circle().strokeBorder(Color.white.opacity(0.35), lineWidth: 1))
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(FramesOutlineButtonStyle())
                         .pointingHand()
                         .help(engine.isPlaying ? "Pause" : "Play")
 
@@ -226,7 +226,7 @@ public struct PictureInPictureContentView: View {
                                 .background(Circle().fill(Color.white.opacity(0.18)))
                                 .overlay(Circle().strokeBorder(Color.white.opacity(0.25), lineWidth: 1))
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(FramesOutlineButtonStyle())
                         .pointingHand()
                         .help("Skip forward 10s")
 
@@ -242,7 +242,7 @@ public struct PictureInPictureContentView: View {
                                 .background(Circle().fill(Color.white.opacity(0.18)))
                                 .overlay(Circle().strokeBorder(Color.white.opacity(0.25), lineWidth: 1))
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(FramesOutlineButtonStyle())
                         .pointingHand()
                         .help(engine.isMuted ? "Unmute" : "Mute")
                     }

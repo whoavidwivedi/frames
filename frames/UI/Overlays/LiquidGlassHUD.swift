@@ -4,16 +4,6 @@ import UniformTypeIdentifiers
 
 // MARK: - Emil Kowalski Tactile Button Styles
 
-private struct TactileTransportButtonStyle: ButtonStyle {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    var scale: CGFloat = 0.93
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed && !reduceMotion ? scale : 1.0)
-    }
-}
-
 // MARK: - Shadcn-style volume button group (− +)
 
 public struct VolumeButtonGroup: View {
@@ -63,7 +53,7 @@ public struct VolumeButtonGroup: View {
                 )
                 .contentShape(Rectangle())
         }
-        .buttonStyle(TactileTransportButtonStyle(scale: 0.9))
+        .buttonStyle(FramesOutlineButtonStyle())
         .pointingHand()
         .help(label)
         .accessibilityLabel(label)
@@ -205,6 +195,7 @@ public struct LiquidGlassHUD: View {
             Image(systemName: engine.selectedSubtitleTrack.id == SubtitleTrack.off.id
                   ? "captions.bubble" : "captions.bubble.fill")
         }
+        .pointingHand()
         .menuStyle(.borderlessButton)
         .fixedSize()
         .help("Audio and subtitle tracks")
@@ -222,6 +213,7 @@ public struct LiquidGlassHUD: View {
         } label: {
             Image(systemName: "ellipsis.circle")
         }
+        .pointingHand()
         .menuStyle(.borderlessButton)
         .fixedSize()
         .help("More playback controls")
@@ -331,7 +323,7 @@ public struct LiquidGlassHUD: View {
                 )
                 .contentShape(Circle())
         }
-        .buttonStyle(TactileTransportButtonStyle(scale: 0.92))
+        .buttonStyle(FramesOutlineButtonStyle())
         .pointingHand()
         .accessibilityLabel(engine.isPlaying ? "Pause" : (engine.hasEnded ? "Replay" : "Play"))
         .accessibilityHint("Toggles video playback")
@@ -366,7 +358,7 @@ public struct LiquidGlassHUD: View {
                 )
                 .contentShape(Circle())
         }
-        .buttonStyle(TactileTransportButtonStyle(scale: 0.92))
+        .buttonStyle(FramesOutlineButtonStyle())
         .pointingHand()
         .help(help)
         .accessibilityLabel(accessibilityLabel)
@@ -396,7 +388,7 @@ public struct LiquidGlassHUD: View {
                 )
                 .contentShape(Capsule())
         }
-        .buttonStyle(TactileTransportButtonStyle(scale: 0.94))
+        .buttonStyle(FramesOutlineButtonStyle())
         .pointingHand()
         .help(isOpen ? "Close Speed Settings" : "Playback Speed")
         .accessibilityLabel("Playback speed")
@@ -429,7 +421,7 @@ public struct LiquidGlassHUD: View {
                 )
                 .contentShape(Circle())
         }
-        .buttonStyle(TactileTransportButtonStyle(scale: 0.92))
+        .buttonStyle(FramesOutlineButtonStyle())
         .pointingHand()
         .accessibilityLabel(isNarrow ? "Volume controls" : (engine.isMuted ? "Unmute" : "Mute"))
         .accessibilityValue("\(engine.isMuted ? 0 : Int(engine.volume * 100))%")
@@ -455,7 +447,7 @@ public struct LiquidGlassHUD: View {
                 }
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(ShadcnTheme.foreground)
-                .buttonStyle(TactileTransportButtonStyle(scale: 0.96))
+                .buttonStyle(FramesOutlineButtonStyle())
                 .pointingHand()
             }
             .padding(10)
@@ -522,7 +514,7 @@ public struct PlaybackTimeDisplay: View {
             .padding(.leading, 4)
             .contentShape(Rectangle())
         }
-        .buttonStyle(TactileTransportButtonStyle(scale: 0.98))
+        .buttonStyle(FramesOutlineButtonStyle())
         .pointingHand()
         .help(showRemainingTime ? "Click to show duration" : "Click to show remaining time")
         .accessibilityLabel(showRemainingTime ? "Remaining time display" : "Playback time display")
@@ -665,7 +657,7 @@ public struct PlayerSideControls: View {
                 )
                 .contentShape(Circle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(FramesOutlineButtonStyle())
         .pointingHand()
         .help(help)
         .accessibilityLabel(accessibilityLabel)

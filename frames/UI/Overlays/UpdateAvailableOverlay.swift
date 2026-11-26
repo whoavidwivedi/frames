@@ -97,7 +97,7 @@ public struct UpdateAvailableOverlay: View {
                     .frame(width: 26, height: 26)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(FramesOutlineButtonStyle())
                 .pointingHand()
                 .keyboardShortcut(.cancelAction)
                 .help("Close (Esc)")
@@ -256,7 +256,7 @@ public struct UpdateAvailableOverlay: View {
                         .font(.system(size: 11))
                         .foregroundStyle(isHoveringSkip ? ShadcnTheme.foreground : ShadcnTheme.foregroundMuted)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(FramesOutlineButtonStyle())
                 .pointingHand()
                 .onHover { isHoveringSkip = $0 }
 
@@ -273,7 +273,7 @@ public struct UpdateAvailableOverlay: View {
                     }
                     .foregroundStyle(isHoveringGitHub ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(FramesOutlineButtonStyle())
                 .pointingHand()
                 .onHover { isHoveringGitHub = $0 }
                 .padding(.trailing, 4)

@@ -97,16 +97,6 @@ public struct SettingsDivider: View {
 }
 
 // MARK: - Emil Kowalski Tactile Button Styles
-public struct SettingsPillButtonStyle: ButtonStyle {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    public init() {}
-    public func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1.0)
-    }
-}
-
 // MARK: - Custom Fluid Slider with Thumb Hover Expansion
 public struct SettingsSlider: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -279,6 +269,7 @@ public struct SettingsView: View {
                 Text(section.rawValue).tag(section)
             }
         }
+        .pointingHand()
     }
 
     @ViewBuilder
@@ -512,7 +503,7 @@ public struct GeneralSettingsTab: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(SettingsPillButtonStyle())
+        .buttonStyle(FramesOutlineButtonStyle())
         .pointingHand()
     }
 }
@@ -760,7 +751,7 @@ public struct PlaybackSettingsTab: View {
                         }
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(SettingsPillButtonStyle())
+                .buttonStyle(FramesOutlineButtonStyle())
                 .pointingHand()
             }
         }
@@ -955,7 +946,7 @@ public struct SubtitlesSettingsTab: View {
                             )
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(SettingsPillButtonStyle())
+                        .buttonStyle(FramesOutlineButtonStyle())
                         .pointingHand()
                         .help("Cycle sample dialogue text")
                     }
@@ -1192,7 +1183,7 @@ private struct SubtitleColorRow: View {
                         )
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(SettingsPillButtonStyle())
+                    .buttonStyle(FramesOutlineButtonStyle())
                     .pointingHand()
                 }
 
@@ -1242,7 +1233,7 @@ private struct SubtitleColorRow: View {
                     )
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(SettingsPillButtonStyle())
+                .buttonStyle(FramesOutlineButtonStyle())
                 .pointingHand()
                 .help("Choose custom subtitle \(title.lowercased())")
             }
@@ -1470,7 +1461,7 @@ private struct ChannelButton: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(SettingsPillButtonStyle())
+        .buttonStyle(FramesOutlineButtonStyle())
         .pointingHand()
     }
 }

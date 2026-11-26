@@ -316,7 +316,7 @@ public struct DashboardContentView: View {
         } description: {
             Text("Try a different title or folder name.")
         } actions: {
-            Button("Clear Search") { library.searchQuery = "" }
+            ShadcnButton("Clear Search", variant: .outline) { library.searchQuery = "" }
         }
     }
 
@@ -339,11 +339,12 @@ public struct DashboardContentView: View {
 
     @ViewBuilder
     private var libraryEmptyActions: some View {
-        Button("Open Files…") { library.selectFilesToPlay(onSelected: onPlayURL) }
-            .buttonStyle(.borderedProminent)
-            .tint(ShadcnTheme.actionTint)
-        Button("Add Folder…") { library.selectAndAddFolder() }
-            .buttonStyle(.bordered)
+        ShadcnButton("Open Files…", icon: "film", variant: .primary) {
+            library.selectFilesToPlay(onSelected: onPlayURL)
+        }
+        ShadcnButton("Add Folder…", icon: "folder.badge.plus", variant: .outline) {
+            library.selectAndAddFolder()
+        }
     }
 }
 
@@ -442,7 +443,7 @@ public struct VideoGridCardView: View {
                         .frame(width: 28, height: 28)
                         .contentShape(Circle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(FramesOutlineButtonStyle())
                     .contentShape(Circle())
                     .pointingHand()
                     .opacity(isHovered || video.isFavorite ? 1.0 : 0.0)
@@ -717,7 +718,7 @@ public struct VideoListRowView: View {
                 .frame(width: 28, height: 28)
                 .contentShape(Circle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(FramesOutlineButtonStyle())
             .contentShape(Circle())
             .pointingHand()
             .opacity(isHovered || video.isFavorite ? 1.0 : 0.0)

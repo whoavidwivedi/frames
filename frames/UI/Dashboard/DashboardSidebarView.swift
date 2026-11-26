@@ -12,16 +12,6 @@ public struct SidebarRowButtonStyle: ButtonStyle {
     }
 }
 
-public struct TactileIconButtonStyle: ButtonStyle {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    public init() {}
-    public func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.92 : 1.0)
-    }
-}
-
 public struct DashboardSidebarView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Bindable var library: LibraryManager
@@ -93,7 +83,7 @@ public struct DashboardSidebarView: View {
                                     .frame(width: 22, height: 22)
                                     .contentShape(Rectangle())
                             }
-                            .buttonStyle(TactileIconButtonStyle())
+                            .buttonStyle(FramesOutlineButtonStyle())
                             .pointingHand()
                             .help("Add folder")
                         }
@@ -379,7 +369,7 @@ public struct DashboardSidebarView: View {
                             .frame(width: 20, height: 20)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(TactileIconButtonStyle())
+                    .buttonStyle(FramesOutlineButtonStyle())
                     .pointingHand()
                     .help("Remove folder from library")
                     .opacity(isHovered ? 1.0 : 0.0)

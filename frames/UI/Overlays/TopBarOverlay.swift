@@ -54,7 +54,7 @@ public struct TopBarOverlay: View {
                 .background(Circle().fill(Color.black.opacity(isCloseHovered ? 0.78 : 0.60)))
                 .overlay(Circle().strokeBorder(Color.white.opacity(isCloseHovered ? 0.35 : 0.20), lineWidth: 1))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(FramesOutlineButtonStyle())
         .pointingHand()
         .accessibilityLabel("Close player")
         .help("Close (Esc)")
@@ -89,6 +89,7 @@ public struct TopBarOverlay: View {
         .onTapGesture(count: 2) {
             WindowManager.shared.performTitleBarDoubleClickAction()
         }
+        .pointingHand()
         .macOSDefaultTitleBar()
         .environment(\.colorScheme, .dark)
     }

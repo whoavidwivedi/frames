@@ -2,22 +2,6 @@ import SwiftUI
 import AppKit
 
 // MARK: - Tactile Button Styles for TopBar Controls
-public struct TopBarIconButtonStyle: ButtonStyle {
-    public init() {}
-    public func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.93 : 1.0)
-    }
-}
-
-public struct TopBarPillButtonStyle: ButtonStyle {
-    public init() {}
-    public func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
-    }
-}
-
 public struct DashboardTopBarView: View {
     @Bindable var library: LibraryManager
     public var onPlayURL: (URL) -> Void
@@ -62,6 +46,7 @@ public struct DashboardTopBarView: View {
                     .onTapGesture(count: 2) {
                         WindowManager.shared.performTitleBarDoubleClickAction()
                     }
+                    .pointingHand()
 
                 // MARK: - Navigation & Sidebar Toolbar Controls (Sleek Icon Style)
                 HStack(spacing: 4) {
@@ -80,7 +65,7 @@ public struct DashboardTopBarView: View {
                         .frame(width: 28, height: 28)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(TopBarIconButtonStyle())
+                    .buttonStyle(FramesOutlineButtonStyle())
                     .pointingHand()
                     .help("Toggle Sidebar (⌘B)")
                     .onHover { h in
@@ -102,7 +87,7 @@ public struct DashboardTopBarView: View {
                         .frame(width: 28, height: 28)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(TopBarIconButtonStyle())
+                    .buttonStyle(FramesOutlineButtonStyle())
                     .pointingHand()
                     .disabled(!library.canGoBack)
                     .help("Back (⌘[)")
@@ -126,7 +111,7 @@ public struct DashboardTopBarView: View {
                             .frame(width: 28, height: 28)
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(TopBarIconButtonStyle())
+                        .buttonStyle(FramesOutlineButtonStyle())
                         .pointingHand()
                         .disabled(!library.canGoForward)
                         .help("Forward (⌘])")
@@ -150,7 +135,7 @@ public struct DashboardTopBarView: View {
                         .frame(width: 28, height: 28)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(TopBarIconButtonStyle())
+                    .buttonStyle(FramesOutlineButtonStyle())
                     .pointingHand()
                     .help("Search Videos & Commands (⌘K, ⌘F)")
                     .onHover { h in
@@ -209,7 +194,7 @@ public struct DashboardTopBarView: View {
                                     .foregroundStyle(ShadcnTheme.foregroundMuted)
                                     .frame(width: 16, height: 16)
                             }
-                            .buttonStyle(TopBarIconButtonStyle())
+                            .buttonStyle(FramesOutlineButtonStyle())
                             .pointingHand()
                         }
                     }
@@ -238,6 +223,7 @@ public struct DashboardTopBarView: View {
                     .onTapGesture(count: 2) {
                         WindowManager.shared.performTitleBarDoubleClickAction()
                     }
+                    .pointingHand()
 
                 // MARK: - Trailing Controls (Count, Sort, View Mode, Theme)
                 HStack(spacing: isNarrow ? 6 : 8) {
@@ -276,7 +262,7 @@ public struct DashboardTopBarView: View {
                             )
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(TopBarPillButtonStyle())
+                        .buttonStyle(FramesOutlineButtonStyle())
                         .pointingHand()
                         .contextMenu {
                             ForEach(SortOption.allCases) { opt in
@@ -317,7 +303,7 @@ public struct DashboardTopBarView: View {
                             .frame(width: 28, height: 28)
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(TopBarIconButtonStyle())
+                        .buttonStyle(FramesOutlineButtonStyle())
                         .pointingHand()
                         .help(library.viewMode == .grid ? "Switch to List View" : "Switch to Grid View")
                         .onHover { h in
@@ -354,7 +340,7 @@ public struct DashboardTopBarView: View {
                             )
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(TopBarPillButtonStyle())
+                        .buttonStyle(FramesOutlineButtonStyle())
                         .pointingHand()
                         .help("Update Available: \(updateManager.availableUpdate?.tagName ?? "")")
                     }
@@ -375,7 +361,7 @@ public struct DashboardTopBarView: View {
                         .frame(width: 28, height: 28)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(TopBarIconButtonStyle())
+                    .buttonStyle(FramesOutlineButtonStyle())
                     .pointingHand()
                     .help(themeManager.isDark ? "Switch to Light Mode" : "Switch to Dark Mode")
                     .onHover { h in

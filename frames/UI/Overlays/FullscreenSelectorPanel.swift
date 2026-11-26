@@ -57,7 +57,7 @@ public struct FullscreenSelectorPanel: View {
                 )
                 .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(FramesOutlineButtonStyle())
             .pointingHand()
 
             // Option 2: Native Full Screen
@@ -99,7 +99,7 @@ public struct FullscreenSelectorPanel: View {
                 )
                 .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(FramesOutlineButtonStyle())
             .pointingHand()
 
             if windowManager.isAnyFullscreen {
@@ -130,7 +130,7 @@ public struct FullscreenSelectorPanel: View {
                     )
                     .contentShape(RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(FramesOutlineButtonStyle())
                 .pointingHand()
             }
         }

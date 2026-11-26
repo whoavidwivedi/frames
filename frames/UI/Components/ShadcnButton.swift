@@ -15,12 +15,14 @@ public enum ShadcnButtonSize {
     case icon
 }
 
-private struct ShadcnPressStyle: ButtonStyle {
-    let reduceMotion: Bool
+struct FramesOutlineButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var enabled
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.94 : 1.0)
+            .background(Capsule().fill(ShadcnTheme.foreground.opacity(configuration.isPressed ? 0.14 : 0.035)))
+            .overlay(Capsule().strokeBorder(ShadcnTheme.borderActive.opacity(configuration.isPressed ? 1 : 0.64)))
+            .opacity(enabled ? 1 : 0.5)
     }
 }
 
@@ -35,7 +37,6 @@ public struct ShadcnButton: View {
     public let action: () -> Void
 
     @State private var isHovering = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init(
         _ title: String? = nil,
@@ -93,30 +94,9 @@ public struct ShadcnButton: View {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .strokeBorder(borderColor, lineWidth: 1)
             )
-            .overlay(
-                // Specular glint on border with subtle top-down light
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(
-                        LinearGradient(
-                            stops: [
-                                .init(color: ShadcnTheme.borderActive.opacity(isHovering ? 0.45 : 0.0), location: 0.0),
-                                .init(color: Color.clear, location: 0.55)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        ),
-                        lineWidth: 1
-                    )
-            )
-            .shadow(
-                color: isHovering && variant != .ghost ? Color.black.opacity(0.14) : Color.black.opacity(0.02),
-                radius: isHovering ? 3.5 : 1,
-                x: 0,
-                y: isHovering ? 1.5 : 0.5
-            )
             .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         }
-        .buttonStyle(ShadcnPressStyle(reduceMotion: reduceMotion))
+        .buttonStyle(FramesOutlineButtonStyle())
         .contentShape(Rectangle())
         .pointingHand()
         .accessibilityLabel(effectiveAccessibilityLabel)
@@ -135,7 +115,7 @@ public struct ShadcnButton: View {
     private var height: CGFloat {
         switch size {
         case .sm, .iconSm: return 30
-        case .default, .icon: return 34
+        case .default, .icon: return 32
         }
     }
 

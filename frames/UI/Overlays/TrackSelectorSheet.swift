@@ -11,15 +11,6 @@ private struct TactileSheetRowStyle: ButtonStyle {
     }
 }
 
-private struct TactileSheetButtonStyle: ButtonStyle {
-    var scale: CGFloat = 0.95
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? scale : 1.0)
-    }
-}
-
 // MARK: - Selected Option Spring Checkmark Indicator
 
 private struct SpringCheckmarkIndicator: View {
@@ -113,7 +104,7 @@ public struct SubtitleSelectorPanel: View {
                         .background(ShadcnTheme.secondary.opacity(0.4))
                         .clipShape(Circle())
                 }
-                .buttonStyle(TactileSheetButtonStyle(scale: 0.90))
+                .buttonStyle(FramesOutlineButtonStyle())
                 .pointingHand()
                 .help("Close (Esc)")
             }
@@ -139,7 +130,7 @@ public struct SubtitleSelectorPanel: View {
                                     .strokeBorder(isTabActive ? ShadcnTheme.border : Color.clear, lineWidth: 1)
                             )
                     }
-                    .buttonStyle(TactileSheetButtonStyle(scale: 0.98))
+                    .buttonStyle(FramesOutlineButtonStyle())
                     .pointingHand()
                 }
             }
@@ -294,7 +285,7 @@ public struct SubtitleSelectorPanel: View {
                 )
                 .contentShape(Rectangle())
             }
-            .buttonStyle(TactileSheetButtonStyle(scale: 0.98))
+            .buttonStyle(FramesOutlineButtonStyle())
             .pointingHand()
         }
     }
@@ -364,7 +355,7 @@ public struct SubtitleSelectorPanel: View {
                             )
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(TactileSheetButtonStyle(scale: 0.96))
+                        .buttonStyle(FramesOutlineButtonStyle())
                         .pointingHand()
                     }
                 }
@@ -410,7 +401,7 @@ public struct SubtitleSelectorPanel: View {
                             )
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(TactileSheetButtonStyle(scale: 0.96))
+                        .buttonStyle(FramesOutlineButtonStyle())
                         .pointingHand()
                     }
                 }
@@ -433,7 +424,7 @@ public struct SubtitleSelectorPanel: View {
                 )
                 .contentShape(Rectangle())
         }
-        .buttonStyle(TactileSheetButtonStyle(scale: 0.96))
+        .buttonStyle(FramesOutlineButtonStyle())
         .pointingHand()
     }
 
@@ -501,7 +492,7 @@ public struct AudioSelectorPanel: View {
                         .background(ShadcnTheme.secondary.opacity(0.4))
                         .clipShape(Circle())
                 }
-                .buttonStyle(TactileSheetButtonStyle(scale: 0.90))
+                .buttonStyle(FramesOutlineButtonStyle())
                 .pointingHand()
                 .help("Close (Esc)")
             }

@@ -2,20 +2,6 @@ import SwiftUI
 
 // MARK: - Emil Kowalski Tactile Button Styles
 
-private struct TactileSpeedPresetStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.94 : 1.0)
-    }
-}
-
-private struct TactileSpeedCloseStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.90 : 1.0)
-    }
-}
-
 // MARK: - Shadcn Playback Speed Selector Panel
 
 public struct SpeedSelectorPanel: View {
@@ -57,7 +43,7 @@ public struct SpeedSelectorPanel: View {
                         .background(ShadcnTheme.secondary.opacity(0.4))
                         .clipShape(Circle())
                 }
-                .buttonStyle(TactileSpeedCloseStyle())
+                .buttonStyle(FramesOutlineButtonStyle())
                 .pointingHand()
                 .help("Close (Esc)")
             }
@@ -90,7 +76,7 @@ public struct SpeedSelectorPanel: View {
                         }
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(ShadcnTheme.foreground)
-                        .buttonStyle(TactileSpeedPresetStyle())
+                        .buttonStyle(FramesOutlineButtonStyle())
                         .pointingHand()
                     }
                 }
@@ -143,7 +129,7 @@ public struct SpeedSelectorPanel: View {
             )
             .contentShape(Rectangle())
         }
-        .buttonStyle(TactileSpeedPresetStyle())
+        .buttonStyle(FramesOutlineButtonStyle())
         .pointingHand()
         .onHover { h in
             hoveredSpeed = h ? speed : nil

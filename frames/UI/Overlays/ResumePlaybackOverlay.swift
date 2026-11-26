@@ -43,6 +43,7 @@ public struct ResumePlaybackOverlay: View {
             Color.black.opacity(0.2)
                 .ignoresSafeArea()
                 .onTapGesture { onCancel() }
+                .pointingHand()
 
             VStack {
                 Spacer()
@@ -61,7 +62,7 @@ public struct ResumePlaybackOverlay: View {
                             .background(Capsule().fill(ShadcnTheme.cardHover))
                             .overlay(Capsule().strokeBorder(ShadcnTheme.border, lineWidth: 1))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(FramesOutlineButtonStyle())
                     .pointingHand()
 
                     Button { onResume(prompt.url, prompt.resumeSeconds) } label: {
@@ -74,7 +75,7 @@ public struct ResumePlaybackOverlay: View {
                         .frame(height: 22)
                         .background(Capsule().fill(isHoveringResume ? ShadcnTheme.primaryHighlight : ShadcnTheme.primary))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(FramesOutlineButtonStyle())
                     .pointingHand()
                     .onHover { h in isHoveringResume = h }
 
