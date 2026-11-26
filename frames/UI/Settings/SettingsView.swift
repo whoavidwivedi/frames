@@ -215,10 +215,10 @@ public struct SettingsView: View {
 
         var icon: String {
             switch self {
-            case .general: "gearshape"
+            case .general: "slider.horizontal.3"
             case .playback: "play.rectangle"
-            case .audio: "speaker.wave.2"
-            case .subtitles: "captions.bubble"
+            case .audio: "waveform"
+            case .subtitles: "rectangle.bottomthird.inset.filled"
             case .about: "info.circle"
             }
         }
@@ -284,8 +284,14 @@ public struct SettingsView: View {
 
             ForEach(Section.allCases) { section in
                 Button { selection = section } label: {
-                    Label(section.rawValue, systemImage: section.icon)
-                        .font(.system(size: 13, weight: selection == section ? .semibold : .medium))
+                    Label {
+                        Text(section.rawValue)
+                            .font(.system(size: 13, weight: selection == section ? .semibold : .medium))
+                    } icon: {
+                        Image(systemName: section.icon)
+                            .font(.system(size: 13, weight: .medium))
+                            .frame(width: 19)
+                    }
                         .foregroundStyle(selection == section ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 10)
@@ -310,7 +316,7 @@ public struct SettingsView: View {
     private var sectionPicker: some View {
         Picker("Settings section", selection: $selection) {
             ForEach(Section.allCases) { section in
-                Text(section.rawValue).tag(section)
+                Label(section.rawValue, systemImage: section.icon).tag(section)
             }
         }
         .pointingHand()

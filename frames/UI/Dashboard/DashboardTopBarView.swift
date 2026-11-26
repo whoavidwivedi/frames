@@ -347,11 +347,11 @@ public struct DashboardTopBarView: View {
                     } label: {
                         ZStack {
                             RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(hoveredButton == .theme ? ShadcnTheme.blueAccent.opacity(0.12) : Color.black.opacity(0.0001))
+                                .fill(hoveredButton == .theme ? ShadcnTheme.cardHover : Color.black.opacity(0.0001))
 
                             Image(systemName: "circle.righthalf.filled")
                                 .font(.system(size: 12, weight: .regular))
-                                .foregroundStyle(ShadcnTheme.blueAccent)
+                                .foregroundStyle(ShadcnTheme.foregroundSecondary)
                                 .rotationEffect(.degrees(themeManager.isDark ? 180 : 0))
                         }
                         .frame(width: 28, height: 28)
