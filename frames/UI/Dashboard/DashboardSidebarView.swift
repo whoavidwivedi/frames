@@ -275,13 +275,13 @@ public struct DashboardSidebarView: View {
                 Image(systemName: icon)
                     .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
                     .foregroundStyle(
-                        isSelected ? ShadcnTheme.foreground : (title == "Favorites" ? ShadcnTheme.actionTint : ShadcnTheme.foregroundSecondary)
+                        icon == "star.fill" ? ShadcnTheme.favorite : (isSelected ? ShadcnTheme.blueAccent : ShadcnTheme.foregroundSecondary)
                     )
                     .frame(width: 18)
 
                 Text(title)
                     .font(.system(size: 13, weight: isSelected ? .medium : .regular))
-                    .foregroundStyle(isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
+                    .foregroundStyle(isSelected ? ShadcnTheme.blueAccent : ShadcnTheme.foregroundSecondary)
                     .lineLimit(1)
 
                 Spacer()
@@ -307,7 +307,7 @@ public struct DashboardSidebarView: View {
             .background {
                 if isSelected {
                     RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                        .fill(ShadcnTheme.cardHover)
+                        .fill(ShadcnTheme.blueAccent.opacity(0.12))
                         .matchedGeometryEffect(id: "activeSidebarPill", in: sidebarNamespace)
                 } else if hoveredRow == title {
                     RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
@@ -333,12 +333,12 @@ public struct DashboardSidebarView: View {
             HStack(spacing: 9) {
                 Image(systemName: isSelected ? "folder.fill" : "folder")
                     .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
-                    .foregroundStyle(isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
+                    .foregroundStyle(isSelected ? ShadcnTheme.blueAccent : ShadcnTheme.foregroundSecondary)
                     .frame(width: 18)
 
                 Text(folder.name)
                     .font(.system(size: 13, weight: isSelected ? .medium : .regular))
-                    .foregroundStyle(isSelected ? ShadcnTheme.foreground : ShadcnTheme.foregroundSecondary)
+                    .foregroundStyle(isSelected ? ShadcnTheme.blueAccent : ShadcnTheme.foregroundSecondary)
                     .lineLimit(1)
 
                 Spacer()
@@ -374,7 +374,7 @@ public struct DashboardSidebarView: View {
             .background {
                 if isSelected {
                     RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)
-                        .fill(ShadcnTheme.cardHover)
+                        .fill(ShadcnTheme.blueAccent.opacity(0.12))
                         .matchedGeometryEffect(id: "activeSidebarPill", in: sidebarNamespace)
                 } else if isHovered {
                     RoundedRectangle(cornerRadius: ShadcnTheme.radiusSm, style: .continuous)

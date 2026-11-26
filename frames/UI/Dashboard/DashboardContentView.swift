@@ -348,6 +348,30 @@ public struct DashboardContentView: View {
 }
 
 // MARK: - Dedicated Video Grid Card View
+private struct FavoriteGlow: ViewModifier {
+    let isFavorite: Bool
+    @State private var glow = false
+    @State private var pulse = 0
+
+    func body(content: Content) -> some View {
+        content
+            .shadow(color: glow ? ShadcnTheme.favoriteOnThumbnail : .clear, radius: 5)
+            .onChange(of: isFavorite) { _, marked in
+                glow = marked
+                pulse += 1
+            }
+            .task(id: pulse) {
+                guard glow else { return }
+                do {
+                    try await Task.sleep(for: .milliseconds(220))
+                    glow = false
+                } catch {
+                    // A new favorite state superseded this pulse.
+                }
+            }
+    }
+}
+
 public struct VideoGridCardView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     public let video: VideoItem
@@ -438,6 +462,7 @@ public struct VideoGridCardView: View {
                             Image(systemName: video.isFavorite ? "star.fill" : "star")
                                 .font(.system(size: 11))
                                 .foregroundStyle(video.isFavorite ? ShadcnTheme.favoriteOnThumbnail : Color.white.opacity(0.85))
+                                .modifier(FavoriteGlow(isFavorite: video.isFavorite))
                         }
                         .frame(width: 28, height: 28)
                         .contentShape(Circle())
@@ -713,6 +738,7 @@ public struct VideoListRowView: View {
                     Image(systemName: video.isFavorite ? "star.fill" : "star")
                         .font(.system(size: 12))
                         .foregroundStyle(video.isFavorite ? ShadcnTheme.favorite : ShadcnTheme.foregroundMuted)
+                        .modifier(FavoriteGlow(isFavorite: video.isFavorite))
                 }
                 .frame(width: 28, height: 28)
                 .contentShape(Circle())

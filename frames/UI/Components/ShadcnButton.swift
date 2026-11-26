@@ -156,7 +156,7 @@ public struct ShadcnButton: View {
         case .default, .primary:
             return ShadcnTheme.primaryForeground
         case .update:
-            return ShadcnTheme.updateAccent
+            return ShadcnTheme.blueAccent
         case .destructive:
             return ShadcnTheme.destructive
         case .secondary:
@@ -173,7 +173,7 @@ public struct ShadcnButton: View {
         case .secondary:
             return isHovering ? ShadcnTheme.cardHover : ShadcnTheme.secondary
         case .update:
-            return ShadcnTheme.updateAccent.opacity(isHovering ? 0.15 : 0.08)
+            return ShadcnTheme.blueAccent.opacity(isHovering ? 0.15 : 0.08)
         case .destructive:
             return ShadcnTheme.destructive.opacity(isHovering ? 0.15 : 0.08)
         case .outline:

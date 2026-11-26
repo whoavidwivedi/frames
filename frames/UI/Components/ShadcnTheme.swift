@@ -247,7 +247,7 @@ public enum ShadcnTheme {
         dark: (1.0, 1.0, 1.0, 0.12)
     )
 
-    static let updateAccent = dynamicColor(
+    static let blueAccent = dynamicColor(
         light: (0.02, 0.33, 0.72, 1),
         dark: (0.43, 0.70, 1, 1)
     )
