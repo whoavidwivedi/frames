@@ -186,7 +186,7 @@ public struct FramesCommandPalette: View {
                                     .font(.system(size: 13))
                                     .foregroundStyle(ShadcnTheme.foregroundMuted)
                             }
-                            .buttonStyle(FramesOutlineButtonStyle())
+                            .buttonStyle(FramesPressStyle())
                             .contentShape(Rectangle())
                             .pointingHand()
                         }
@@ -196,7 +196,7 @@ public struct FramesCommandPalette: View {
                         } label: {
                             CommandShortcut("ESC")
                         }
-                        .buttonStyle(FramesOutlineButtonStyle())
+                        .buttonStyle(FramesPressStyle())
                         .pointingHand()
                     }
                     .padding(.horizontal, 14)

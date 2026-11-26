@@ -104,7 +104,7 @@ public struct SubtitleSelectorPanel: View {
                         .background(ShadcnTheme.secondary.opacity(0.4))
                         .clipShape(Circle())
                 }
-                .buttonStyle(FramesOutlineButtonStyle())
+                .buttonStyle(FramesPressStyle())
                 .pointingHand()
                 .help("Close (Esc)")
             }
@@ -130,7 +130,7 @@ public struct SubtitleSelectorPanel: View {
                                     .strokeBorder(isTabActive ? ShadcnTheme.border : Color.clear, lineWidth: 1)
                             )
                     }
-                    .buttonStyle(FramesOutlineButtonStyle())
+                    .buttonStyle(FramesPressStyle())
                     .pointingHand()
                 }
             }
@@ -285,7 +285,7 @@ public struct SubtitleSelectorPanel: View {
                 )
                 .contentShape(Rectangle())
             }
-            .buttonStyle(FramesOutlineButtonStyle())
+            .buttonStyle(FramesPressStyle())
             .pointingHand()
         }
     }
@@ -355,7 +355,7 @@ public struct SubtitleSelectorPanel: View {
                             )
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(FramesOutlineButtonStyle())
+                        .buttonStyle(FramesPressStyle())
                         .pointingHand()
                     }
                 }
@@ -401,7 +401,7 @@ public struct SubtitleSelectorPanel: View {
                             )
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(FramesOutlineButtonStyle())
+                        .buttonStyle(FramesPressStyle())
                         .pointingHand()
                     }
                 }
@@ -424,7 +424,7 @@ public struct SubtitleSelectorPanel: View {
                 )
                 .contentShape(Rectangle())
         }
-        .buttonStyle(FramesOutlineButtonStyle())
+        .buttonStyle(FramesPressStyle())
         .pointingHand()
     }
 
@@ -492,7 +492,7 @@ public struct AudioSelectorPanel: View {
                         .background(ShadcnTheme.secondary.opacity(0.4))
                         .clipShape(Circle())
                 }
-                .buttonStyle(FramesOutlineButtonStyle())
+                .buttonStyle(FramesPressStyle())
                 .pointingHand()
                 .help("Close (Esc)")
             }

@@ -53,7 +53,7 @@ public struct UpdateNoticeToast: View {
                         .frame(width: 18, height: 18)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(FramesOutlineButtonStyle())
+                    .buttonStyle(FramesPressStyle())
                     .pointingHand()
                     .onHover { isHoveringClose = $0 }
                 }

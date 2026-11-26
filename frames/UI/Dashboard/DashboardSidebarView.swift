@@ -83,7 +83,7 @@ public struct DashboardSidebarView: View {
                                     .frame(width: 22, height: 22)
                                     .contentShape(Rectangle())
                             }
-                            .buttonStyle(FramesOutlineButtonStyle())
+                            .buttonStyle(FramesPressStyle())
                             .pointingHand()
                             .help("Add folder")
                         }
@@ -369,7 +369,7 @@ public struct DashboardSidebarView: View {
                             .frame(width: 20, height: 20)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(FramesOutlineButtonStyle())
+                    .buttonStyle(FramesPressStyle())
                     .pointingHand()
                     .help("Remove folder from library")
                     .opacity(isHovered ? 1.0 : 0.0)

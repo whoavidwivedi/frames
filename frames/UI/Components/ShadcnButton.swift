@@ -15,14 +15,12 @@ public enum ShadcnButtonSize {
     case icon
 }
 
-struct FramesOutlineButtonStyle: ButtonStyle {
+struct FramesPressStyle: ButtonStyle {
     @Environment(\.isEnabled) private var enabled
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .background(Capsule().fill(ShadcnTheme.foreground.opacity(configuration.isPressed ? 0.14 : 0.035)))
-            .overlay(Capsule().strokeBorder(ShadcnTheme.borderActive.opacity(configuration.isPressed ? 1 : 0.64)))
-            .opacity(enabled ? 1 : 0.5)
+            .opacity(enabled ? (configuration.isPressed ? 0.78 : 1) : 0.5)
     }
 }
 
@@ -36,6 +34,7 @@ public struct ShadcnButton: View {
     public var accessibilityLabel: String?
     public let action: () -> Void
 
+    @Environment(\.colorScheme) private var colorScheme
     @State private var isHovering = false
 
     public init(
@@ -60,7 +59,7 @@ public struct ShadcnButton: View {
 
     public var body: some View {
         Button(action: action) {
-            HStack(spacing: 5) {
+            HStack(spacing: 6) {
                 if let icon = icon {
                     Image(systemName: icon)
                         .font(.system(size: iconSize, weight: .medium))
@@ -88,15 +87,23 @@ public struct ShadcnButton: View {
             }
             .padding(.horizontal, horizontalPadding)
             .frame(width: isIconOnly ? height : nil, height: height)
-            .background(backgroundColor)
+            .background {
+                if variant == .ghost {
+                    backgroundColor
+                } else {
+                    LinearGradient(colors: [backgroundColor, lowerSurface],
+                                   startPoint: .top, endPoint: .bottom)
+                }
+            }
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .strokeBorder(borderColor, lineWidth: 1)
             )
+            .shadow(color: .black.opacity(variant == .ghost ? 0 : (colorScheme == .dark ? 0.24 : 0.04)), radius: 1, y: 1)
             .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         }
-        .buttonStyle(FramesOutlineButtonStyle())
+        .buttonStyle(FramesPressStyle())
         .contentShape(Rectangle())
         .pointingHand()
         .accessibilityLabel(effectiveAccessibilityLabel)
@@ -131,14 +138,14 @@ public struct ShadcnButton: View {
     private var fontSize: CGFloat {
         switch size {
         case .sm, .iconSm: return 11
-        case .default, .icon: return 12
+        case .default, .icon: return 14
         }
     }
 
     private var iconSize: CGFloat {
         switch size {
         case .sm, .iconSm: return 12
-        case .default, .icon: return 14
+        case .default, .icon: return 16
         }
     }
 
@@ -164,10 +171,8 @@ public struct ShadcnButton: View {
         case .secondary:
             return isHovering ? ShadcnTheme.cardHover : ShadcnTheme.secondary
         case .outline:
-            if isSelected {
-                return ShadcnTheme.accentActive
-            }
-            return isHovering ? ShadcnTheme.muted.opacity(0.6) : Color.black.opacity(0.0001)
+            if colorScheme == .dark { return Color(white: isHovering || isSelected ? 0.16 : 0.106) }
+            return Color(white: isHovering || isSelected ? 0.96 : 1)
         case .ghost:
             if isSelected {
                 return ShadcnTheme.accentActive
@@ -176,19 +181,18 @@ public struct ShadcnButton: View {
         }
     }
 
+    private var lowerSurface: Color {
+        if variant == .outline {
+            return Color(white: colorScheme == .dark ? (isHovering ? 0.14 : 0.09) : (isHovering ? 0.93 : 0.97))
+        }
+        return backgroundColor.opacity(0.92)
+    }
+
     private var borderColor: Color {
         switch variant {
-        case .default, .primary:
-            return isHovering ? ShadcnTheme.borderActive.opacity(0.3) : Color.clear
-        case .secondary:
-            return isHovering || isSelected ? ShadcnTheme.borderActive : ShadcnTheme.border
-        case .outline:
-            if isSelected {
-                return ShadcnTheme.borderActive
-            }
-            return isHovering ? ShadcnTheme.borderActive : ShadcnTheme.border
-        case .ghost:
-            return isSelected ? ShadcnTheme.border : (isHovering ? ShadcnTheme.borderSubtle : Color.clear)
+        case .default, .primary, .ghost: return .clear
+        case .secondary, .outline:
+            return colorScheme == .dark ? Color(white: 0.16) : .black.opacity(0.09)
         }
     }
 }

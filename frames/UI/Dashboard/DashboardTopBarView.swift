@@ -65,7 +65,7 @@ public struct DashboardTopBarView: View {
                         .frame(width: 28, height: 28)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(FramesOutlineButtonStyle())
+                    .buttonStyle(FramesPressStyle())
                     .pointingHand()
                     .help("Toggle Sidebar (⌘B)")
                     .onHover { h in
@@ -87,7 +87,7 @@ public struct DashboardTopBarView: View {
                         .frame(width: 28, height: 28)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(FramesOutlineButtonStyle())
+                    .buttonStyle(FramesPressStyle())
                     .pointingHand()
                     .disabled(!library.canGoBack)
                     .help("Back (⌘[)")
@@ -111,7 +111,7 @@ public struct DashboardTopBarView: View {
                             .frame(width: 28, height: 28)
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(FramesOutlineButtonStyle())
+                        .buttonStyle(FramesPressStyle())
                         .pointingHand()
                         .disabled(!library.canGoForward)
                         .help("Forward (⌘])")
@@ -135,7 +135,7 @@ public struct DashboardTopBarView: View {
                         .frame(width: 28, height: 28)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(FramesOutlineButtonStyle())
+                    .buttonStyle(FramesPressStyle())
                     .pointingHand()
                     .help("Search Videos & Commands (⌘K, ⌘F)")
                     .onHover { h in
@@ -194,7 +194,7 @@ public struct DashboardTopBarView: View {
                                     .foregroundStyle(ShadcnTheme.foregroundMuted)
                                     .frame(width: 16, height: 16)
                             }
-                            .buttonStyle(FramesOutlineButtonStyle())
+                            .buttonStyle(FramesPressStyle())
                             .pointingHand()
                         }
                     }
@@ -262,7 +262,7 @@ public struct DashboardTopBarView: View {
                             )
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(FramesOutlineButtonStyle())
+                        .buttonStyle(FramesPressStyle())
                         .pointingHand()
                         .contextMenu {
                             ForEach(SortOption.allCases) { opt in
@@ -303,7 +303,7 @@ public struct DashboardTopBarView: View {
                             .frame(width: 28, height: 28)
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(FramesOutlineButtonStyle())
+                        .buttonStyle(FramesPressStyle())
                         .pointingHand()
                         .help(library.viewMode == .grid ? "Switch to List View" : "Switch to Grid View")
                         .onHover { h in
@@ -340,7 +340,7 @@ public struct DashboardTopBarView: View {
                             )
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(FramesOutlineButtonStyle())
+                        .buttonStyle(FramesPressStyle())
                         .pointingHand()
                         .help("Update Available: \(updateManager.availableUpdate?.tagName ?? "")")
                     }
@@ -361,7 +361,7 @@ public struct DashboardTopBarView: View {
                         .frame(width: 28, height: 28)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(FramesOutlineButtonStyle())
+                    .buttonStyle(FramesPressStyle())
                     .pointingHand()
                     .help(themeManager.isDark ? "Switch to Light Mode" : "Switch to Dark Mode")
                     .onHover { h in

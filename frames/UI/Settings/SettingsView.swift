@@ -503,7 +503,7 @@ public struct GeneralSettingsTab: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(FramesOutlineButtonStyle())
+        .buttonStyle(FramesPressStyle())
         .pointingHand()
     }
 }
@@ -751,7 +751,7 @@ public struct PlaybackSettingsTab: View {
                         }
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(FramesOutlineButtonStyle())
+                .buttonStyle(FramesPressStyle())
                 .pointingHand()
             }
         }
@@ -946,7 +946,7 @@ public struct SubtitlesSettingsTab: View {
                             )
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(FramesOutlineButtonStyle())
+                        .buttonStyle(FramesPressStyle())
                         .pointingHand()
                         .help("Cycle sample dialogue text")
                     }
@@ -1183,7 +1183,7 @@ private struct SubtitleColorRow: View {
                         )
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(FramesOutlineButtonStyle())
+                    .buttonStyle(FramesPressStyle())
                     .pointingHand()
                 }
 
@@ -1233,7 +1233,7 @@ private struct SubtitleColorRow: View {
                     )
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(FramesOutlineButtonStyle())
+                .buttonStyle(FramesPressStyle())
                 .pointingHand()
                 .help("Choose custom subtitle \(title.lowercased())")
             }
@@ -1461,7 +1461,7 @@ private struct ChannelButton: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(FramesOutlineButtonStyle())
+        .buttonStyle(FramesPressStyle())
         .pointingHand()
     }
 }

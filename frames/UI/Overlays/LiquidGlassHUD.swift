@@ -53,7 +53,7 @@ public struct VolumeButtonGroup: View {
                 )
                 .contentShape(Rectangle())
         }
-        .buttonStyle(FramesOutlineButtonStyle())
+        .buttonStyle(FramesPressStyle())
         .pointingHand()
         .help(label)
         .accessibilityLabel(label)
@@ -140,46 +140,44 @@ public struct LiquidGlassHUD: View {
                 }
             }
 
-            VStack(spacing: 2) {
+            VStack(spacing: 8) {
                 PlaybackTimelineRow(engine: engine)
+                    .tint(.white)
 
                 ViewThatFits(in: .horizontal) {
                     transportRow(compact: false)
                     transportRow(compact: true)
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 14)
+            .padding(.top, 20)
             .background {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color(white: 0.075).opacity(reduceTransparency ? 1 : 0.94))
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .strokeBorder(.white.opacity(0.18), lineWidth: 1)
-                    .allowsHitTesting(false)
+                if reduceTransparency {
+                    Color.black
+                } else {
+                    LinearGradient(colors: [.clear, .black.opacity(0.78), .black.opacity(0.96)],
+                                   startPoint: .top, endPoint: .bottom)
+                }
             }
         }
-        .frame(maxWidth: 660)
-        .padding(.horizontal, 14)
-        .padding(.bottom, 12)
+        .frame(maxWidth: .infinity)
         .environment(\.colorScheme, .dark)
     }
 
     private func transportRow(compact: Bool) -> some View {
-        HStack(spacing: compact ? 2 : 4) {
+        HStack(spacing: compact ? 3 : 8) {
             playPauseButton()
             transportSkipButton(forward: false)
             transportSkipButton(forward: true)
 
-            Spacer(minLength: 4)
             muteButton(isNarrow: compact)
+            if !compact { VolumeButtonGroup(volume: volumeBinding, isMuted: engine.isMuted) }
+            Spacer(minLength: 8)
 
             if compact {
                 compactOptions
             } else {
-                VolumeButtonGroup(volume: volumeBinding, isMuted: engine.isMuted)
-                utilityDivider
                 trackMenu
                 rateButton()
                 pictureInPictureButton
@@ -323,7 +321,7 @@ public struct LiquidGlassHUD: View {
                 )
                 .contentShape(Circle())
         }
-        .buttonStyle(FramesOutlineButtonStyle())
+        .buttonStyle(FramesPressStyle())
         .pointingHand()
         .accessibilityLabel(engine.isPlaying ? "Pause" : (engine.hasEnded ? "Replay" : "Play"))
         .accessibilityHint("Toggles video playback")
@@ -358,7 +356,7 @@ public struct LiquidGlassHUD: View {
                 )
                 .contentShape(Circle())
         }
-        .buttonStyle(FramesOutlineButtonStyle())
+        .buttonStyle(FramesPressStyle())
         .pointingHand()
         .help(help)
         .accessibilityLabel(accessibilityLabel)
@@ -388,7 +386,7 @@ public struct LiquidGlassHUD: View {
                 )
                 .contentShape(Capsule())
         }
-        .buttonStyle(FramesOutlineButtonStyle())
+        .buttonStyle(FramesPressStyle())
         .pointingHand()
         .help(isOpen ? "Close Speed Settings" : "Playback Speed")
         .accessibilityLabel("Playback speed")
@@ -421,7 +419,7 @@ public struct LiquidGlassHUD: View {
                 )
                 .contentShape(Circle())
         }
-        .buttonStyle(FramesOutlineButtonStyle())
+        .buttonStyle(FramesPressStyle())
         .pointingHand()
         .accessibilityLabel(isNarrow ? "Volume controls" : (engine.isMuted ? "Unmute" : "Mute"))
         .accessibilityValue("\(engine.isMuted ? 0 : Int(engine.volume * 100))%")
@@ -447,7 +445,7 @@ public struct LiquidGlassHUD: View {
                 }
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(ShadcnTheme.foreground)
-                .buttonStyle(FramesOutlineButtonStyle())
+                .buttonStyle(FramesPressStyle())
                 .pointingHand()
             }
             .padding(10)
@@ -514,7 +512,7 @@ public struct PlaybackTimeDisplay: View {
             .padding(.leading, 4)
             .contentShape(Rectangle())
         }
-        .buttonStyle(FramesOutlineButtonStyle())
+        .buttonStyle(FramesPressStyle())
         .pointingHand()
         .help(showRemainingTime ? "Click to show duration" : "Click to show remaining time")
         .accessibilityLabel(showRemainingTime ? "Remaining time display" : "Playback time display")
@@ -657,7 +655,7 @@ public struct PlayerSideControls: View {
                 )
                 .contentShape(Circle())
         }
-        .buttonStyle(FramesOutlineButtonStyle())
+        .buttonStyle(FramesPressStyle())
         .pointingHand()
         .help(help)
         .accessibilityLabel(accessibilityLabel)

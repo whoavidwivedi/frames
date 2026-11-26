@@ -43,7 +43,7 @@ public struct SpeedSelectorPanel: View {
                         .background(ShadcnTheme.secondary.opacity(0.4))
                         .clipShape(Circle())
                 }
-                .buttonStyle(FramesOutlineButtonStyle())
+                .buttonStyle(FramesPressStyle())
                 .pointingHand()
                 .help("Close (Esc)")
             }
@@ -76,7 +76,7 @@ public struct SpeedSelectorPanel: View {
                         }
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(ShadcnTheme.foreground)
-                        .buttonStyle(FramesOutlineButtonStyle())
+                        .buttonStyle(FramesPressStyle())
                         .pointingHand()
                     }
                 }
@@ -129,7 +129,7 @@ public struct SpeedSelectorPanel: View {
             )
             .contentShape(Rectangle())
         }
-        .buttonStyle(FramesOutlineButtonStyle())
+        .buttonStyle(FramesPressStyle())
         .pointingHand()
         .onHover { h in
             hoveredSpeed = h ? speed : nil

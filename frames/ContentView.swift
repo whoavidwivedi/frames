@@ -71,7 +71,7 @@ struct ContentView: View {
                             .strokeBorder(Color.white.opacity(0.24), lineWidth: 1)
                     )
                 }
-                .buttonStyle(FramesOutlineButtonStyle())
+                .buttonStyle(FramesPressStyle())
                 .pointingHand()
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -331,7 +331,7 @@ struct ContentView: View {
                                     .font(.system(size: 16))
                                     .foregroundStyle(ShadcnTheme.foregroundSecondary)
                             }
-                            .buttonStyle(FramesOutlineButtonStyle())
+                            .buttonStyle(FramesPressStyle())
                             .pointingHand()
                             .padding(.trailing, 16)
                             .padding(.top, 12)

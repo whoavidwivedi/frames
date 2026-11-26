@@ -443,7 +443,7 @@ public struct VideoGridCardView: View {
                         .frame(width: 28, height: 28)
                         .contentShape(Circle())
                     }
-                    .buttonStyle(FramesOutlineButtonStyle())
+                    .buttonStyle(FramesPressStyle())
                     .contentShape(Circle())
                     .pointingHand()
                     .opacity(isHovered || video.isFavorite ? 1.0 : 0.0)
@@ -718,7 +718,7 @@ public struct VideoListRowView: View {
                 .frame(width: 28, height: 28)
                 .contentShape(Circle())
             }
-            .buttonStyle(FramesOutlineButtonStyle())
+            .buttonStyle(FramesPressStyle())
             .contentShape(Circle())
             .pointingHand()
             .opacity(isHovered || video.isFavorite ? 1.0 : 0.0)

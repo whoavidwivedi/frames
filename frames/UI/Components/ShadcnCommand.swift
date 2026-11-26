@@ -620,7 +620,7 @@ public struct CommandInput: View {
                         .font(.system(size: 13))
                         .foregroundStyle(ShadcnTheme.foregroundMuted)
                 }
-                .buttonStyle(FramesOutlineButtonStyle())
+                .buttonStyle(FramesPressStyle())
                 .contentShape(Rectangle())
                 .pointingHand()
             }
