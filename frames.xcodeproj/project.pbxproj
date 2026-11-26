@@ -10,6 +10,8 @@
 		0842326DC9FC3AE882B174A1 /* framesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63590F9AD633F762940AB2EC /* framesTests.swift */; };
 		550477BE43104176A1CDC2E9 /* IVFDemuxerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BB2B0E27D384E909A33510E /* IVFDemuxerTests.swift */; };
 		7F3E1A2B4C5D6E7F8091A2B4 /* FramesTestSuite.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49CDD2212CF07B838E59513F /* FramesTestSuite.swift */; };
+		A9F73115876E48E794111002 /* GoogleSansFlex.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A9F73115876E48E794111001 /* GoogleSansFlex.ttf */; };
+		A9F73115876E48E794111004 /* GoogleSansFlex-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = A9F73115876E48E794111003 /* GoogleSansFlex-OFL.txt */; };
 		0232F4A238A36D0F37B41026 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 056BD858FB795266DD647D3B /* AppIcon.icns */; };
 		E8C4EF41630A99B17C809543 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8B71FFE2A1D445C057EF475B /* Assets.xcassets */; };
 		BC2316BCF8099781CCA4524C /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 049A20C1FBCCDE23AF9065FF /* ContentView.swift */; };
@@ -98,6 +100,8 @@
 		63590F9AD633F762940AB2EC /* framesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = framesTests.swift; sourceTree = "<group>"; };
 		0BB2B0E27D384E909A33510E /* IVFDemuxerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IVFDemuxerTests.swift; sourceTree = "<group>"; };
 		44969C4B309A2D22006FA09B /* frames.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = frames.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A9F73115876E48E794111001 /* GoogleSansFlex.ttf */ = {isa = PBXFileReference; lastKnownFileType = ttf; path = "GoogleSansFlex.ttf"; sourceTree = "<group>"; };
+		A9F73115876E48E794111003 /* GoogleSansFlex-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "GoogleSansFlex-OFL.txt"; sourceTree = "<group>"; };
 		056BD858FB795266DD647D3B /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = "AppIcon.icns"; sourceTree = "<group>"; };
 		8B71FFE2A1D445C057EF475B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Assets.xcassets"; sourceTree = "<group>"; };
 		049A20C1FBCCDE23AF9065FF /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContentView.swift"; sourceTree = "<group>"; };
@@ -223,6 +227,8 @@
 		CF5497604C271D84CB4E4DA2 /* frames */ = {
 			isa = PBXGroup;
 			children = (
+				A9F73115876E48E794111001 /* GoogleSansFlex.ttf */,
+				A9F73115876E48E794111003 /* GoogleSansFlex-OFL.txt */,
 				056BD858FB795266DD647D3B /* AppIcon.icns */,
 				8B71FFE2A1D445C057EF475B /* Assets.xcassets */,
 				049A20C1FBCCDE23AF9065FF /* ContentView.swift */,
@@ -500,6 +506,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A9F73115876E48E794111002 /* GoogleSansFlex.ttf in Resources */,
+				A9F73115876E48E794111004 /* GoogleSansFlex-OFL.txt in Resources */,
 				0232F4A238A36D0F37B41026 /* AppIcon.icns in Resources */,
 				E8C4EF41630A99B17C809543 /* Assets.xcassets in Resources */,
 			);
