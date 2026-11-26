@@ -27,6 +27,7 @@ extension Notification.Name {
 struct framesApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @State private var engine = VideoPlayerEngine()
+    @State private var showsLaunchSplash = !TestEnvironment.isRunningTests
 
     init() {
         UserDefaults.standard.register(defaults: [
@@ -41,7 +42,17 @@ struct framesApp: App {
         WindowGroup {
             ContentView(engine: engine)
                 .font(.system(size: 13))
+                .overlay {
+                    if showsLaunchSplash && engine.currentURL == nil {
+                        SplashScreenView { showsLaunchSplash = false }
+                            .preferredColorScheme(ThemeManager.shared.mode.colorScheme)
+                    }
+                }
+                .onChange(of: engine.currentURL) { _, url in
+                    if url != nil { showsLaunchSplash = false }
+                }
                 .onOpenURL { url in
+                    showsLaunchSplash = false
                     NotificationCenter.default.post(name: .openVideoNotification, object: url)
                 }
         }
