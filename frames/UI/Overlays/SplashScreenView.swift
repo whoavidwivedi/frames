@@ -14,7 +14,7 @@ public struct SplashScreenView: View {
     public var body: some View {
         Group {
             if reduceMotion {
-                artwork(at: 0.64)
+                artwork(at: 0)
             } else {
                 TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { context in
                     let progress = min(1, max(0, context.date.timeIntervalSince(start) / Self.duration))
@@ -37,71 +37,59 @@ public struct SplashScreenView: View {
         }
     }
 
-    private static let letters = Array("Frames")
-    private static let exposureColors = [
-        Color(red: 0.21, green: 0.13, blue: 0.99),
-        Color(red: 0.09, green: 0.42, blue: 1),
-        Color(red: 0.24, green: 0.78, blue: 1),
-        Color(red: 0.76, green: 0.32, blue: 1),
-        Color(red: 1, green: 0.52, blue: 0.39)
+    private static let heatColors: [Color] = [
+        Color(red: 0.38, green: 0.30, blue: 0.98),
+        Color(red: 0.18, green: 0.43, blue: 1),
+        Color(red: 0.28, green: 0.73, blue: 1),
+        Color(red: 0.80, green: 0.40, blue: 0.98),
+        Color(red: 1, green: 0.48, blue: 0.68),
+        Color(red: 1, green: 0.65, blue: 0.46)
     ]
 
     private func artwork(at progress: Double) -> some View {
-
-        return ZStack {
+        ZStack {
             Color.white
 
-            ZStack {
-                HStack(alignment: .firstTextBaseline, spacing: -3) {
-                    ForEach(Self.letters.indices, id: \.self) { index in
-                        glyph(at: index)
-                            .foregroundStyle(Color.clear)
-                            .background {
-                                exposures(of: glyph(at: index), index: index, progress: progress)
-                            }
-                    }
-                }
-                HStack(alignment: .firstTextBaseline, spacing: -3) {
-                    ForEach(Self.letters.indices, id: \.self) { index in
-                        glyph(at: index).foregroundStyle(Color.black)
-                    }
-                }
-            }
-            .fixedSize()
-        }
-    }
+            Canvas { context, size in
+                let expansion = min(1, max(0, (progress - 0.10) / 0.66))
+                guard expansion > 0 else { return }
 
-    private func glyph(at index: Int) -> Text {
-        Text(String(Self.letters[index]))
-            .font(.system(size: 72, weight: .semibold))
-    }
+                let center = CGPoint(x: size.width / 2, y: size.height / 2)
+                let spread = expansion * expansion * (3 - 2 * expansion)
+                let width = 110 + (size.width * 0.83 - 110) * spread
+                let height = 15 + (size.height * 0.83 - 15) * spread
+                let strength = min(1, expansion * 7)
 
-    private func exposures(of letter: Text, index: Int, progress: Double) -> some View {
-        ZStack {
-            ForEach(Self.exposureColors.indices.reversed(), id: \.self) { layer in
-                let depth = Double(layer + 1)
-                let stagger = Double(index) * 0.021 + Double(layer) * 0.038
-                let unfurl = min(1, max(0, (progress - 0.13 - stagger) / 0.51))
-                let spread = 1 - pow(1 - unfurl, 2)
-                let ripple = sin(progress * 9 + Double(index) * 0.82 + depth * 0.56)
-                let color = Self.exposureColors[layer]
-
-                letter
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [color.opacity(0.35), color, color.opacity(0.72)],
-                            startPoint: .bottomLeading, endPoint: .topTrailing
+                for index in Self.heatColors.indices.reversed() {
+                    let band = Double(index)
+                    let scale = 0.31 + band * 0.145
+                    var contour = Path()
+                    for step in 0...96 {
+                        let angle = Double(step) * 2 * .pi / 96
+                        let fold = 1 + 0.088 * sin(5 * angle + progress * 6 + band * 0.6)
+                            + 0.047 * cos(8 * angle - progress * 5)
+                        let point = CGPoint(
+                            x: center.x + cos(angle) * width * scale * fold,
+                            y: center.y + sin(angle) * height * scale * fold
                         )
-                    )
-                    .scaleEffect(x: 1 + depth * 0.06 * spread,
-                                 y: 1 + depth * 0.16 * spread, anchor: .bottomLeading)
-                    .rotationEffect(.degrees((depth * 2.1 + ripple * 2) * spread),
-                                    anchor: .bottomLeading)
-                    .blur(radius: 2.2 + depth * 1.55 * spread)
-                    .offset(x: (depth * 5 + ripple * 3) * spread,
-                            y: -(depth * 9 + ripple * 5) * spread)
-                    .opacity(min(1, unfurl * 4) * 0.80 * (1 - Double(layer) * 0.09))
+                        if step == 0 {
+                            contour.move(to: point)
+                        } else {
+                            contour.addLine(to: point)
+                        }
+                    }
+                    contour.closeSubpath()
+
+                    var layer = context
+                    layer.addFilter(.blur(radius: 4 + spread * 7 + band * 0.6))
+                    layer.fill(contour, with: .color(Self.heatColors[index].opacity(strength * 0.76)))
+                }
             }
+
+            Text("Frames")
+                .font(.system(size: 72, weight: .semibold))
+                .tracking(-3)
+                .foregroundStyle(Color.black)
         }
     }
 }
