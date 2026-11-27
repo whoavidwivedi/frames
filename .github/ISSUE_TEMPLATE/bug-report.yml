@@ -19,8 +19,8 @@ body:
     id: os-version
     attributes:
       label: macOS Version
-      description: e.g. macOS 14.5 Sonoma, macOS 15.1 Sequoia
-      placeholder: macOS 14.0+
+      description: e.g. macOS Golden Gate 27.2.1
+      placeholder: macOS 27.0+
     validations:
       required: true
   - type: input

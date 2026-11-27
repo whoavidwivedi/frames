@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/whoavidwivedi/frames/releases/latest"><img src="https://img.shields.io/github/v/release/whoavidwivedi/frames?style=flat-square&color=black&label=Release" alt="Latest Release"></a>
   <a href="https://github.com/whoavidwivedi/frames/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/whoavidwivedi/frames/ci.yml?branch=main&style=flat-square&color=black&label=CI" alt="CI Status"></a>
-  <img src="https://img.shields.io/badge/Platform-macOS%2014.0%2B-black?style=flat-square&logo=apple" alt="Platform: macOS 14.0+">
+  <img src="https://img.shields.io/badge/Platform-macOS%2027.0%2B-black?style=flat-square&logo=apple" alt="Platform: macOS 27.0+">
   <img src="https://img.shields.io/badge/Apple%20Silicon-M1%20%7C%20M2%20%7C%20M3%20%7C%20M4%2B-black?style=flat-square&logo=apple" alt="Apple Silicon M1 to Latest">
   <img src="https://img.shields.io/badge/Language-Swift%205-black?style=flat-square&logo=swift" alt="Swift 5">
   <img src="https://img.shields.io/badge/Design-shadcn%20base--luma%20%2F%20neutral%20(b1VlK05Q)-black?style=flat-square" alt="shadcn base-luma / neutral">
@@ -30,7 +30,7 @@ In the app, the colored trails rise behind the centered wordmark on launch. The 
 
 ## Frames 2.0
 
-Frames is a native arm64 video player for macOS 14 and later. It uses first-party Swift container readers, VideoToolbox, Core Audio and native macOS presentation APIs. The player includes a folder library, resume history, external subtitles and keyboard transport controls.
+Frames is a native arm64 video player for macOS Golden Gate 27 and later. It uses first-party Swift container readers, VideoToolbox, Core Audio and native macOS presentation APIs. The player includes a folder library, resume history, external subtitles and keyboard transport controls.
 
 | Container | Playback path |
 | --- | --- |
@@ -86,7 +86,7 @@ Run the Xcode test scheme and the isolated installer regression suite from the r
 ## Building from Source
 
 ### Prerequisites
-* macOS 14.0 or higher
+* macOS 27.0 or higher
 * Xcode 16.0 or higher with Command Line Tools
 * Apple Silicon Mac (M1, M2, M3, M4 series)
 

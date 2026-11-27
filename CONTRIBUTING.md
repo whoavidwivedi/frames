@@ -18,7 +18,7 @@ Please read our [Code of Conduct](CODE_OF_CONDUCT.md) and [Security Policy](SECU
 
 ## 🛠️ Local Development & Environment
 
-- **Prerequisites**: macOS Sonoma (14.0+) or Sequoia (15.0+), Apple Silicon (M1/M2/M3/M4), Xcode 16.0+.
+- **Prerequisites**: macOS Golden Gate (27.0+), Apple Silicon, Xcode 27.2.
 - **Building via Command Line**:
   ```bash
   DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild \
@@ -60,4 +60,4 @@ We follow conventional commit specifications:
 3. Add unit test assertions in `framesTests/`.
 4. Run the XCTest scheme and relevant regression checks in [the engineering guide](AGENTS.md).
 5. Push your branch and open a Pull Request using `gh pr create` or the GitHub Web UI.
-6. Ensure CI passes on `macos-15` before requesting review.
+6. Ensure CI passes on `xcode-27` before requesting review.
