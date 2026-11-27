@@ -21,10 +21,10 @@
 </p>
 
 <p align="center">
-  <img src="assets/frames-splash.gif" width="720" alt="Frames launch animation with a black wordmark and colored trails on white" />
+  <img src="assets/frames-splash.gif" width="720" alt="Black Frames wordmark with colored trails flowing behind it in a continuous loop" />
 </p>
 
-The launch screen opens on a centered black wordmark on white, then the colored trails rise behind it.
+In the app, the colored trails rise behind the centered wordmark on launch. The preview above loops the flow that follows.
 
 ---
 
