@@ -2,7 +2,7 @@
 
 ## Product brief
 
-Build an original native macOS player for Apple Silicon, targeting macOS 14 and later. Optimize for the person opening a movie from Finder, the viewer watching a long film on battery, and the editor inspecting an individual frame. Choose an interaction because it serves one of those tasks. QuickTime and VLC may supply comparison measurements. Frames owns its layout, visual identity and behavior.
+Build an original native macOS player for Apple Silicon, targeting macOS Golden Gate 27 and later. Optimize for the person opening a movie from Finder, the viewer watching a long film on battery, and the editor inspecting an individual frame. Choose an interaction because it serves one of those tasks. QuickTime and VLC may supply comparison measurements. Frames owns its layout, visual identity and behavior.
 
 Keep the picture prominent. Make pause, seek, volume, fullscreen and return to library accessible by pointer and keyboard. Expose track selection, external subtitles, playback speed, frame stepping, picture-in-picture and snapshots when needed. Respect Reduce Motion, Reduce Transparency and VoiceOver. Check narrow windows and fullscreen, especially popovers and the auto-hide timer.
 
