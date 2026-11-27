@@ -1,6 +1,6 @@
 import Foundation
 
-public enum LanguageHelper: Sendable {
+nonisolated public enum LanguageHelper: Sendable {
     private static let iso6392Map: [String: String] = [
         "aar": "Afar", "abk": "Abkhazian", "ace": "Achinese", "ach": "Acoli",
         "ada": "Adangme", "ady": "Adyghe", "afr": "Afrikaans", "aka": "Akan",

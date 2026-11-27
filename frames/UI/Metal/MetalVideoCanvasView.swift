@@ -105,6 +105,12 @@ public final class NativeMetalView: NSView {
     public let renderer: MetalVideoRenderer?
     public private(set) var metalLayer: CAMetalLayer?
     public private(set) var sampleBufferDisplayLayer: AVSampleBufferDisplayLayer?
+    private let displaySynchronizer = AVSampleBufferRenderSynchronizer()
+    private var displayReceiver: AVSampleBufferVideoRenderer.Receiver?
+    private var displayEnqueueTask: Task<Void, Never>?
+    private var displayFlushTask: Task<Void, Never>?
+    private var removeDisplayedImageOnFlush = false
+    private var redrawAfterEnqueue = false
     private var formatDescription: CMVideoFormatDescription?
     private var lastEnqueuedBuffer: CVPixelBuffer?
     private var displayLink: CADisplayLink?
@@ -196,6 +202,8 @@ public final class NativeMetalView: NSView {
         sbdl.contentsScale = scale
         layer.addSublayer(sbdl)
         self.sampleBufferDisplayLayer = sbdl
+        displayReceiver = displaySynchronizer.sampleBufferReceiver(adding: sbdl.sampleBufferRenderer)
+        displaySynchronizer.setRate(1, time: .zero)
         
         updatePresentationEngineLayers()
         
@@ -207,7 +215,7 @@ public final class NativeMetalView: NSView {
                 if self.renderer?.currentBuffer == nil {
                     self.lastEnqueuedBuffer = nil
                     self.formatDescription = nil
-                    self.sampleBufferDisplayLayer?.sampleBufferRenderer.flush(removingDisplayedImage: true, completionHandler: nil)
+                    self.flushDirectDisplay(removingDisplayedImage: true)
                 }
                 if !self.isPlaying {
                     self.needsRender = true
@@ -389,7 +397,7 @@ public final class NativeMetalView: NSView {
             let isDirect = (settings.effectivePresentationEngine == .directHardwareScanout)
             sbdl.isHidden = !isDirect
             if !isDirect {
-                sbdl.sampleBufferRenderer.flush()
+                flushDirectDisplay()
             }
         }
         updateFrameRateCadence()
@@ -443,14 +451,52 @@ public final class NativeMetalView: NSView {
     public func presentDirectHardwareBuffer(_ buffer: CVPixelBuffer) {
         lastEnqueuedBuffer = buffer
         renderer?.setBufferForDisplay(buffer)
-        guard let display = sampleBufferDisplayLayer?.sampleBufferRenderer else { return }
-        if display.status == .failed { display.flush() }
-        // Playback follows the audio clock. Drop a late image rather than growing the
-        // display queue. A paused seek still needs to replace the onscreen image.
-        guard !isPlaying || display.isReadyForMoreMediaData else { return }
-        if let sample = SampleBufferFactory.makeSampleBuffer(from: buffer, reusing: formatDescription) {
-            formatDescription = CMSampleBufferGetFormatDescription(sample)
-            display.enqueue(sample)
+        guard let receiver = displayReceiver else { return }
+        // Keep one in-flight submission. The playback clock already governs frame
+        // selection, so a busy receiver can skip frames without building a queue.
+        guard displayEnqueueTask == nil, displayFlushTask == nil else {
+            if !isPlaying { redrawAfterEnqueue = true }
+            return
+        }
+        guard let sample = SampleBufferFactory.makeSampleBuffer(from: buffer, reusing: formatDescription) else { return }
+        formatDescription = CMSampleBufferGetFormatDescription(sample)
+        let ready = CMReadySampleBuffer<CMSampleBuffer.DynamicContent>(unsafeBuffer: sample)
+        displayEnqueueTask = Task { [weak self] in
+            let result = Task.isCancelled ? nil : try? await receiver.enqueue(ready)
+            guard let self else { return }
+            self.displayEnqueueTask = nil
+            if case .cancelledDueToFlushRequiredToResume? = result {
+                if self.displayFlushTask == nil {
+                    self.flushDirectDisplay()
+                }
+                return
+            }
+            if self.redrawAfterEnqueue, self.displayFlushTask == nil {
+                self.redrawAfterEnqueue = false
+                if !self.isPlaying { self.renderNow() }
+            }
+        }
+    }
+
+    private func flushDirectDisplay(removingDisplayedImage: Bool = false) {
+        guard let receiver = displayReceiver else { return }
+        removeDisplayedImageOnFlush = removeDisplayedImageOnFlush || removingDisplayedImage
+        guard displayFlushTask == nil else { return }
+        let pendingEnqueue = displayEnqueueTask
+        pendingEnqueue?.cancel()
+        displayFlushTask = Task { [weak self] in
+            guard let self else { return }
+            repeat {
+                let removeImage = self.removeDisplayedImageOnFlush
+                self.removeDisplayedImageOnFlush = false
+                await receiver.flush(removingDisplayedImage: removeImage)
+                await pendingEnqueue?.value
+            } while self.removeDisplayedImageOnFlush
+            self.displayFlushTask = nil
+            if self.redrawAfterEnqueue {
+                self.redrawAfterEnqueue = false
+                if !self.isPlaying { self.renderNow() }
+            }
         }
     }
 }

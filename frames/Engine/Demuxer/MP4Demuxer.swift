@@ -577,20 +577,17 @@ nonisolated public final class MP4Demuxer: @unchecked Sendable, MediaDemuxer {
         let tkhd = tkhdBox.payload
         let version = tkhd[0]
         var trackID: UInt32 = 1
-        var trackDurationUnits: UInt64 = 0
         var displayWidth: Int = 0
         var displayHeight: Int = 0
 
         if version == 0 && tkhd.count >= 84 {
             trackID = tkhd.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 12, as: UInt32.self).bigEndian }
-            trackDurationUnits = UInt64(tkhd.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 20, as: UInt32.self).bigEndian })
             let rawW = tkhd.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 76, as: UInt32.self).bigEndian }
             let rawH = tkhd.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 80, as: UInt32.self).bigEndian }
             displayWidth = Int(rawW >> 16)
             displayHeight = Int(rawH >> 16)
         } else if version == 1 && tkhd.count >= 96 {
             trackID = tkhd.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 20, as: UInt32.self).bigEndian }
-            trackDurationUnits = tkhd.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 28, as: UInt64.self).bigEndian }
             let rawW = tkhd.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 88, as: UInt32.self).bigEndian }
             let rawH = tkhd.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 92, as: UInt32.self).bigEndian }
             displayWidth = Int(rawW >> 16)
@@ -608,16 +605,13 @@ nonisolated public final class MP4Demuxer: @unchecked Sendable, MediaDemuxer {
         let mdhd = mdhdBox.payload
         let mdhdVersion = mdhd[0]
         var mediaTimescale: UInt32 = 1000
-        var mediaDurationUnits: UInt64 = 0
         var langCode: UInt16 = 0
 
         if mdhdVersion == 0 && mdhd.count >= 24 {
             mediaTimescale = mdhd.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 12, as: UInt32.self).bigEndian }
-            mediaDurationUnits = UInt64(mdhd.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 16, as: UInt32.self).bigEndian })
             langCode = mdhd.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 20, as: UInt16.self).bigEndian }
         } else if mdhdVersion == 1 && mdhd.count >= 34 {
             mediaTimescale = mdhd.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 20, as: UInt32.self).bigEndian }
-            mediaDurationUnits = mdhd.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 24, as: UInt64.self).bigEndian }
             langCode = mdhd.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 32, as: UInt16.self).bigEndian }
         }
         if mediaTimescale == 0 { mediaTimescale = 1000 }
@@ -753,7 +747,7 @@ nonisolated public final class MP4Demuxer: @unchecked Sendable, MediaDemuxer {
         let entryCount = data.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 4, as: UInt32.self).bigEndian }
         guard entryCount > 0 else { return result }
 
-        var offset = 8
+        let offset = 8
         guard offset + 8 <= data.count else { return result }
 
         let entrySize = Int(data.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: offset, as: UInt32.self).bigEndian })

@@ -15,7 +15,7 @@ nonisolated public protocol MediaDemuxer: AnyObject, Sendable {
     func close()
 }
 
-extension MediaDemuxer {
+nonisolated extension MediaDemuxer {
     public func extractSubtitleCues(for targetTrackNumber: UInt64) -> [SubtitleCue] {
         return []
     }

@@ -243,14 +243,15 @@ nonisolated public final class VideoToolboxDecoder: @unchecked Sendable {
         )
         
         // Runtime verification of hardware acceleration
-        var isHW: CFTypeRef?
+        var hardwareFlag: Unmanaged<CFTypeRef>?
         let propStatus = VTSessionCopyProperty(
             session,
             key: kVTDecompressionPropertyKey_UsingHardwareAcceleratedVideoDecoder,
             allocator: kCFAllocatorDefault,
-            valueOut: &isHW
+            valueOut: &hardwareFlag
         )
-        if propStatus == noErr, let isHW = isHW {
+        let isHW = hardwareFlag?.takeRetainedValue()
+        if propStatus == noErr, let isHW {
             if CFGetTypeID(isHW) == CFBooleanGetTypeID() {
                 self.isHardwareAccelerated = isHW as? Bool ?? false
             } else if let b = isHW as? Bool {

@@ -189,6 +189,7 @@ final class FramesTests: XCTestCase {
         XCTContext.runActivity(named: "Executing FramesTestSuite.runAllTests()") { _ in
             let result = FramesTestSuite.runAllTests()
 
+
             // Stream suite diagnostic logs to XCTest console output
             for logLine in result.logs {
                 print(logLine)
@@ -212,9 +213,9 @@ final class FramesTests: XCTestCase {
     // MARK: - Programmatic Smoke Test Suite Bridge
 
     /// Bridges `FramesTestSuite.runSmokeTest()` directly into XCTest, verifying Section 44 standalone.
-    func testProgrammaticSmokeTestSuite() throws {
+    func testProgrammaticSmokeTestSuite() async throws {
+        let result = await FramesTestSuite.runSmokeTest()
         XCTContext.runActivity(named: "Executing FramesTestSuite.runSmokeTest()") { _ in
-            let result = FramesTestSuite.runSmokeTest()
 
             for logLine in result.logs {
                 print(logLine)
@@ -364,10 +365,10 @@ final class FramesTests: XCTestCase {
         XCTAssertFalse(engine.isNativePipelineActive, "Native pipeline must be inactive after unloadMedia()")
         XCTAssertEqual(engine.currentTime, 0.0, "currentTime must reset to 0.0 after unloadMedia()")
 
-        // Verify RunLoop drain does not resurrect seek position
+        // Let pending seek work finish and verify it cannot resurrect the position
         let drainStart = Date()
         while Date().timeIntervalSince(drainStart) < 0.25 {
-            RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.02))
+            try await Task.sleep(for: .milliseconds(20))
         }
         XCTAssertEqual(engine.currentTime, 0.0, "currentTime must remain 0.0 after draining in-flight seek tasks")
     }
@@ -415,14 +416,14 @@ final class FramesTests: XCTestCase {
             pipeline.play()
             XCTAssertTrue(pipeline.state == .playing, "Iteration \(iteration): Pipeline must resume to .playing")
 
-            // Cycle RunLoop to let feeder and decoder process
+            // Yield to the feeder and decoder
             let loopStart = Date()
             while Date().timeIntervalSince(loopStart) < 0.03 {
-                RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.01))
+                try await Task.sleep(for: .milliseconds(10))
             }
 
             // 5. Dequeue frame and verify zero residue leakage
-            if let frame = pipeline.nextFrameForDisplay() {
+            if pipeline.nextFrameForDisplay() != nil {
                 // If a frame is delivered, its PTS must not be older than the scrub seek window
                 // Minimum accepted PTS is clamped to target - 0.25 in FrameQueue.reset(forSeek:)
                 let currentPts = pipeline.currentTime
@@ -452,7 +453,7 @@ final class FramesTests: XCTestCase {
                 pipeline.play()
                 pipeline.pause()
             }
-            RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.005))
+            try await Task.sleep(for: .milliseconds(5))
         }
 
         let elapsed = Date().timeIntervalSince(startTime)

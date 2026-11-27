@@ -2,24 +2,24 @@ import Foundation
 import Darwin
 
 @inline(__always)
-private func mkvClampedDiff(_ total: UInt64, _ offset: UInt64) -> UInt64 {
+nonisolated private func mkvClampedDiff(_ total: UInt64, _ offset: UInt64) -> UInt64 {
     let (result, overflow) = total.subtractingReportingOverflow(offset)
     return overflow ? 0 : result
 }
 
 @inline(__always)
-private func mkvCheckedAdd(_ a: UInt64, _ b: UInt64) -> UInt64? {
+nonisolated private func mkvCheckedAdd(_ a: UInt64, _ b: UInt64) -> UInt64? {
     let (result, overflow) = a.addingReportingOverflow(b)
     return overflow ? nil : result
 }
 
 @inline(__always)
-private func mkvSafeInt(_ value: UInt64) -> Int? {
+nonisolated private func mkvSafeInt(_ value: UInt64) -> Int? {
     value <= UInt64(Int.max) ? Int(value) : nil
 }
 
 @inline(__always)
-private func mkvLength(_ value: UInt64, available: Int) -> Int? {
+nonisolated private func mkvLength(_ value: UInt64, available: Int) -> Int? {
     guard available >= 0, value <= UInt64(available) else { return nil }
     return Int(value)
 }

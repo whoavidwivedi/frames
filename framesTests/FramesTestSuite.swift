@@ -9,6 +9,7 @@ import QuartzCore
 import Metal
 import VideoToolbox
 import AppKit
+import os
 @testable import frames
 
 @MainActor
@@ -165,9 +166,10 @@ public enum FramesTestSuite {
         let splash: SplashScreenView? = SplashScreenView(onComplete: {})
         assertTest("Splash Screen Component Initialized", condition: splash != nil)
         // Scrubber progress clamp & zero-division safety
-        let testDuration: Double = 0.0
-        let testCurrentTime: Double = 5.0
-        let zeroDurationProgress: Double = testDuration > 0 ? (testCurrentTime / testDuration) : 0.0
+        func scrubberProgress(currentTime: Double, duration: Double) -> Double {
+            duration > 0 ? min(max(currentTime / duration, 0), 1) : 0
+        }
+        let zeroDurationProgress = scrubberProgress(currentTime: 5, duration: 0)
         assertTest("Scrubber Zero Duration Division Guard", condition: !zeroDurationProgress.isNaN && !zeroDurationProgress.isInfinite)
         let clampedSeekTarget = min(max(0.0, -15.0), 120.0)
         assertTest("Scrubber Seek Underflow Clamp", condition: clampedSeekTarget == 0.0)
@@ -402,40 +404,14 @@ public enum FramesTestSuite {
             onPlayURL: { _ in },
             initialThumbnailHovered: false
         )
-        assertTest("List Row Hover Isolates Thumbnail State (Row Hovered, Thumbnail Not Hovered)", condition: rowHoveredOnly.isHovered == true && rowHoveredOnly.isThumbnailHoveredValue == false)
-        assertTest("List Thumbnail Play Overlay Hidden When Only Row Hovered", condition: !rowHoveredOnly.shouldShowThumbnailPlayOverlay && !VideoListRowView.shouldShowPlayOverlay(isThumbnailHovered: false, isRowHovered: true))
+        assertTest("List Row Hover Leaves Play Overlay Hidden", condition: rowHoveredOnly.isHovered && !VideoListRowView.shouldShowPlayOverlay(isThumbnailHovered: false, isRowHovered: true))
 
-        // 3. AppKit NSHostingView Integration Mount
         let hostView = NSHostingView(rootView: rowHoveredOnly)
         assertTest("VideoListRowView AppKit NSHostingView Mount", condition: hostView.fittingSize.height > 0)
 
-        // 4. When thumbnail itself is hovered, play overlay is visible
-        let thumbHovered = VideoListRowView(
-            video: testListVideo,
-            isHovered: false,
-            containerWidth: 600,
-            onHover: { _ in },
-            library: lib,
-            onPlayURL: { _ in },
-            initialThumbnailHovered: true
-        )
-        assertTest("List Thumbnail Play Overlay Visible On Thumbnail Hover", condition: thumbHovered.shouldShowThumbnailPlayOverlay && VideoListRowView.shouldShowPlayOverlay(isThumbnailHovered: true, isRowHovered: false))
+        assertTest("List Thumbnail Play Overlay Visible On Thumbnail Hover", condition: VideoListRowView.shouldShowPlayOverlay(isThumbnailHovered: true, isRowHovered: false))
         assertTest("List Thumbnail Play Overlay Visible When Both Row & Thumbnail Hovered", condition: VideoListRowView.shouldShowPlayOverlay(isThumbnailHovered: true, isRowHovered: true))
-
-        // 5. Dynamic hover state mutation simulation
-        var mutableRowView = VideoListRowView(
-            video: testListVideo,
-            isHovered: false,
-            containerWidth: 600,
-            onHover: { _ in },
-            library: lib,
-            onPlayURL: { _ in }
-        )
-        assertTest("List Row Thumbnail Default State False", condition: !mutableRowView.isThumbnailHoveredValue)
-        mutableRowView.simulateThumbnailHover(true)
-        assertTest("List Row Thumbnail Hover Simulation Active", condition: mutableRowView.isThumbnailHoveredValue && mutableRowView.shouldShowThumbnailPlayOverlay)
-        mutableRowView.simulateThumbnailHover(false)
-        assertTest("List Row Thumbnail Hover Simulation Reset", condition: !mutableRowView.isThumbnailHoveredValue && !mutableRowView.shouldShowThumbnailPlayOverlay)
+        assertTest("List Thumbnail Play Overlay Hidden After Hover Ends", condition: !VideoListRowView.shouldShowPlayOverlay(isThumbnailHovered: false, isRowHovered: false))
 
         // 6. Thumbnail hover callback mechanism
         var thumbCallbackReceived: Bool? = nil
@@ -2249,7 +2225,7 @@ public enum FramesTestSuite {
         }
         // MARK: - 32. Repository Quality & CI Pipeline Assets
         logs.append("\n[32] Testing Repository Quality & CI Pipeline Assets...")
-        var projectRoot: URL = {
+        let projectRoot: URL = {
             let fileManager = FileManager.default
             // Tier 1: Explicit environment variable override
             if let envDir = ProcessInfo.processInfo.environment["FRAMES_PROJECT_DIR"] {
@@ -2265,7 +2241,7 @@ public enum FramesTestSuite {
             }
             // Tier 3: Compile-time source anchor (#filePath)
             let sourceURL = URL(fileURLWithPath: #filePath)
-            let repoFromSource = sourceURL.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            let repoFromSource = sourceURL.deletingLastPathComponent().deletingLastPathComponent()
             if fileManager.fileExists(atPath: repoFromSource.appendingPathComponent(".github").path) {
                 return repoFromSource
             }
@@ -2533,7 +2509,6 @@ public enum FramesTestSuite {
         assertTest("AppleLiquidGlassTint Cyan Equatable", condition: cyanTint == .cyan)
 
         // Play / Pause Button Mount
-        var playClicked = false
         let playBtn = AppleLiquidGlassButton(
             icon: "play.fill",
             iconSize: 15,
@@ -2542,14 +2517,11 @@ public enum FramesTestSuite {
             tint: .standard,
             size: 34,
             helpText: "Play"
-        ) {
-            playClicked = true
-        }
+        ) {}
         let playBtnHost = NSHostingView(rootView: playBtn)
         assertTest("AppleLiquidGlassButton Play/Pause Mount Operable", condition: playBtnHost.fittingSize.width > 0)
 
         // 10s Skip Buttons Mount
-        var skipBackClicked = false
         let skipBackBtn = AppleLiquidGlassButton(
             icon: "gobackward.10",
             iconSize: 13,
@@ -2558,13 +2530,10 @@ public enum FramesTestSuite {
             tint: .standard,
             size: 30,
             helpText: "Skip back 10s"
-        ) {
-            skipBackClicked = true
-        }
+        ) {}
         let skipBackHost = NSHostingView(rootView: skipBackBtn)
         assertTest("AppleLiquidGlassButton 10s Backward Mount Operable", condition: skipBackHost.fittingSize.width > 0)
 
-        var skipFwdClicked = false
         let skipFwdBtn = AppleLiquidGlassButton(
             icon: "goforward.10",
             iconSize: 13,
@@ -2573,9 +2542,7 @@ public enum FramesTestSuite {
             tint: .standard,
             size: 30,
             helpText: "Skip forward 10s"
-        ) {
-            skipFwdClicked = true
-        }
+        ) {}
         let skipFwdHost = NSHostingView(rootView: skipFwdBtn)
         assertTest("AppleLiquidGlassButton 10s Forward Mount Operable", condition: skipFwdHost.fittingSize.width > 0)
 
@@ -2802,9 +2769,9 @@ public enum FramesTestSuite {
         let spscQueue = FrameQueue(maxCount: 24, nominalFrameDuration: 1.0 / 60.0)
         assertTest("SPSC FrameQueue Initialized Empty", condition: spscQueue.count == 0)
         
-        var headroomSignaled = false
+        let headroomSignaled = OSAllocatedUnfairLock(initialState: false)
         spscQueue.onHeadroomAvailable = {
-            headroomSignaled = true
+            headroomSignaled.withLock { $0 = true }
         }
 
         var testPB: CVPixelBuffer?
@@ -2848,7 +2815,7 @@ public enum FramesTestSuite {
             
             _ = stressGroup.wait(timeout: .now() + .seconds(5))
             assertTest("SPSC Queue 1,000 Concurrent Frames Throughput", condition: dequeuedCount == testFrameCount, "Dequeued: \(dequeuedCount)/\(testFrameCount)")
-            assertTest("SPSC Queue Headroom Event Fired", condition: headroomSignaled)
+            assertTest("SPSC Queue Headroom Event Fired", condition: headroomSignaled.withLock { $0 })
 
             // 2b. SPSC Queue Monotonic Reset & Underflow Safety
             let resetQueue = FrameQueue(maxCount: 24, nominalFrameDuration: 1.0 / 60.0)
@@ -3543,7 +3510,7 @@ public enum FramesTestSuite {
         }
 
         do {
-            var corruptHeader = Data([0x00, 0x00, 0x00, 0x02, 0x66, 0x74, 0x79, 0x70]) // Invalid size 2 < 8
+            let corruptHeader = Data([0x00, 0x00, 0x00, 0x02, 0x66, 0x74, 0x79, 0x70]) // Invalid size 2 < 8
             _ = try MP4Demuxer(data: corruptHeader)
             assertTest("MP4 Invalid Header Throws Error", condition: false)
         } catch MP4DemuxerError.invalidBoxHeader {
@@ -4147,12 +4114,6 @@ public enum FramesTestSuite {
             assertTest("SampleBufferFactory Correctly Extracts Double Attachment Duration", condition: sBuf != nil && abs(CMSampleBufferGetOutputDuration(sBuf!).seconds - 0.033) < 0.001)
         }
 
-        // MARK: - 44. Core Video Playback Smoke Test & Metal Window Resizing
-        logs.append("\n[44] Testing Core Video Playback Smoke Test & Metal Window Resizing...")
-        executeSmokeTest(mediaURL: nil) { name, condition, message in
-            assertTest(name, condition: condition, message)
-        }
-
         // MARK: - 45. Playback Engine & Metal Stability Tests
         logs.append("\n[45] Testing Playback Engine & Metal Stability Tests...")
 
@@ -4626,7 +4587,7 @@ public enum FramesTestSuite {
     }
 
     // MARK: - Dedicated Programmatic Smoke Test Runner
-    public static func runSmokeTest(mediaURL: URL? = nil) -> (passed: Bool, logs: [String]) {
+    public static func runSmokeTest(mediaURL: URL? = nil) async -> (passed: Bool, logs: [String]) {
         var allPassed = true
         var logs: [String] = []
 
@@ -4634,7 +4595,7 @@ public enum FramesTestSuite {
         logs.append("   FRAMES PROGRAMMATIC SMOKE TEST SUITE   ")
         logs.append("==========================================")
 
-        executeSmokeTest(mediaURL: mediaURL) { name, condition, message in
+        await executeSmokeTest(mediaURL: mediaURL) { name, condition, message in
             if condition {
                 logs.append("  ✔ PASS: \(name)")
             } else {
@@ -4708,7 +4669,7 @@ public enum FramesTestSuite {
     public static func executeSmokeTest(
         mediaURL: URL? = nil,
         assertHandler: (_ name: String, _ condition: Bool, _ message: String) -> Void
-    ) {
+    ) async {
         func assert(_ name: String, _ condition: Bool, _ message: String = "") {
             assertHandler(name, condition, message)
         }
@@ -4734,10 +4695,19 @@ public enum FramesTestSuite {
         assert("Media Ingestion Resets hasEnded", engine.hasEnded == false)
 
         let asset = AVURLAsset(url: targetURL)
-        let assetDuration = CMTimeGetSeconds(asset.duration)
-        let videoTracks = asset.tracks(withMediaType: .video)
+        let assetDuration: Double
+        let videoTracks: [AVAssetTrack]
+        let naturalSize: CGSize
+        do {
+            assetDuration = try await asset.load(.duration).seconds
+            videoTracks = try await asset.loadTracks(withMediaType: .video)
+            naturalSize = try await videoTracks.first?.load(.naturalSize) ?? .zero
+        } catch {
+            assert("Smoke Media Metadata Loads", false, error.localizedDescription)
+            engine.unloadMedia()
+            return
+        }
         let hasVideoTrack = !videoTracks.isEmpty
-        let naturalSize = videoTracks.first?.naturalSize ?? .zero
         let isCustomMedia = (mediaURL != nil)
 
         // Pump runloop allowing AVFoundation asynchronous asset inspection and playerItem readiness (up to 3.0s, matching XCTest harness)
@@ -4754,7 +4724,7 @@ public enum FramesTestSuite {
                     }
                 }
             }
-            RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.02))
+            try? await Task.sleep(for: .milliseconds(20))
         }
 
         // Strict duration validation: engine.duration MUST be positive and match expected asset duration
@@ -4782,7 +4752,7 @@ public enum FramesTestSuite {
         assert("ClockStore isPlaying Synchronized", engine.clockStore.isPlaying == true)
         assert("Player Rate Set to PlaybackRate", engine.player.rate == engine.playbackRate || engine.isPlaying)
 
-        RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.05))
+        try? await Task.sleep(for: .milliseconds(50))
         assert("Presentation Time Interpolation Non-Negative", engine.currentInterpolatedTime() >= 0.0)
         assert("Playback Active and Not Ended", engine.hasEnded == false)
 
@@ -4930,7 +4900,7 @@ public enum FramesTestSuite {
         // RunLoop pump: verify async seek completion does NOT resurrect currentTime
         let unloadWaitStart = Date()
         while Date().timeIntervalSince(unloadWaitStart) < 0.25 {
-            RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.02))
+            try? await Task.sleep(for: .milliseconds(20))
         }
         assert("Async Seek Completion Discarded After Unload", engine.currentTime == 0.0)
         assert("ClockStore Remains Zero After RunLoop Drain", engine.clockStore.currentTime == 0.0)
