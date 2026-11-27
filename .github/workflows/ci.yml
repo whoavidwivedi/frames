@@ -21,6 +21,8 @@ jobs:
   test-and-build:
     name: Build & Test (macOS Apple Silicon)
     runs-on: macos-15
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
     timeout-minutes: 25
 
     steps:
@@ -68,6 +70,9 @@ jobs:
             -destination "platform=macOS,arch=arm64" -derivedDataPath build/DerivedData \
             ARCHS=arm64 CODE_SIGNING_ALLOWED=NO build
           app="build/DerivedData/Build/Products/Release/frames.app"
+          icon=$(plutil -extract CFBundleIconName raw "$app/Contents/Info.plist")
+          test "$icon" = FramesWordmark
+          test -s "$app/Contents/Resources/$icon.icns"
           codesign --force --sign - "$app"
           version=$(plutil -extract CFBundleShortVersionString raw "$app/Contents/Info.plist")
           bash scripts/package-release.sh "$app" "$version" build/preview
