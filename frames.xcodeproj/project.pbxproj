@@ -7,12 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B820DD5477D249AFA9221D11 /* FramesWordmark.icon in Resources */ = {isa = PBXBuildFile; fileRef = B820DD5477D249AFA9221D12 /* FramesWordmark.icon */; };
 		0842326DC9FC3AE882B174A1 /* framesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63590F9AD633F762940AB2EC /* framesTests.swift */; };
 		550477BE43104176A1CDC2E9 /* IVFDemuxerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BB2B0E27D384E909A33510E /* IVFDemuxerTests.swift */; };
 		7F3E1A2B4C5D6E7F8091A2B4 /* FramesTestSuite.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49CDD2212CF07B838E59513F /* FramesTestSuite.swift */; };
 		A9F73115876E48E794111002 /* GoogleSansFlex.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A9F73115876E48E794111001 /* GoogleSansFlex.ttf */; };
 		A9F73115876E48E794111004 /* GoogleSansFlex-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = A9F73115876E48E794111003 /* GoogleSansFlex-OFL.txt */; };
-		0232F4A238A36D0F37B41026 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 056BD858FB795266DD647D3B /* AppIcon.icns */; };
 		E8C4EF41630A99B17C809543 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8B71FFE2A1D445C057EF475B /* Assets.xcassets */; };
 		BC2316BCF8099781CCA4524C /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 049A20C1FBCCDE23AF9065FF /* ContentView.swift */; };
 		F4DD0012469E6B3B8D47F215 /* AppleSiliconMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F7881793658932658D5AF96 /* AppleSiliconMetrics.swift */; };
@@ -96,6 +96,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		B820DD5477D249AFA9221D12 /* FramesWordmark.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer; path = FramesWordmark.icon; sourceTree = "<group>"; };
 		95633A08AC47E53810D61789 /* framesTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = framesTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		63590F9AD633F762940AB2EC /* framesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = framesTests.swift; sourceTree = "<group>"; };
 		0BB2B0E27D384E909A33510E /* IVFDemuxerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IVFDemuxerTests.swift; sourceTree = "<group>"; };
@@ -230,6 +231,7 @@
 				A9F73115876E48E794111001 /* GoogleSansFlex.ttf */,
 				A9F73115876E48E794111003 /* GoogleSansFlex-OFL.txt */,
 				056BD858FB795266DD647D3B /* AppIcon.icns */,
+				B820DD5477D249AFA9221D12 /* FramesWordmark.icon */,
 				8B71FFE2A1D445C057EF475B /* Assets.xcassets */,
 				049A20C1FBCCDE23AF9065FF /* ContentView.swift */,
 				F1BE500B655BE0A6ED2B2C02 /* Engine */,
@@ -508,7 +510,7 @@
 			files = (
 				A9F73115876E48E794111002 /* GoogleSansFlex.ttf in Resources */,
 				A9F73115876E48E794111004 /* GoogleSansFlex-OFL.txt in Resources */,
-				0232F4A238A36D0F37B41026 /* AppIcon.icns in Resources */,
+				B820DD5477D249AFA9221D11 /* FramesWordmark.icon in Resources */,
 				E8C4EF41630A99B17C809543 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -734,7 +736,7 @@
 		C98AAA349160D5579A8A87CA /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = FramesWordmark;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -765,7 +767,7 @@
 		565556AF09C0EB54A854F587 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = FramesWordmark;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
