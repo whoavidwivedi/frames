@@ -70,8 +70,10 @@ public final class ThemeManager {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            guard let self, self.mode == .system else { return }
-            self.applyAppearance()
+            MainActor.assumeIsolated {
+                guard let self, self.mode == .system else { return }
+                self.applyAppearance()
+            }
         }
     }
 

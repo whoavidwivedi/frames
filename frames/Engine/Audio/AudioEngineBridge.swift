@@ -71,8 +71,8 @@ nonisolated public final class AudioEngineBridge: @unchecked Sendable {
     private func setupAudioEngine() throws {
         audioEngine.attach(playerNode)
         audioEngine.attach(timePitchNode)
-        audioEngine.connect(playerNode, to: timePitchNode, format: outputFormat)
-        audioEngine.connect(timePitchNode, to: audioEngine.mainMixerNode, format: outputFormat)
+        try audioEngine.connectNode(playerNode, to: timePitchNode, format: outputFormat)
+        try audioEngine.connectNode(timePitchNode, to: audioEngine.mainMixerNode, format: outputFormat)
         playerNode.volume = 1.0
         timePitchNode.rate = playbackRate
         timePitchNode.pitch = 0.0
@@ -95,7 +95,12 @@ nonisolated public final class AudioEngineBridge: @unchecked Sendable {
     }
     
     private func startPlayerNode() {
-        playerNode.play()
+        do {
+            try playerNode.playAudio()
+            isPlaying = true
+        } catch {
+            isPlaying = false
+        }
     }
     
     // MARK: - Playback Controls
@@ -109,7 +114,6 @@ nonisolated public final class AudioEngineBridge: @unchecked Sendable {
             try? audioEngine.start()
         }
         startPlayerNode()
-        isPlaying = true
     }
     
     public func pause() {

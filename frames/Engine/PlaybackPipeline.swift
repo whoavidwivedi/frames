@@ -654,19 +654,10 @@ public final class PlaybackPipeline: ObservableObject {
     nonisolated private let mediaGate = NSLock()
 
     // Demuxer Stream End Tracking
-    private var eofLock = os_unfair_lock()
-    private var _isDemuxerEOF: Bool = false
-    public var isDemuxerEOF: Bool {
-        get {
-            os_unfair_lock_lock(&eofLock)
-            defer { os_unfair_lock_unlock(&eofLock) }
-            return _isDemuxerEOF
-        }
-        set {
-            os_unfair_lock_lock(&eofLock)
-            _isDemuxerEOF = newValue
-            os_unfair_lock_unlock(&eofLock)
-        }
+    nonisolated private let demuxerEOF = OSAllocatedUnfairLock(initialState: false)
+    nonisolated public var isDemuxerEOF: Bool {
+        get { demuxerEOF.withLock { $0 } }
+        set { demuxerEOF.withLock { $0 = newValue } }
     }
     
     // Callbacks
@@ -1108,7 +1099,7 @@ public final class PlaybackPipeline: ObservableObject {
         }
     }
 
-    private struct PlaybackSubsystems: @unchecked Sendable {
+    nonisolated private struct PlaybackSubsystems: Sendable {
         let audioEngine: AudioEngineBridge?
         let videoDecoder: VideoToolboxDecoder?
         let demuxer: (any MediaDemuxer)?
@@ -1514,7 +1505,8 @@ public final class PlaybackPipeline: ObservableObject {
             controller?.signalHeadroom()
         }
         
-        feederQueue.async { [weak demuxer] in
+        let demuxerEOF = self.demuxerEOF
+        feederQueue.async { [weak self, weak demuxer] in
             _ = pthread_set_qos_class_np(pthread_self(), QOS_CLASS_UTILITY, 0)
             guard let demuxer = demuxer else { return }
             
@@ -1633,7 +1625,7 @@ public final class PlaybackPipeline: ObservableObject {
                     // momentary network-volume read failure does not end playback.
                     do {
                         guard let packet = try withGate({ try demuxer.nextPacket() }) else {
-                            self.isDemuxerEOF = true
+                            demuxerEOF.withLock { $0 = true }
                             shouldSleepAfterEOF = true
                             return
                         }
@@ -1683,7 +1675,7 @@ public final class PlaybackPipeline: ObservableObject {
                     // Persistent failure: stop retrying the failing read. Fall through
                     // to the EOF drain path so in-flight frames are flushed and
                     // playback ends cleanly instead of spinning on the same error.
-                    self.isDemuxerEOF = true
+                    demuxerEOF.withLock { $0 = true }
                     shouldSleepAfterEOF = true
                 } else {
                     consecutiveTransientErrors = 0

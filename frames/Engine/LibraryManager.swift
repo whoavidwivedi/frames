@@ -68,8 +68,8 @@ final class LibraryDirectoryWatcher {
             queue: queue
         )
 
-        source.setEventHandler { [weak self, queue] in
-            queue.async {
+        source.setEventHandler { [weak self] in
+            Task { @MainActor in
                 self?.scheduleDebouncedChange()
             }
         }

@@ -65,7 +65,7 @@ nonisolated public final class ScrubFrameCache: @unchecked Sendable {
     }
 
     /// Dynamically scales cache capacity based on Apple Silicon Unified Memory tier.
-    public static func deviceScaledCapacity(width: Int, height: Int, memoryGB: Int = AppleSiliconMetrics.shared.physicalMemoryGB) -> Int {
+    public static func deviceScaledCapacity(width: Int, height: Int, memoryGB: Int = Int(ProcessInfo.processInfo.physicalMemory / (1024 * 1024 * 1024))) -> Int {
         let base = recommendedCapacity(width: width, height: height)
         if memoryGB <= 8 {
             return max(4, base / 2)
